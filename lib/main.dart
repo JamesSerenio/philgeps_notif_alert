@@ -70,10 +70,23 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController keywordController = TextEditingController();
 
   List<String> lguList = [
-    'Malitbog',
-    'Libona',
-    'Impasug-ong',
-    'Manolo Fortich',
+    'alubijid',
+    'lagonglong',
+    'balingasag',
+    'villanueva',
+    'salay',
+    'gitagum',
+    'libertad',
+    'initao',
+    'naawan',
+    'laguindingan',
+    'talakag',
+    'libona',
+    'malitbog',
+    'sumilao',
+    'impasugong',
+    'impasug-ong',
+    'baungon',
   ];
 
   List<ProjectPost> posts = [];
