@@ -145,10 +145,11 @@ async function getBidDetails(page, url) {
     };
 
     return {
-      referenceNumber: getValueAfterLabel("Reference Number"),
-      procuringEntity: getValueAfterLabel("Procuring Entity"),
-      title: getValueAfterLabel("Title"),
-      areaOfDelivery: getValueAfterLabel("Area of Delivery"),
+    referenceNumber: getValueAfterLabel("Reference Number"),
+    procuringEntity: getValueAfterLabel("Procuring Entity"),
+    title: getValueAfterLabel("Title"),
+    areaOfDelivery: getValueAfterLabel("Area of Delivery"),
+    classification: getValueAfterLabel("Classification:") || getValueAfterLabel("Classification"),
     };
   });
 }
@@ -204,6 +205,7 @@ async function searchPhilgepsByKeyword(page, keyword) {
     procuringEntity: "",
     title: item.title,
     areaOfDelivery: "",
+    classification: "",
     };
 
     try {
@@ -230,6 +232,7 @@ posts.push({
   procuringEntity: bidDetails.procuringEntity || item.details,
   title: bidDetails.title || item.title,
   areaOfDelivery: cleanAreaOfDelivery,
+  classification: bidDetails.classification || "",
   postingDate,
   closingDate,
   url: fullUrl,
@@ -291,6 +294,7 @@ async function savePostAndNotify(post) {
     reference_number: post.referenceNumber,
     procuring_entity: post.procuringEntity,
     area_of_delivery: post.areaOfDelivery,
+    classification: post.classification,
   };
 
   const { error } = await supabase
