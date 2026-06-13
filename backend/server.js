@@ -37,10 +37,8 @@ const WATCH_LGUS = [
   "baungon",
 ];
 
-const BASE_URL = "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/";
-const SEARCH_URL =
-  BASE_URL +
-  "SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
+const PHILGEPS_URL =
+  "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -58,15 +56,10 @@ function cleanText(text = "") {
   return String(text).replace(/\s+/g, " ").trim();
 }
 
-function sanitizeData(text = "") {
-  return String(text).replace(/[^\x00-\xFF]/g, "");
-}
-
 function parsePhilgepsDate(value) {
   if (!value) return null;
 
-  const text = cleanText(value);
-  const match = text.match(
+  const match = cleanText(value).match(
     /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i
   );
 
@@ -93,12 +86,7 @@ function isStillActive(closingDate) {
 
 function isPostedRecently(postingDate) {
   if (!postingDate) return false;
-
-  const posted = new Date(postingDate).getTime();
-  const now = Date.now();
-  const oneDay = 24 * 60 * 60 * 1000;
-
-  return now - posted <= oneDay;
+  return Date.now() - new Date(postingDate).getTime() <= 24 * 60 * 60 * 1000;
 }
 
 function extractRefId(url = "") {
@@ -106,10 +94,16 @@ function extractRefId(url = "") {
   return match ? match[1] : "";
 }
 
+function safeFirebaseData(text = "") {
+  return String(text).replace(/[^\x00-\xFF]/g, "");
+}
+
 async function fetchHtml(url) {
   const response = await axios.get(url, {
     headers: {
-      "User-Agent": "Mozilla/5.0 PhilGEPS Notif Alert",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      Accept: "text/html",
     },
     timeout: 30000,
   });
@@ -121,64 +115,62 @@ function parseSearchResults(html) {
   const $ = cheerio.load(html);
   const posts = [];
 
-  $("#dgSearchResult tr.GridItem, #dgSearchResult tr.GridAltItem").each(
-    (_, row) => {
-      const cells = $(row).find("td");
+  $("tr").each((_, row) => {
+    const cells = $(row).find("td");
 
-      const publishDateText = cleanText($(cells[1]).text());
-      const closingDateText = cleanText($(cells[2]).text());
+    if (cells.length < 4) return;
 
-      const titleCell = $(cells[3]);
-      const titleLink = titleCell.find("a").first();
+    const no = cleanText($(cells[0]).text());
+    if (!/^\d+$/.test(no)) return;
 
-      const href = titleLink.attr("href");
-      const title = cleanText(titleLink.text());
-      const detailsText = cleanText(titleCell.text());
+    const postingDateText = cleanText($(cells[1]).text());
+    const closingDateText = cleanText($(cells[2]).text());
 
-      if (!href || !title) return;
+    const titleCell = $(cells[3]);
+    const titleLink = titleCell.find("a[href*='SplashBidNoticeAbstractUI']").first();
 
-      const matchedLgu = WATCH_LGUS.find((lgu) =>
-        normalize(detailsText).includes(normalize(lgu))
-      );
+    const href = titleLink.attr("href");
+    const title = cleanText(titleLink.text());
+    const detailsText = cleanText(titleCell.text());
 
-      if (!matchedLgu) return;
+    if (!href || !title) return;
 
-      const fullUrl = new URL(href, SEARCH_URL).toString();
-      const refId = extractRefId(fullUrl);
+    const fullUrl = new URL(href, PHILGEPS_URL).toString();
+    const refId = extractRefId(fullUrl);
 
-      const postingDate = parsePhilgepsDate(publishDateText);
-      const closingDate = parsePhilgepsDate(closingDateText);
+    const postingDate = parsePhilgepsDate(postingDateText);
+    const closingDate = parsePhilgepsDate(closingDateText);
 
-      if (!isStillActive(closingDate)) return;
+    if (!isStillActive(closingDate)) return;
 
-      posts.push({
-        id: refId || `${matchedLgu}-${title}`,
-        referenceNumber: refId,
-        lgu: matchedLgu,
-        procuringEntity: detailsText,
-        title,
-        abc: "",
-        postingDate,
-        closingDate,
-        url: fullUrl,
-      });
-    }
-  );
+    const matchedLgu =
+      WATCH_LGUS.find((lgu) => normalize(detailsText).includes(normalize(lgu))) ||
+      "others";
+
+    posts.push({
+      id: refId || `${no}-${title}`,
+      referenceNumber: refId,
+      lgu: matchedLgu,
+      procuringEntity: detailsText,
+      title,
+      abc: "",
+      postingDate,
+      closingDate,
+      url: fullUrl,
+    });
+  });
 
   return posts;
 }
 
 async function getDeviceTokens() {
   const { data, error } = await supabase.from("device_tokens").select("token");
-
   if (error) return [];
-
   return (data || []).map((item) => item.token).filter(Boolean);
 }
 
 async function sendNotification(post) {
   const tokens = await getDeviceTokens();
-
   if (tokens.length === 0) return;
 
   await admin.messaging().sendEachForMulticast({
@@ -190,8 +182,8 @@ async function sendNotification(post) {
     data: {
       url: String(post.url || "https://notices.philgeps.gov.ph/"),
       postId: String(post.id || ""),
-      lgu: sanitizeData(post.lgu || ""),
-      title: sanitizeData(post.title || ""),
+      lgu: safeFirebaseData(post.lgu || ""),
+      title: safeFirebaseData(post.title || ""),
     },
   });
 
@@ -230,32 +222,12 @@ async function savePostAndNotify(post) {
 }
 
 async function scrapePhilgeps() {
-  const posts = [];
-  const maxPages = 30;
+  const html = await fetchHtml(PHILGEPS_URL);
+  const posts = parseSearchResults(html);
 
-  for (let page = 1; page <= maxPages; page++) {
-    try {
-      const url =
-        `${SEARCH_URL}&Page=${page}`;
+  console.log(`Scraped ${posts.length} active PhilGEPS post(s).`);
 
-      const html = await fetchHtml(url);
-      const pagePosts = parseSearchResults(html);
-
-      console.log(`Page ${page}: scraped ${pagePosts.length} matching post(s)`);
-
-      posts.push(...pagePosts);
-    } catch (error) {
-      console.error(`Page ${page} scrape failed:`, error.message);
-    }
-  }
-
-  const uniquePosts = Array.from(
-    new Map(posts.map((post) => [post.id, post])).values()
-  );
-
-  console.log(`Total matching active posts: ${uniquePosts.length}`);
-
-  return uniquePosts;
+  return posts;
 }
 
 async function runChecker() {
@@ -284,9 +256,7 @@ app.all("/check", async (req, res) => {
       .order("closing_date", { ascending: true });
 
     if (error) {
-      return res.status(500).json({
-        error: error.message,
-      });
+      return res.status(500).json({ error: error.message });
     }
 
     const items = (data || []).map((post) => ({
@@ -329,9 +299,7 @@ app.post("/send-test-notification", async (req, res) => {
     },
   });
 
-  res.json({
-    message: "Test notification sent",
-  });
+  res.json({ message: "Test notification sent" });
 });
 
 cron.schedule("*/5 * * * *", async () => {
