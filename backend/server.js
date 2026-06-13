@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
-import axios from "axios";
-import * as cheerio from "cheerio";
+import { chromium } from "playwright";
 import cron from "node-cron";
 import admin from "firebase-admin";
 import { createClient } from "@supabase/supabase-js";
@@ -40,7 +39,7 @@ const WATCH_LGUS = [
 const BASE_URL = "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/";
 const SEARCH_URL =
   BASE_URL +
-  "SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
+  "SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&DirectFrom=OpenOpp&SearchDirectFrom=SearchOpenOpp";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -104,92 +103,64 @@ function extractRefId(url = "") {
   return match ? match[1] : "";
 }
 
-async function fetchSearchByKeyword(keyword) {
-  const first = await axios.get(SEARCH_URL, {
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "text/html",
-    },
-    timeout: 30000,
+async function searchPhilgepsByKeyword(page, keyword) {
+  await page.goto(SEARCH_URL, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
   });
 
-  const cookies = (first.headers["set-cookie"] || [])
-    .map((cookie) => cookie.split(";")[0])
-    .join("; ");
+  await page.waitForSelector("#txtKeyword", { timeout: 30000 });
 
-  const $ = cheerio.load(first.data);
-  const payload = new URLSearchParams();
+  await page.fill("#txtKeyword", keyword);
+  await page.click("#btnSearch");
 
-  $("input").each((_, el) => {
-    const name = $(el).attr("name");
-    const value = $(el).attr("value") || "";
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForTimeout(1500);
 
-    if (name) {
-      payload.append(name, value);
+  const rows = await page.$$eval(
+    "a[href*='SplashBidNoticeAbstractUI.aspx']",
+    (links) => {
+      return links.map((link) => {
+        const row = link.closest("tr");
+        const cells = row ? Array.from(row.querySelectorAll("td")) : [];
+
+        return {
+          href: link.getAttribute("href"),
+          title: link.textContent?.replace(/\s+/g, " ").trim() || "",
+          postingDate: cells[1]?.textContent?.replace(/\s+/g, " ").trim() || "",
+          closingDate: cells[2]?.textContent?.replace(/\s+/g, " ").trim() || "",
+          details: cells[3]?.textContent?.replace(/\s+/g, " ").trim() || "",
+        };
+      });
     }
-  });
+  );
 
-  payload.set("txtSearch", keyword);
-  payload.set("btnSearch", "Search");
-
-  const second = await axios.post(SEARCH_URL, payload.toString(), {
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "text/html",
-      Referer: SEARCH_URL,
-      Cookie: cookies,
-    },
-    timeout: 30000,
-  });
-
-  return second.data;
-}
-
-function parseSearchResults(html, keyword) {
-  const $ = cheerio.load(html);
   const posts = [];
 
-  $("a[href*='SplashBidNoticeAbstractUI.aspx']").each((_, el) => {
-    const link = $(el);
-    const href = link.attr("href");
-    const title = cleanText(link.text());
+  for (const item of rows) {
+    if (!item.href || !item.title) continue;
 
-    if (!href || !title) return;
+    const postingDate = parsePhilgepsDate(item.postingDate);
+    const closingDate = parsePhilgepsDate(item.closingDate);
 
-    const row = link.closest("tr");
-    const cells = row.find("td");
+    if (!isStillActive(closingDate)) continue;
 
-    const postingDateText = cleanText($(cells[1]).text());
-    const closingDateText = cleanText($(cells[2]).text());
-    const detailsText = cleanText($(cells[3]).text());
-
-    const combined = normalize(`${title} ${detailsText}`);
-    const key = normalize(keyword);
-
-    if (!combined.includes(key)) return;
-
-    const postingDate = parsePhilgepsDate(postingDateText);
-    const closingDate = parsePhilgepsDate(closingDateText);
-
-    if (!isStillActive(closingDate)) return;
-
-    const fullUrl = new URL(href, SEARCH_URL).toString();
+    const fullUrl = new URL(item.href, SEARCH_URL).toString();
     const refId = extractRefId(fullUrl);
     const lgu = canonicalLgu(keyword);
 
     posts.push({
-      id: refId || `${lgu}-${title}`,
+      id: refId || `${lgu}-${item.title}`,
       referenceNumber: refId,
       lgu,
-      procuringEntity: detailsText,
-      title,
+      procuringEntity: item.details,
+      title: item.title,
       abc: "",
       postingDate,
       closingDate,
       url: fullUrl,
     });
-  });
+  }
 
   return posts;
 }
@@ -265,10 +236,16 @@ async function savePostAndNotify(post) {
 async function scrapePhilgeps() {
   const allPosts = [];
 
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+
+  const page = await browser.newPage();
+
   for (const lgu of WATCH_LGUS) {
     try {
-      const html = await fetchSearchByKeyword(lgu);
-      const posts = parseSearchResults(html, lgu);
+      const posts = await searchPhilgepsByKeyword(page, lgu);
 
       console.log(`${lgu}: scraped ${posts.length} active post(s)`);
 
@@ -277,6 +254,8 @@ async function scrapePhilgeps() {
       console.error(`${lgu} scrape failed: ${error.message}`);
     }
   }
+
+  await browser.close();
 
   const uniquePosts = Array.from(
     new Map(allPosts.map((post) => [post.id, post])).values()
