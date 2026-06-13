@@ -250,17 +250,23 @@ async function getDeviceTokens() {
   return (data || []).map((item) => item.token).filter(Boolean);
 }
 
-async function sendNotification(post) {
+async function sendNotification(post, type = "new") {
   const tokens = await getDeviceTokens();
 
   if (tokens.length === 0) return;
 
 await admin.messaging().sendEachForMulticast({
   tokens,
-  notification: {
-    title: `${post.lgu} posted in PhilGEPS`,
-    body: post.title,
-  },
+    notification: {
+    title:
+        type === "deadline"
+        ? `Deadline Alert: ${post.lgu}`
+        : `${post.lgu} posted in PhilGEPS`,
+    body:
+        type === "deadline"
+        ? `${post.title} is near deadline.`
+        : post.title,
+    },
   data: {
     url: String(post.url || "https://notices.philgeps.gov.ph/"),
     postId: String(post.id || ""),
@@ -278,11 +284,23 @@ await admin.messaging().sendEachForMulticast({
   },
 });
 
-  await supabase.from("notification_logs").insert({
-    post_id: post.id,
-    title: `${post.lgu} posted in PhilGEPS`,
-    message: post.title,
-  });
+    await supabase.from("notification_logs").upsert(
+    {
+        post_id: post.id,
+        lgu: post.lgu,
+        title: post.title,
+        posting_date: post.postingDate,
+        closing_date: post.closingDate,
+        status: type,
+        classification: post.classification,
+        procuring_entity: post.procuringEntity,
+        url: post.url,
+        notification_type: type,
+    },
+    {
+        onConflict: "post_id,notification_type",
+    }
+    );
 }
 
 async function savePostAndNotify(post) {
@@ -316,7 +334,7 @@ async function savePostAndNotify(post) {
   }
 
   if (!existing && isPostedRecently(post.postingDate)) {
-    await sendNotification(post);
+    await sendNotification(post, "new");
   }
 }
 
@@ -366,6 +384,47 @@ async function deleteExpiredPosts() {
   }
 }
 
+async function sendDeadlineReminders() {
+  const now = new Date();
+  const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const { data, error } = await supabase
+    .from("philgeps_posts")
+    .select("*")
+    .gte("closing_date", now.toISOString())
+    .lte("closing_date", next24Hours.toISOString());
+
+  if (error) {
+    console.error("Deadline reminder fetch failed:", error.message);
+    return;
+  }
+
+  for (const item of data || []) {
+    const { data: existingLog } = await supabase
+      .from("notification_logs")
+      .select("id")
+      .eq("post_id", item.id)
+      .eq("notification_type", "deadline")
+      .maybeSingle();
+
+    if (existingLog) continue;
+
+    await sendNotification(
+      {
+        id: item.id,
+        lgu: item.lgu,
+        title: item.title,
+        postingDate: item.posting_date,
+        closingDate: item.closing_date,
+        url: item.url,
+        classification: item.classification,
+        procuringEntity: item.procuring_entity,
+      },
+      "deadline"
+    );
+  }
+}
+
 async function runChecker() {
   await deleteExpiredPosts();
 
@@ -374,6 +433,8 @@ async function runChecker() {
   for (const post of posts) {
     await savePostAndNotify(post);
   }
+
+  await sendDeadlineReminders();
 
   return posts;
 }
@@ -418,16 +479,25 @@ app.all("/send-test-notification", async (req, res) => {
     return res.json({ message: "No device tokens found" });
   }
 
-  await admin.messaging().sendEachForMulticast({
+    await admin.messaging().sendEachForMulticast({
     tokens,
     notification: {
-      title: "PhilGEPS Notif & Alert",
-      body: "Test notification working. Tap to open PhilGEPS.",
+        title: "PhilGEPS Notif & Alert",
+        body: "Test notification working. Tap to open PhilGEPS.",
     },
     data: {
-      url: "https://notices.philgeps.gov.ph/",
+        url: "https://notices.philgeps.gov.ph/",
     },
-  });
+    webpush: {
+        notification: {
+        icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
+        badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
+        },
+        fcmOptions: {
+        link: "https://notices.philgeps.gov.ph/",
+        },
+    },
+    });
 
   res.json({
     message: "Test notification sent",

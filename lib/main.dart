@@ -13,6 +13,15 @@ import 'firebase_options.dart';
 import 'styles/app_styles.dart';
 import 'utils/supabase_client.dart';
 
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  debugPrint('Background notification: ${message.notification?.title}');
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -25,8 +34,19 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
   await NotificationService.initialize();
 
+  FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+    await SupabaseConfig.client.from('device_tokens').upsert(
+      {
+        'token': token,
+        'platform': 'web',
+      },
+      onConflict: 'token',
+    );
+  });
   final token = await FirebaseMessaging.instance.getToken(
     vapidKey:
         'BKH3mkFzPUhN06q8LmpgXdsXwgfFY2coyzo1qBs2IH2qH_GdfP2VBLMgQRgpOLBtX2gkYp6OtP-qQbxjvTIRuJE',
@@ -41,11 +61,14 @@ class NotificationService {
   static Future<void> initialize() async {
     final messaging = FirebaseMessaging.instance;
 
-    await messaging.requestPermission(
+    final settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
+      provisional: false,
     );
+
+    debugPrint('Notification permission: ${settings.authorizationStatus}');
 
     final token = await messaging.getToken(
       vapidKey:
@@ -70,6 +93,33 @@ class NotificationService {
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       debugPrint('Foreground notification: ${message.notification?.title}');
+
+      final title = message.notification?.title ?? 'PhilGEPS Notif & Alert';
+      final body = message.notification?.body ?? 'New PhilGEPS post detected.';
+      final url = message.data['url'] ?? 'https://notices.philgeps.gov.ph/';
+
+      showDialog(
+        context: navigatorKey.currentContext!,
+        builder: (_) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(navigatorKey.currentContext!);
+              },
+              child: const Text('Close'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(navigatorKey.currentContext!);
+                openPhilgepsLink(url);
+              },
+              child: const Text('Open'),
+            ),
+          ],
+        ),
+      );
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
@@ -103,12 +153,15 @@ Future<void> openPhilgepsLink(String url) async {
   }
 }
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class PhilgepsAlertApp extends StatelessWidget {
   const PhilgepsAlertApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'PhilGEPS Notif & Alert',
       debugShowCheckedModeBanner: false,
       theme: AppStyles.lightTheme,
