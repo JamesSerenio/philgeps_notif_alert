@@ -63,43 +63,30 @@ function sanitizeData(text = "") {
 }
 
 function canonicalLgu(lgu) {
-  if (lgu === "impasug-ong") return "impasugong";
-  return lgu;
+  return lgu === "impasug-ong" ? "impasugong" : lgu;
 }
 
 function parsePhilgepsDate(value) {
-  if (!value) return null;
-
   const text = cleanText(value);
 
-  const withTime = text.match(
-    /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i
+  const match = text.match(
+    /(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})\s*(AM|PM))?/i
   );
 
-  if (withTime) {
-    let [, dd, mm, yyyy, hour, minute, ampm] = withTime;
+  if (!match) return null;
 
-    dd = Number(dd);
-    mm = Number(mm);
-    yyyy = Number(yyyy);
-    hour = Number(hour);
-    minute = Number(minute);
+  let [, dd, mm, yyyy, hour = "12", minute = "00", ampm = "AM"] = match;
 
-    if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
-    if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
+  dd = Number(dd);
+  mm = Number(mm);
+  yyyy = Number(yyyy);
+  hour = Number(hour);
+  minute = Number(minute);
 
-    return new Date(yyyy, mm - 1, dd, hour, minute).toISOString();
-  }
+  if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
+  if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
 
-  const dateOnly = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-
-  if (dateOnly) {
-    let [, dd, mm, yyyy] = dateOnly;
-
-    return new Date(Number(yyyy), Number(mm) - 1, Number(dd)).toISOString();
-  }
-
-  return null;
+  return new Date(yyyy, mm - 1, dd, hour, minute).toISOString();
 }
 
 function isStillActive(closingDate) {
@@ -117,36 +104,37 @@ function extractRefId(url = "") {
   return match ? match[1] : "";
 }
 
-async function fetchSearchPage(keyword) {
-  const firstResponse = await axios.get(SEARCH_URL, {
+async function fetchSearchByKeyword(keyword) {
+  const first = await axios.get(SEARCH_URL, {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      "User-Agent": "Mozilla/5.0",
       Accept: "text/html",
     },
     timeout: 30000,
   });
 
-  const cookies = (firstResponse.headers["set-cookie"] || [])
+  const cookies = (first.headers["set-cookie"] || [])
     .map((cookie) => cookie.split(";")[0])
     .join("; ");
 
-  const $ = cheerio.load(firstResponse.data);
+  const $ = cheerio.load(first.data);
   const payload = new URLSearchParams();
 
   $("input").each((_, el) => {
     const name = $(el).attr("name");
     const value = $(el).attr("value") || "";
-    if (name) payload.append(name, value);
+
+    if (name) {
+      payload.append(name, value);
+    }
   });
 
   payload.set("txtSearch", keyword);
   payload.set("btnSearch", "Search");
 
-  const response = await axios.post(SEARCH_URL, payload.toString(), {
+  const second = await axios.post(SEARCH_URL, payload.toString(), {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      "User-Agent": "Mozilla/5.0",
       "Content-Type": "application/x-www-form-urlencoded",
       Accept: "text/html",
       Referer: SEARCH_URL,
@@ -155,32 +143,31 @@ async function fetchSearchPage(keyword) {
     timeout: 30000,
   });
 
-  return response.data;
+  return second.data;
 }
 
 function parseSearchResults(html, keyword) {
   const $ = cheerio.load(html);
   const posts = [];
-  const lguName = canonicalLgu(keyword);
 
-  $("a[href*='SplashBidNoticeAbstractUI.aspx']").each((_, link) => {
-    const titleLink = $(link);
-    const href = titleLink.attr("href");
-    const title = cleanText(titleLink.text());
+  $("a[href*='SplashBidNoticeAbstractUI.aspx']").each((_, el) => {
+    const link = $(el);
+    const href = link.attr("href");
+    const title = cleanText(link.text());
 
     if (!href || !title) return;
 
-    const row = titleLink.closest("tr");
+    const row = link.closest("tr");
     const cells = row.find("td");
 
     const postingDateText = cleanText($(cells[1]).text());
     const closingDateText = cleanText($(cells[2]).text());
     const detailsText = cleanText($(cells[3]).text());
 
-    const combinedText = normalize(`${title} ${detailsText}`);
-    const keywordText = normalize(keyword);
+    const combined = normalize(`${title} ${detailsText}`);
+    const key = normalize(keyword);
 
-    if (!combinedText.includes(keywordText)) return;
+    if (!combined.includes(key)) return;
 
     const postingDate = parsePhilgepsDate(postingDateText);
     const closingDate = parsePhilgepsDate(closingDateText);
@@ -189,11 +176,12 @@ function parseSearchResults(html, keyword) {
 
     const fullUrl = new URL(href, SEARCH_URL).toString();
     const refId = extractRefId(fullUrl);
+    const lgu = canonicalLgu(keyword);
 
     posts.push({
-      id: refId || `${lguName}-${title}`,
+      id: refId || `${lgu}-${title}`,
       referenceNumber: refId,
-      lgu: lguName,
+      lgu,
       procuringEntity: detailsText,
       title,
       abc: "",
@@ -265,7 +253,7 @@ async function savePostAndNotify(post) {
     .upsert(row, { onConflict: "id" });
 
   if (error) {
-    console.error("Supabase insert/update error:", error.message);
+    console.error(error.message);
     return;
   }
 
@@ -279,14 +267,14 @@ async function scrapePhilgeps() {
 
   for (const lgu of WATCH_LGUS) {
     try {
-      const html = await fetchSearchPage(lgu);
+      const html = await fetchSearchByKeyword(lgu);
       const posts = parseSearchResults(html, lgu);
 
       console.log(`${lgu}: scraped ${posts.length} active post(s)`);
 
       allPosts.push(...posts);
     } catch (error) {
-      console.error(`${lgu} scrape failed:`, error.message);
+      console.error(`${lgu} scrape failed: ${error.message}`);
     }
   }
 
@@ -322,6 +310,7 @@ app.all("/check", async (req, res) => {
     const { data, error } = await supabase
       .from("philgeps_posts")
       .select("*")
+      .in("lgu", WATCH_LGUS.map(canonicalLgu))
       .order("closing_date", { ascending: true });
 
     if (error) {
@@ -330,20 +319,9 @@ app.all("/check", async (req, res) => {
       });
     }
 
-    const items = (data || []).map((post) => ({
-      id: post.id,
-      lgu: post.lgu,
-      title: post.title,
-      abc: post.abc,
-      postingDate: post.posting_date,
-      closingDate: post.closing_date,
-      url: post.url,
-      status: post.status,
-    }));
-
     res.json({
       checked: posts.length,
-      items,
+      items: data || [],
     });
   } catch (error) {
     res.status(500).json({
