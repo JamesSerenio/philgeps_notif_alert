@@ -124,6 +124,7 @@ class ProjectPost {
   final String referenceNumber;
   final String procuringEntity;
   final String areaOfDelivery;
+  final String classification;
   final String closingDate;
   final String postingDate;
   final String url;
@@ -138,6 +139,7 @@ class ProjectPost {
     required this.referenceNumber,
     required this.procuringEntity,
     required this.areaOfDelivery,
+    required this.classification,
   });
 
   factory ProjectPost.fromJson(Map<String, dynamic> json) {
@@ -154,6 +156,7 @@ class ProjectPost {
       areaOfDelivery: json['area_of_delivery']?.toString() ??
           json['areaOfDelivery']?.toString() ??
           '',
+      classification: json['classification']?.toString() ?? '',
       closingDate: json['closingDate']?.toString() ??
           json['closing_date']?.toString() ??
           '',
@@ -213,6 +216,7 @@ ${post.title}
 ${post.referenceNumber}
 ${post.procuringEntity}
 ${post.areaOfDelivery}
+${post.classification}
 ${post.postingDate}
 ${post.closingDate}
 ${post.url}
@@ -261,6 +265,7 @@ ${post.url}
           referenceNumber: item['reference_number']?.toString() ?? '',
           procuringEntity: item['procuring_entity']?.toString() ?? '',
           areaOfDelivery: item['area_of_delivery']?.toString() ?? '',
+          classification: item['classification']?.toString() ?? '',
           postingDate: item['posting_date']?.toString() ?? '',
           closingDate: item['closing_date']?.toString() ?? '',
           url: item['url']?.toString() ?? '',
@@ -705,7 +710,7 @@ ${post.url}
             icon: Icons.tune_rounded,
             title: 'Keyword Filter',
             subtitle:
-                'Optional filters for CCTV, LED Wall, Solar, Construction',
+                'Search by LGU, Title, Reference No., Procuring Entity, Area, Classification',
           ),
           const SizedBox(height: 16),
           TextField(
@@ -716,7 +721,7 @@ ${post.url}
               setState(() {});
             },
             decoration: const InputDecoration(
-              hintText: 'Example: CCTV, LED Wall, Solar',
+              hintText: 'Search CCTV, LED Wall, Solar, LGU, Classification...',
               prefixIcon: Icon(Icons.search_rounded),
             ),
           ),
@@ -839,6 +844,10 @@ ${post.url}
             infoLine(
               Icons.place_rounded,
               'Area of Delivery: ${post.areaOfDelivery}',
+            ),
+            infoLine(
+              Icons.category_rounded,
+              'Classification: ${post.classification}',
             ),
             infoLine(
               Icons.calendar_month_rounded,
