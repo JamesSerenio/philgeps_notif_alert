@@ -39,7 +39,8 @@ const WATCH_LGUS = [
 
 const BASE_URL = "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/";
 const SEARCH_URL =
-  BASE_URL + "SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
+  BASE_URL +
+  "SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -50,7 +51,7 @@ if (!admin.apps.length) {
 }
 
 function normalize(text = "") {
-  return text.toLowerCase().replace(/\s+/g, " ").trim();
+  return String(text).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function cleanText(text = "") {
@@ -105,28 +106,10 @@ function extractRefId(url = "") {
   return match ? match[1] : "";
 }
 
-function getHiddenFields($) {
-  const fields = {};
-
-  $("input[type='hidden']").each((_, el) => {
-    const name = $(el).attr("name");
-    const value = $(el).attr("value") || "";
-
-    if (name) fields[name] = value;
-  });
-
-  return fields;
-}
-
-async function fetchHtml(url, options = {}) {
-  const response = await axios({
-    url,
-    method: options.method || "GET",
-    data: options.data,
+async function fetchHtml(url) {
+  const response = await axios.get(url, {
     headers: {
       "User-Agent": "Mozilla/5.0 PhilGEPS Notif Alert",
-      "Content-Type": "application/x-www-form-urlencoded",
-      ...options.headers,
     },
     timeout: 30000,
   });
@@ -134,32 +117,7 @@ async function fetchHtml(url, options = {}) {
   return response.data;
 }
 
-async function searchPhilgepsByKeyword(keyword) {
-  const firstHtml = await fetchHtml(SEARCH_URL);
-  const $first = cheerio.load(firstHtml);
-  const hiddenFields = getHiddenFields($first);
-
-  const payload = new URLSearchParams();
-
-  Object.entries(hiddenFields).forEach(([key, value]) => {
-    payload.append(key, value);
-  });
-
-  payload.set("txtSearch", keyword);
-  payload.set("btnSearch", "Search");
-
-  const html = await fetchHtml(SEARCH_URL, {
-    method: "POST",
-    data: payload.toString(),
-    headers: {
-      Referer: SEARCH_URL,
-    },
-  });
-
-  return html;
-}
-
-function parseSearchResults(html, keyword) {
+function parseSearchResults(html) {
   const $ = cheerio.load(html);
   const posts = [];
 
@@ -179,6 +137,12 @@ function parseSearchResults(html, keyword) {
 
       if (!href || !title) return;
 
+      const matchedLgu = WATCH_LGUS.find((lgu) =>
+        normalize(detailsText).includes(normalize(lgu))
+      );
+
+      if (!matchedLgu) return;
+
       const fullUrl = new URL(href, SEARCH_URL).toString();
       const refId = extractRefId(fullUrl);
 
@@ -187,18 +151,10 @@ function parseSearchResults(html, keyword) {
 
       if (!isStillActive(closingDate)) return;
 
-      const matchedLgu = WATCH_LGUS.find((lgu) =>
-        normalize(detailsText).includes(normalize(lgu))
-      );
-
-      if (!matchedLgu && !normalize(detailsText).includes(normalize(keyword))) {
-        return;
-      }
-
       posts.push({
-        id: refId || `${keyword}-${title}`,
+        id: refId || `${matchedLgu}-${title}`,
         referenceNumber: refId,
-        lgu: matchedLgu || keyword,
+        lgu: matchedLgu,
         procuringEntity: detailsText,
         title,
         abc: "",
@@ -280,10 +236,10 @@ async function scrapePhilgeps() {
   for (let page = 1; page <= maxPages; page++) {
     try {
       const url =
-        `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3&Page=${page}`;
+        `${SEARCH_URL}&Page=${page}`;
 
       const html = await fetchHtml(url);
-      const pagePosts = parseSearchResults(html, "all");
+      const pagePosts = parseSearchResults(html);
 
       console.log(`Page ${page}: scraped ${pagePosts.length} matching post(s)`);
 
@@ -302,6 +258,16 @@ async function scrapePhilgeps() {
   return uniquePosts;
 }
 
+async function runChecker() {
+  const posts = await scrapePhilgeps();
+
+  for (const post of posts) {
+    await savePostAndNotify(post);
+  }
+
+  return posts;
+}
+
 app.get("/", (req, res) => {
   res.json({
     message: "PhilGEPS Notif & Alert backend running",
@@ -318,7 +284,6 @@ app.all("/check", async (req, res) => {
       .order("closing_date", { ascending: true });
 
     if (error) {
-      console.error(error);
       return res.status(500).json({
         error: error.message,
       });
