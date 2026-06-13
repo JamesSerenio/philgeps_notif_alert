@@ -255,19 +255,28 @@ async function sendNotification(post) {
 
   if (tokens.length === 0) return;
 
-  await admin.messaging().sendEachForMulticast({
-    tokens,
+await admin.messaging().sendEachForMulticast({
+  tokens,
+  notification: {
+    title: `${post.lgu} posted in PhilGEPS`,
+    body: post.title,
+  },
+  data: {
+    url: String(post.url || "https://notices.philgeps.gov.ph/"),
+    postId: String(post.id || ""),
+    lgu: sanitizeData(post.lgu || ""),
+    title: sanitizeData(post.title || ""),
+  },
+  webpush: {
     notification: {
-      title: `${post.lgu} posted in PhilGEPS`,
-      body: post.title,
+      icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
+      badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
     },
-    data: {
-      url: String(post.url || "https://notices.philgeps.gov.ph/"),
-      postId: String(post.id || ""),
-      lgu: sanitizeData(post.lgu || ""),
-      title: sanitizeData(post.title || ""),
+    fcmOptions: {
+      link: String(post.url || "https://notices.philgeps.gov.ph/"),
     },
-  });
+  },
+});
 
   await supabase.from("notification_logs").insert({
     post_id: post.id,
