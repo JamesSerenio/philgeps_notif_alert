@@ -411,7 +411,7 @@ app.all("/check", async (req, res) => {
   }
 });
 
-app.post("/send-test-notification", async (req, res) => {
+app.all("/send-test-notification", async (req, res) => {
   const tokens = await getDeviceTokens();
 
   if (tokens.length === 0) {
