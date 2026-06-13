@@ -255,7 +255,7 @@ async function sendNotification(post, type = "new") {
 
   if (tokens.length === 0) return;
 
-await admin.messaging().sendEachForMulticast({
+const response = await admin.messaging().sendEachForMulticast({
   tokens,
     notification: {
     title:
@@ -283,6 +283,20 @@ await admin.messaging().sendEachForMulticast({
     },
   },
 });
+
+     console.log("FCM success:", response.successCount);
+  console.log("FCM failed:", response.failureCount);
+
+  response.responses.forEach((result, index) => {
+    if (!result.success) {
+      console.error(
+        "FCM token failed:",
+        index,
+        result.error?.code,
+        result.error?.message
+      );
+    }
+  });
 
     await supabase.from("notification_logs").upsert(
     {
@@ -479,7 +493,7 @@ app.all("/send-test-notification", async (req, res) => {
     return res.json({ message: "No device tokens found" });
   }
 
-    await admin.messaging().sendEachForMulticast({
+    const response = await admin.messaging().sendEachForMulticast({
     tokens,
     notification: {
         title: "PhilGEPS Notif & Alert",
@@ -499,8 +513,24 @@ app.all("/send-test-notification", async (req, res) => {
     },
     });
 
+  console.log("TEST FCM success:", response.successCount);
+  console.log("TEST FCM failed:", response.failureCount);
+
+  response.responses.forEach((result, index) => {
+    if (!result.success) {
+      console.error(
+        "TEST FCM token failed:",
+        index,
+        result.error?.code,
+        result.error?.message
+      );
+    }
+  });
+
   res.json({
     message: "Test notification sent",
+    success: response.successCount,
+    failed: response.failureCount,
   });
 });
 
