@@ -199,12 +199,19 @@ app.all("/check", async (req, res) => {
   try {
     const posts = await runChecker();
 
-    const { data } = await supabase
-      .from("philgeps_posts")
-      .select("*")
-      .order("closing_date", { ascending: true });
+const { data, error } = await supabase
+  .from("philgeps_posts")
+  .select("*")
+  .order("closing_date", { ascending: true });
 
-    const items = data.map((post) => ({
+if (error) {
+  console.error(error);
+  return res.status(500).json({
+    error: error.message,
+  });
+}
+
+const items = (data || []).map((post) => ({
       id: post.id,
       lgu: post.lgu,
       title: post.title,
