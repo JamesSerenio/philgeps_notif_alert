@@ -53,10 +53,19 @@ class NotificationService {
     );
 
     if (token != null) {
-      await SupabaseConfig.client.from('device_tokens').upsert({
-        'token': token,
-        'platform': 'web',
-      });
+      try {
+        await SupabaseConfig.client.from('device_tokens').upsert(
+          {
+            'token': token,
+            'platform': 'web',
+          },
+          onConflict: 'token',
+        );
+
+        debugPrint('FCM token saved to Supabase.');
+      } catch (e) {
+        debugPrint('Token already saved or Supabase token save error: $e');
+      }
     }
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
