@@ -274,32 +274,38 @@ async function savePostAndNotify(post) {
 }
 
 async function scrapePhilgeps() {
-  const posts = [];
-  const maxPages = 30;
+  const allPosts = [];
 
-  for (let page = 1; page <= maxPages; page++) {
+  for (const lgu of WATCH_LGUS) {
     try {
-      const url =
-        `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3&Page=${page}`;
+      const html = await searchPhilgepsByKeyword(lgu);
+      const posts = parseSearchResults(html, lgu);
 
-      const html = await fetchHtml(url);
-      const pagePosts = parseSearchResults(html, "all");
+      console.log(`${lgu}: scraped ${posts.length} active post(s)`);
 
-      console.log(`Page ${page}: scraped ${pagePosts.length} matching post(s)`);
-
-      posts.push(...pagePosts);
+      allPosts.push(...posts);
     } catch (error) {
-      console.error(`Page ${page} scrape failed:`, error.message);
+      console.error(`${lgu} scrape failed:`, error.message);
     }
   }
 
   const uniquePosts = Array.from(
-    new Map(posts.map((post) => [post.id, post])).values()
+    new Map(allPosts.map((post) => [post.id, post])).values()
   );
 
   console.log(`Total matching active posts: ${uniquePosts.length}`);
 
   return uniquePosts;
+}
+
+async function runChecker() {
+  const posts = await scrapePhilgeps();
+
+  for (const post of posts) {
+    await savePostAndNotify(post);
+  }
+
+  return posts;
 }
 
 app.get("/", (req, res) => {
