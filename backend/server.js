@@ -62,28 +62,44 @@ function sanitizeData(text = "") {
   return String(text).replace(/[^\x00-\xFF]/g, "");
 }
 
+function canonicalLgu(lgu) {
+  if (lgu === "impasug-ong") return "impasugong";
+  return lgu;
+}
+
 function parsePhilgepsDate(value) {
   if (!value) return null;
 
   const text = cleanText(value);
-  const match = text.match(
+
+  const withTime = text.match(
     /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i
   );
 
-  if (!match) return null;
+  if (withTime) {
+    let [, dd, mm, yyyy, hour, minute, ampm] = withTime;
 
-  let [, dd, mm, yyyy, hour, minute, ampm] = match;
+    dd = Number(dd);
+    mm = Number(mm);
+    yyyy = Number(yyyy);
+    hour = Number(hour);
+    minute = Number(minute);
 
-  dd = Number(dd);
-  mm = Number(mm);
-  yyyy = Number(yyyy);
-  hour = Number(hour);
-  minute = Number(minute);
+    if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
+    if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
 
-  if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
-  if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
+    return new Date(yyyy, mm - 1, dd, hour, minute).toISOString();
+  }
 
-  return new Date(yyyy, mm - 1, dd, hour, minute).toISOString();
+  const dateOnly = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+
+  if (dateOnly) {
+    let [, dd, mm, yyyy] = dateOnly;
+
+    return new Date(Number(yyyy), Number(mm) - 1, Number(dd)).toISOString();
+  }
+
+  return null;
 }
 
 function isStillActive(closingDate) {
@@ -101,29 +117,40 @@ function extractRefId(url = "") {
   return match ? match[1] : "";
 }
 
-function getHiddenFields($) {
-  const fields = {};
-
-  $("input[type='hidden']").each((_, el) => {
-    const name = $(el).attr("name");
-    const value = $(el).attr("value") || "";
-    if (name) fields[name] = value;
+async function fetchSearchPage(keyword) {
+  const firstResponse = await axios.get(SEARCH_URL, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      Accept: "text/html",
+    },
+    timeout: 30000,
   });
 
-  return fields;
-}
+  const cookies = (firstResponse.headers["set-cookie"] || [])
+    .map((cookie) => cookie.split(";")[0])
+    .join("; ");
 
-async function fetchHtml(url, options = {}) {
-  const response = await axios({
-    url,
-    method: options.method || "GET",
-    data: options.data,
+  const $ = cheerio.load(firstResponse.data);
+  const payload = new URLSearchParams();
+
+  $("input").each((_, el) => {
+    const name = $(el).attr("name");
+    const value = $(el).attr("value") || "";
+    if (name) payload.append(name, value);
+  });
+
+  payload.set("txtSearch", keyword);
+  payload.set("btnSearch", "Search");
+
+  const response = await axios.post(SEARCH_URL, payload.toString(), {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
       "Content-Type": "application/x-www-form-urlencoded",
       Accept: "text/html",
-      ...options.headers,
+      Referer: SEARCH_URL,
+      Cookie: cookies,
     },
     timeout: 30000,
   });
@@ -131,53 +158,24 @@ async function fetchHtml(url, options = {}) {
   return response.data;
 }
 
-async function searchPhilgepsByKeyword(keyword) {
-  const firstHtml = await fetchHtml(SEARCH_URL);
-  const $first = cheerio.load(firstHtml);
-  const hiddenFields = getHiddenFields($first);
-
-  const payload = new URLSearchParams();
-
-  Object.entries(hiddenFields).forEach(([key, value]) => {
-    payload.append(key, value);
-  });
-
-  payload.set("txtSearch", keyword);
-  payload.set("btnSearch", "Search");
-
-  const html = await fetchHtml(SEARCH_URL, {
-    method: "POST",
-    data: payload.toString(),
-    headers: {
-      Referer: SEARCH_URL,
-    },
-  });
-
-  return html;
-}
-
 function parseSearchResults(html, keyword) {
   const $ = cheerio.load(html);
   const posts = [];
+  const lguName = canonicalLgu(keyword);
 
-  $("tr").each((_, row) => {
-    const cells = $(row).find("td");
+  $("a[href*='SplashBidNoticeAbstractUI.aspx']").each((_, link) => {
+    const titleLink = $(link);
+    const href = titleLink.attr("href");
+    const title = cleanText(titleLink.text());
 
-    if (cells.length < 4) return;
+    if (!href || !title) return;
+
+    const row = titleLink.closest("tr");
+    const cells = row.find("td");
 
     const postingDateText = cleanText($(cells[1]).text());
     const closingDateText = cleanText($(cells[2]).text());
-
-    const titleCell = $(cells[3]);
-    const titleLink = titleCell
-      .find("a[href*='SplashBidNoticeAbstractUI']")
-      .first();
-
-    const href = titleLink.attr("href");
-    const title = cleanText(titleLink.text());
-    const detailsText = cleanText(titleCell.text());
-
-    if (!href || !title) return;
+    const detailsText = cleanText($(cells[3]).text());
 
     const combinedText = normalize(`${title} ${detailsText}`);
     const keywordText = normalize(keyword);
@@ -193,9 +191,9 @@ function parseSearchResults(html, keyword) {
     const refId = extractRefId(fullUrl);
 
     posts.push({
-      id: refId || `${keyword}-${title}`,
+      id: refId || `${lguName}-${title}`,
       referenceNumber: refId,
-      lgu: keyword,
+      lgu: lguName,
       procuringEntity: detailsText,
       title,
       abc: "",
@@ -210,7 +208,9 @@ function parseSearchResults(html, keyword) {
 
 async function getDeviceTokens() {
   const { data, error } = await supabase.from("device_tokens").select("token");
+
   if (error) return [];
+
   return (data || []).map((item) => item.token).filter(Boolean);
 }
 
@@ -247,9 +247,7 @@ async function savePostAndNotify(post) {
     .eq("id", post.id)
     .maybeSingle();
 
-  if (existing) return;
-
-  const { error } = await supabase.from("philgeps_posts").insert({
+  const row = {
     id: post.id,
     lgu: post.lgu,
     title: post.title,
@@ -260,9 +258,18 @@ async function savePostAndNotify(post) {
     status: isPostedRecently(post.postingDate) ? "new" : "old",
     reference_number: post.referenceNumber,
     procuring_entity: post.procuringEntity,
-  });
+  };
 
-  if (!error && isPostedRecently(post.postingDate)) {
+  const { error } = await supabase
+    .from("philgeps_posts")
+    .upsert(row, { onConflict: "id" });
+
+  if (error) {
+    console.error("Supabase insert/update error:", error.message);
+    return;
+  }
+
+  if (!existing && isPostedRecently(post.postingDate)) {
     await sendNotification(post);
   }
 }
@@ -272,7 +279,7 @@ async function scrapePhilgeps() {
 
   for (const lgu of WATCH_LGUS) {
     try {
-      const html = await searchPhilgepsByKeyword(lgu);
+      const html = await fetchSearchPage(lgu);
       const posts = parseSearchResults(html, lgu);
 
       console.log(`${lgu}: scraped ${posts.length} active post(s)`);
