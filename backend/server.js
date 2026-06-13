@@ -90,10 +90,10 @@ async function sendNotification(post) {
       body: post.title,
     },
     data: {
-      url: post.url || "https://notices.philgeps.gov.ph/",
-      postId: post.id,
-      lgu: post.lgu,
-      title: post.title,
+    url: String(post.url || "https://notices.philgeps.gov.ph/"),
+    postId: String(post.id || ""),
+    lgu: String(post.lgu || ""),
+    title: String(post.title || "").replace(/[^\x00-\xFF]/g, ""),
     },
   });
 
