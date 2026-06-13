@@ -103,6 +103,38 @@ function extractRefId(url = "") {
   return match ? match[1] : "";
 }
 
+async function getBidDetails(page, url) {
+  await page.goto(url, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+
+  await page.waitForTimeout(800);
+
+  return await page.evaluate(() => {
+    const clean = (text) => (text || "").replace(/\s+/g, " ").trim();
+
+    const getValueAfterLabel = (label) => {
+      const all = Array.from(document.querySelectorAll("td, span, div"));
+      for (const el of all) {
+        const text = clean(el.textContent);
+        if (text.toLowerCase() === label.toLowerCase()) {
+          const next = el.nextElementSibling;
+          if (next) return clean(next.textContent);
+        }
+      }
+      return "";
+    };
+
+    return {
+      referenceNumber: getValueAfterLabel("Reference Number"),
+      procuringEntity: getValueAfterLabel("Procuring Entity"),
+      title: getValueAfterLabel("Title"),
+      areaOfDelivery: getValueAfterLabel("Area of Delivery"),
+    };
+  });
+}
+
 async function searchPhilgepsByKeyword(page, keyword) {
   await page.goto(SEARCH_URL, {
     waitUntil: "domcontentloaded",
@@ -149,16 +181,29 @@ async function searchPhilgepsByKeyword(page, keyword) {
     const refId = extractRefId(fullUrl);
     const lgu = canonicalLgu(keyword);
 
+    let bidDetails = {
+    referenceNumber: refId,
+    procuringEntity: "",
+    title: item.title,
+    areaOfDelivery: "",
+    };
+
+    try {
+    bidDetails = await getBidDetails(page, fullUrl);
+    } catch (error) {
+    console.error(`Detail scrape failed ${refId}: ${error.message}`);
+    }
+
     posts.push({
-      id: refId || `${lgu}-${item.title}`,
-      referenceNumber: refId,
-      lgu,
-      procuringEntity: item.details,
-      title: item.title,
-      abc: "",
-      postingDate,
-      closingDate,
-      url: fullUrl,
+    id: bidDetails.referenceNumber || refId || `${lgu}-${item.title}`,
+    referenceNumber: bidDetails.referenceNumber || refId,
+    lgu,
+    procuringEntity: bidDetails.procuringEntity || item.details,
+    title: bidDetails.title || item.title,
+    areaOfDelivery: bidDetails.areaOfDelivery || "",
+    postingDate,
+    closingDate,
+    url: fullUrl,
     });
   }
 
@@ -210,13 +255,13 @@ async function savePostAndNotify(post) {
     id: post.id,
     lgu: post.lgu,
     title: post.title,
-    abc: post.abc,
     posting_date: post.postingDate,
     closing_date: post.closingDate,
     url: post.url,
     status: isPostedRecently(post.postingDate) ? "new" : "old",
     reference_number: post.referenceNumber,
     procuring_entity: post.procuringEntity,
+    area_of_delivery: post.areaOfDelivery,
   };
 
   const { error } = await supabase

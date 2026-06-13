@@ -121,7 +121,9 @@ class ProjectPost {
   final String id;
   final String lgu;
   final String title;
-  final String abc;
+  final String referenceNumber;
+  final String procuringEntity;
+  final String areaOfDelivery;
   final String closingDate;
   final String postingDate;
   final String url;
@@ -130,10 +132,12 @@ class ProjectPost {
     required this.id,
     required this.lgu,
     required this.title,
-    required this.abc,
     required this.closingDate,
     required this.postingDate,
     required this.url,
+    required this.referenceNumber,
+    required this.procuringEntity,
+    required this.areaOfDelivery,
   });
 
   factory ProjectPost.fromJson(Map<String, dynamic> json) {
@@ -141,9 +145,21 @@ class ProjectPost {
       id: json['id']?.toString() ?? '',
       lgu: json['lgu']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
-      abc: json['abc']?.toString() ?? '',
-      closingDate: json['closingDate']?.toString() ?? '',
-      postingDate: json['postingDate']?.toString() ?? '',
+      referenceNumber: json['reference_number']?.toString() ??
+          json['referenceNumber']?.toString() ??
+          '',
+      procuringEntity: json['procuring_entity']?.toString() ??
+          json['procuringEntity']?.toString() ??
+          '',
+      areaOfDelivery: json['area_of_delivery']?.toString() ??
+          json['areaOfDelivery']?.toString() ??
+          '',
+      closingDate: json['closingDate']?.toString() ??
+          json['closing_date']?.toString() ??
+          '',
+      postingDate: json['postingDate']?.toString() ??
+          json['posting_date']?.toString() ??
+          '',
       url: json['url']?.toString() ?? '',
     );
   }
@@ -194,7 +210,9 @@ class _HomePageState extends State<HomePage> {
       final searchableText = '''
 ${post.lgu}
 ${post.title}
-${post.abc}
+${post.referenceNumber}
+${post.procuringEntity}
+${post.areaOfDelivery}
 ${post.postingDate}
 ${post.closingDate}
 ${post.url}
@@ -240,7 +258,9 @@ ${post.url}
           id: item['id']?.toString() ?? '',
           lgu: item['lgu']?.toString() ?? '',
           title: item['title']?.toString() ?? '',
-          abc: item['abc']?.toString() ?? '',
+          referenceNumber: item['reference_number']?.toString() ?? '',
+          procuringEntity: item['procuring_entity']?.toString() ?? '',
+          areaOfDelivery: item['area_of_delivery']?.toString() ?? '',
           postingDate: item['posting_date']?.toString() ?? '',
           closingDate: item['closing_date']?.toString() ?? '',
           url: item['url']?.toString() ?? '',
@@ -808,7 +828,18 @@ ${post.url}
             ),
             const SizedBox(height: 14),
             infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
-            infoLine(Icons.payments_rounded, 'ABC: ${post.abc}'),
+            infoLine(
+              Icons.confirmation_number_rounded,
+              'Reference No.: ${post.referenceNumber}',
+            ),
+            infoLine(
+              Icons.business_rounded,
+              'Procuring Entity: ${post.procuringEntity}',
+            ),
+            infoLine(
+              Icons.place_rounded,
+              'Area of Delivery: ${post.areaOfDelivery}',
+            ),
             infoLine(
               Icons.calendar_month_rounded,
               'Posted: ${formatDate(post.postingDate)}',
