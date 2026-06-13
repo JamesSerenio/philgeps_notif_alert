@@ -185,6 +185,26 @@ class _HomePageState extends State<HomePage> {
   bool isLoading = false;
   String statusMessage = 'Monitoring PhilGEPS notifications...';
 
+  List<ProjectPost> get filteredPosts {
+    final keyword = keywordController.text.toLowerCase().trim();
+
+    if (keyword.isEmpty) return posts;
+
+    return posts.where((post) {
+      final searchableText = '''
+${post.lgu}
+${post.title}
+${post.abc}
+${post.postingDate}
+${post.closingDate}
+${post.url}
+'''
+          .toLowerCase();
+
+      return searchableText.contains(keyword);
+    }).toList();
+  }
+
   final String apiUrl =
       'https://philgepsnotifalert-production.up.railway.app/check';
 
@@ -671,7 +691,10 @@ class _HomePageState extends State<HomePage> {
           TextField(
             controller: keywordController,
             maxLines: 3,
-            onChanged: (_) => saveData(),
+            onChanged: (_) {
+              saveData();
+              setState(() {});
+            },
             decoration: const InputDecoration(
               hintText: 'Example: CCTV, LED Wall, Solar',
               prefixIcon: Icon(Icons.search_rounded),
@@ -847,7 +870,7 @@ class _HomePageState extends State<HomePage> {
             subtitle: 'Nearest closing deadline appears first',
           ),
           const SizedBox(height: 18),
-          if (posts.isEmpty)
+          if (filteredPosts.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(28),
@@ -879,7 +902,7 @@ class _HomePageState extends State<HomePage> {
               ),
             )
           else
-            ...posts.map(buildPostCard),
+            ...filteredPosts.map(buildPostCard),
         ],
       ),
     );
