@@ -1,14 +1,89 @@
 import 'dart:convert';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import 'firebase_options.dart';
 import 'styles/app_styles.dart';
+import 'utils/supabase_client.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: SupabaseConfig.supabaseUrl,
+    anonKey: SupabaseConfig.supabaseAnonKey,
+  );
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  await NotificationService.initialize();
+
   runApp(const PhilgepsAlertApp());
+}
+
+class NotificationService {
+  static Future<void> initialize() async {
+    final messaging = FirebaseMessaging.instance;
+
+    await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    final token = await messaging.getToken(
+      vapidKey: 'YOUR_FIREBASE_WEB_PUSH_CERTIFICATE_KEY_PAIR',
+    );
+
+    if (token != null) {
+      await SupabaseConfig.client.from('device_tokens').upsert({
+        'token': token,
+        'platform': 'web',
+      });
+    }
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Foreground notification: ${message.notification?.title}');
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      final url = message.data['url'];
+      if (url != null) {
+        openPhilgepsLink(url);
+      }
+    });
+
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+
+    if (initialMessage != null) {
+      final url = initialMessage.data['url'];
+      if (url != null) {
+        openPhilgepsLink(url);
+      }
+    }
+  }
+}
+
+Future<void> openPhilgepsLink(String url) async {
+  if (url.isEmpty) return;
+
+  final uri = Uri.parse(url);
+
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
 }
 
 class PhilgepsAlertApp extends StatelessWidget {
@@ -46,13 +121,13 @@ class ProjectPost {
 
   factory ProjectPost.fromJson(Map<String, dynamic> json) {
     return ProjectPost(
-      id: json['id'] ?? '',
-      lgu: json['lgu'] ?? '',
-      title: json['title'] ?? '',
-      abc: json['abc'] ?? '',
-      closingDate: json['closingDate'] ?? '',
-      postingDate: json['postingDate'] ?? '',
-      url: json['url'] ?? '',
+      id: json['id']?.toString() ?? '',
+      lgu: json['lgu']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      abc: json['abc']?.toString() ?? '',
+      closingDate: json['closingDate']?.toString() ?? '',
+      postingDate: json['postingDate']?.toString() ?? '',
+      url: json['url']?.toString() ?? '',
     );
   }
 }
@@ -93,16 +168,18 @@ class _HomePageState extends State<HomePage> {
   bool isLoading = false;
   String statusMessage = 'Monitoring PhilGEPS notifications...';
 
-  final String apiUrl = 'https://your-railway-backend.up.railway.app/check';
+  final String apiUrl = 'YOUR_RAILWAY_BACKEND_URL/check';
 
   @override
   void initState() {
     super.initState();
     loadSavedData();
+    loadPostsFromSupabase();
   }
 
   Future<void> loadSavedData() async {
     final prefs = await SharedPreferences.getInstance();
+
     setState(() {
       keywordController.text = prefs.getString('keywords') ?? '';
     });
@@ -113,10 +190,46 @@ class _HomePageState extends State<HomePage> {
     await prefs.setString('keywords', keywordController.text);
   }
 
+  Future<void> loadPostsFromSupabase() async {
+    try {
+      final response = await SupabaseConfig.client
+          .from('philgeps_posts')
+          .select()
+          .order('closing_date', ascending: true);
+
+      final items = response.map<ProjectPost>((item) {
+        return ProjectPost(
+          id: item['id']?.toString() ?? '',
+          lgu: item['lgu']?.toString() ?? '',
+          title: item['title']?.toString() ?? '',
+          abc: item['abc']?.toString() ?? '',
+          postingDate: item['posting_date']?.toString() ?? '',
+          closingDate: item['closing_date']?.toString() ?? '',
+          url: item['url']?.toString() ?? '',
+        );
+      }).toList();
+
+      setState(() {
+        posts = items;
+        sortByDeadline();
+        statusMessage = 'Loaded ${posts.length} post(s) from Supabase.';
+      });
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Supabase connected, but no posts yet.';
+      });
+    }
+  }
+
   Future<void> checkPhilgeps() async {
+    if (apiUrl.contains('YOUR_RAILWAY_BACKEND_URL')) {
+      await loadPostsFromSupabase();
+      return;
+    }
+
     setState(() {
       isLoading = true;
-      statusMessage = 'Checking PhilGEPS...';
+      statusMessage = 'Checking PhilGEPS through Railway...';
     });
 
     try {
@@ -139,10 +252,14 @@ class _HomePageState extends State<HomePage> {
           statusMessage = 'Found ${posts.length} matching post(s).';
         });
       } else {
-        useDemoData();
+        setState(() {
+          statusMessage = 'Railway error: ${response.statusCode}';
+        });
       }
     } catch (e) {
-      useDemoData();
+      setState(() {
+        statusMessage = 'Cannot connect to Railway backend.';
+      });
     }
 
     setState(() {
@@ -150,42 +267,14 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void useDemoData() {
-    final now = DateTime.now();
-
-    setState(() {
-      posts = [
-        ProjectPost(
-          id: 'demo1',
-          lgu: 'Malitbog',
-          title: 'Procurement of CCTV Surveillance System',
-          abc: 'PHP 2,500,000.00',
-          postingDate: now.subtract(const Duration(hours: 2)).toIso8601String(),
-          closingDate: now.add(const Duration(hours: 23)).toIso8601String(),
-          url: 'https://notices.philgeps.gov.ph/',
-        ),
-        ProjectPost(
-          id: 'demo2',
-          lgu: 'Libona',
-          title: 'Supply and Installation of LED Wall Display',
-          abc: 'PHP 2,000,000.00',
-          postingDate: now.subtract(const Duration(days: 4)).toIso8601String(),
-          closingDate: now.add(const Duration(days: 4)).toIso8601String(),
-          url: 'https://notices.philgeps.gov.ph/',
-        ),
-      ];
-
-      sortByDeadline();
-      statusMessage = 'Backend not connected yet. Showing demo data.';
-    });
-  }
-
   void sortByDeadline() {
     posts.sort((a, b) {
       final da = DateTime.tryParse(a.closingDate);
       final db = DateTime.tryParse(b.closingDate);
+
       if (da == null) return 1;
       if (db == null) return -1;
+
       return da.compareTo(db);
     });
   }
@@ -198,6 +287,7 @@ class _HomePageState extends State<HomePage> {
 
   DeadlineStatus getDeadlineStatus(String dateText) {
     final date = DateTime.tryParse(dateText);
+
     if (date == null) return DeadlineStatus.unknown;
 
     final diff = date.difference(DateTime.now());
@@ -226,6 +316,7 @@ class _HomePageState extends State<HomePage> {
 
   String getCountdown(String dateText) {
     final date = DateTime.tryParse(dateText);
+
     if (date == null) return 'No closing date found';
 
     final diff = date.difference(DateTime.now());
@@ -244,7 +335,9 @@ class _HomePageState extends State<HomePage> {
 
   String formatDate(String dateText) {
     final date = DateTime.tryParse(dateText);
+
     if (date == null) return dateText;
+
     return DateFormat('MMM dd, yyyy - hh:mm a').format(date);
   }
 
@@ -259,9 +352,7 @@ class _HomePageState extends State<HomePage> {
     return posts.where(isNewPost).length;
   }
 
-  double get maxWidth {
-    return 1180;
-  }
+  double get maxWidth => 1180;
 
   Widget premiumCard({required Widget child}) {
     return Container(
@@ -271,9 +362,7 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: AppStyles.card,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: const Color(0xFFE6E8DD),
-        ),
+        border: Border.all(color: const Color(0xFFE6E8DD)),
         boxShadow: [
           BoxShadow(
             color: AppStyles.deepGreen.withOpacity(0.06),
@@ -600,12 +689,14 @@ class _HomePageState extends State<HomePage> {
     if (isWide) {
       return Row(
         children: cards
-            .map((card) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: card,
-                  ),
-                ))
+            .map(
+              (card) => Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: card,
+                ),
+              ),
+            )
             .toList(),
       );
     }
@@ -628,63 +719,80 @@ class _HomePageState extends State<HomePage> {
     final newPost = isNewPost(post);
     final closed = deadlineStatus == DeadlineStatus.closed;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: statusColor.withOpacity(0.28),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: statusColor.withOpacity(0.07),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              badge(
-                text: newPost ? 'NEW' : 'OLD',
-                color: newPost ? AppStyles.gold : AppStyles.old,
-                icon: newPost ? Icons.fiber_new_rounded : Icons.history,
-              ),
-              badge(
-                text: closed ? 'CLOSED' : getCountdown(post.closingDate),
-                color: statusColor,
-                icon: closed ? Icons.lock_clock : Icons.timer_rounded,
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            post.title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF101828),
-              height: 1.25,
+    return InkWell(
+      onTap: () => openPhilgepsLink(post.url),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: statusColor.withOpacity(0.28)),
+          boxShadow: [
+            BoxShadow(
+              color: statusColor.withOpacity(0.07),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
-          ),
-          const SizedBox(height: 14),
-          infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
-          infoLine(Icons.payments_rounded, 'ABC: ${post.abc}'),
-          infoLine(Icons.calendar_month_rounded,
-              'Posted: ${formatDate(post.postingDate)}'),
-          infoLine(
-            Icons.event_available_rounded,
-            'Closing: ${formatDate(post.closingDate)}',
-            color: statusColor,
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                badge(
+                  text: newPost ? 'NEW' : 'OLD',
+                  color: newPost ? AppStyles.gold : AppStyles.old,
+                  icon: newPost ? Icons.fiber_new_rounded : Icons.history,
+                ),
+                badge(
+                  text: closed ? 'CLOSED' : getCountdown(post.closingDate),
+                  color: statusColor,
+                  icon: closed ? Icons.lock_clock : Icons.timer_rounded,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              post.title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF101828),
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: 14),
+            infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
+            infoLine(Icons.payments_rounded, 'ABC: ${post.abc}'),
+            infoLine(
+              Icons.calendar_month_rounded,
+              'Posted: ${formatDate(post.postingDate)}',
+            ),
+            infoLine(
+              Icons.event_available_rounded,
+              'Closing: ${formatDate(post.closingDate)}',
+              color: statusColor,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: const [
+                Icon(Icons.open_in_new, size: 17, color: AppStyles.gold),
+                SizedBox(width: 6),
+                Text(
+                  'Tap to open PhilGEPS post',
+                  style: TextStyle(
+                    color: AppStyles.primaryGreen,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
