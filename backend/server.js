@@ -39,7 +39,8 @@ const WATCH_LGUS = [
 
 const BASE_URL = "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/";
 const SEARCH_URL =
-  BASE_URL + "SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
+  BASE_URL +
+  "SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -64,7 +65,8 @@ function sanitizeData(text = "") {
 function parsePhilgepsDate(value) {
   if (!value) return null;
 
-  const match = cleanText(value).match(
+  const text = cleanText(value);
+  const match = text.match(
     /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i
   );
 
@@ -167,7 +169,9 @@ function parseSearchResults(html, keyword) {
     const closingDateText = cleanText($(cells[2]).text());
 
     const titleCell = $(cells[3]);
-    const titleLink = titleCell.find("a[href*='SplashBidNoticeAbstractUI']").first();
+    const titleLink = titleCell
+      .find("a[href*='SplashBidNoticeAbstractUI']")
+      .first();
 
     const href = titleLink.attr("href");
     const title = cleanText(titleLink.text());
@@ -206,9 +210,7 @@ function parseSearchResults(html, keyword) {
 
 async function getDeviceTokens() {
   const { data, error } = await supabase.from("device_tokens").select("token");
-
   if (error) return [];
-
   return (data || []).map((item) => item.token).filter(Boolean);
 }
 
