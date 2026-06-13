@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "postinstall": "npx playwright install chromium",
+    "postinstall": "npx playwright install --with-deps chromium",
     "start": "node server.js"
   },
   "dependencies": {
