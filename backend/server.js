@@ -135,7 +135,7 @@ async function savePostAndNotify(post) {
 
 async function scrapePhilgeps() {
   const url =
-    "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashOpportunitiesSearchUI.aspx?ClickFrom=OpenOpp&DirectFrom=OpenOpp&SearchDirectFrom=SearchOpenOpp&menuIndex=3";
+    "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
 
   const response = await axios.get(url, {
     headers: {
@@ -147,34 +147,45 @@ async function scrapePhilgeps() {
   const $ = cheerio.load(response.data);
   const posts = [];
 
-  $("a[href*='SplashBidNoticeAbstractUI.aspx']").each((index, element) => {
-    const href = $(element).attr("href");
-    const title = $(element).text().replace(/\s+/g, " ").trim();
+  $("#dgSearchResult tr.GridItem, #dgSearchResult tr.GridAltItem").each(
+    (index, row) => {
+      const cells = $(row).find("td");
 
-    if (!href || !title) return;
+      const publishDate = $(cells[1]).text().replace(/\s+/g, " ").trim();
+      const closingDate = $(cells[2]).text().replace(/\s+/g, " ").trim();
 
-    const fullUrl = new URL(href, url).toString();
-    const refId = extractRefId(fullUrl);
-    const rowText = $(element).closest("tr").text().replace(/\s+/g, " ").trim();
+      const titleLink = $(cells[3]).find("a").first();
+      const href = titleLink.attr("href");
+      const title = titleLink.text().replace(/\s+/g, " ").trim();
 
-    const matchedLgu = WATCH_LGUS.find((lgu) =>
-      normalize(rowText).includes(lgu)
-    );
+      const detailsText = $(cells[3]).text().replace(/\s+/g, " ").trim();
 
-    if (!matchedLgu) return;
+      if (!href || !title) return;
 
-    posts.push({
-      id: refId || `${matchedLgu}-${title}`,
-      referenceNumber: refId,
-      lgu: matchedLgu,
-      procuringEntity: matchedLgu,
-      title,
-      abc: "",
-      postingDate: new Date().toISOString(),
-      closingDate: null,
-      url: fullUrl,
-    });
-  });
+      const fullUrl = new URL(href, url).toString();
+      const refId = extractRefId(fullUrl);
+
+      const matchedLgu = WATCH_LGUS.find((lgu) =>
+        normalize(detailsText).includes(lgu)
+      );
+
+      if (!matchedLgu) return;
+
+      posts.push({
+        id: refId || `${matchedLgu}-${title}`,
+        referenceNumber: refId,
+        lgu: matchedLgu,
+        procuringEntity: detailsText,
+        title,
+        abc: "",
+        postingDate: toIsoDate(publishDate),
+        closingDate: toIsoDate(closingDate),
+        url: fullUrl,
+      });
+    }
+  );
+
+  console.log(`Scraped ${posts.length} matching PhilGEPS posts.`);
 
   return posts;
 }
