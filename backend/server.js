@@ -195,7 +195,7 @@ app.get("/", (req, res) => {
   });
 });
 
-app.post("/check", async (req, res) => {
+app.all("/check", async (req, res) => {
   try {
     const posts = await runChecker();
 
