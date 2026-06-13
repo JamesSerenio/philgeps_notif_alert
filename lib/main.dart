@@ -332,11 +332,23 @@ ${post.url}
 
   void sortByDeadline() {
     posts.sort((a, b) {
+      final aIsNew = isNewPost(a);
+      final bIsNew = isNewPost(b);
+
+      if (aIsNew && !bIsNew) return -1;
+      if (!aIsNew && bIsNew) return 1;
+
       final da = DateTime.tryParse(a.closingDate);
       final db = DateTime.tryParse(b.closingDate);
 
       if (da == null) return 1;
       if (db == null) return -1;
+
+      final aClosed = da.isBefore(DateTime.now());
+      final bClosed = db.isBefore(DateTime.now());
+
+      if (!aClosed && bClosed) return -1;
+      if (aClosed && !bClosed) return 1;
 
       return da.compareTo(db);
     });
