@@ -11,7 +11,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDUdc3Sf1ySJFtHARU431JQvrt6Moe8T_E',
+    apiKey: 'AIzaSyDUdc3Sf1ySJFtHARU43lJQvrt6Moe8T_E',
     authDomain: 'philgeps-notif-alert.firebaseapp.com',
     projectId: 'philgeps-notif-alert',
     storageBucket: 'philgeps-notif-alert.firebasestorage.app',

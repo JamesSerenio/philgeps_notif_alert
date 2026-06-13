@@ -27,6 +27,13 @@ Future<void> main() async {
 
   await NotificationService.initialize();
 
+  final token = await FirebaseMessaging.instance.getToken(
+    vapidKey:
+        'BKH3mkFzPUhN06q8LmpgXdsXwgfFY2coyzo1qBs2IH2qH_GdfP2VBLMgQRgpOLBtX2gkYp6OtP-qQbxjvTIRuJE',
+  );
+
+  debugPrint('FCM TOKEN: $token');
+
   runApp(const PhilgepsAlertApp());
 }
 
@@ -41,7 +48,8 @@ class NotificationService {
     );
 
     final token = await messaging.getToken(
-      vapidKey: 'YOUR_FIREBASE_WEB_PUSH_CERTIFICATE_KEY_PAIR',
+      vapidKey:
+          'BKH3mkFzPUhN06q8LmpgXdsXwgfFY2coyzo1qBs2IH2qH_GdfP2VBLMgQRgpOLBtX2gkYp6OtP-qQbxjvTIRuJE',
     );
 
     if (token != null) {
