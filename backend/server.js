@@ -36,6 +36,11 @@ const WATCH_LGUS = [
   "baungon",
 ];
 
+const ALLOWED_DELIVERY_AREAS = [
+  "bukidnon",
+  "misamis oriental",
+];
+
 const BASE_URL = "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/";
 const SEARCH_URL =
   BASE_URL +
@@ -101,6 +106,19 @@ function isPostedRecently(postingDate) {
 function extractRefId(url = "") {
   const match = url.match(/refID=(\d+)/i);
   return match ? match[1] : "";
+}
+
+function normalizeAreaOfDelivery(area = "") {
+  const text = normalize(area);
+
+  if (text.includes("bukidnon")) return "Bukidnon";
+  if (text.includes("misamis oriental")) return "Misamis Oriental";
+
+  return "";
+}
+
+function isAllowedAreaOfDelivery(area = "") {
+  return normalizeAreaOfDelivery(area) !== "";
 }
 
 async function getBidDetails(page, url) {
@@ -194,17 +212,28 @@ async function searchPhilgepsByKeyword(page, keyword) {
     console.error(`Detail scrape failed ${refId}: ${error.message}`);
     }
 
-    posts.push({
-    id: bidDetails.referenceNumber || refId || `${lgu}-${item.title}`,
-    referenceNumber: bidDetails.referenceNumber || refId,
-    lgu,
-    procuringEntity: bidDetails.procuringEntity || item.details,
-    title: bidDetails.title || item.title,
-    areaOfDelivery: bidDetails.areaOfDelivery || "",
-    postingDate,
-    closingDate,
-    url: fullUrl,
-    });
+const cleanAreaOfDelivery = normalizeAreaOfDelivery(
+  bidDetails.areaOfDelivery || ""
+);
+
+if (!isAllowedAreaOfDelivery(cleanAreaOfDelivery)) {
+  console.log(
+    `Skipped ${bidDetails.referenceNumber || refId}: area not allowed (${bidDetails.areaOfDelivery || "none"})`
+  );
+  continue;
+}
+
+posts.push({
+  id: bidDetails.referenceNumber || refId || `${lgu}-${item.title}`,
+  referenceNumber: bidDetails.referenceNumber || refId,
+  lgu,
+  procuringEntity: bidDetails.procuringEntity || item.details,
+  title: bidDetails.title || item.title,
+  areaOfDelivery: cleanAreaOfDelivery,
+  postingDate,
+  closingDate,
+  url: fullUrl,
+});
   }
 
   return posts;
