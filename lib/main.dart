@@ -185,7 +185,8 @@ class _HomePageState extends State<HomePage> {
   bool isLoading = false;
   String statusMessage = 'Monitoring PhilGEPS notifications...';
 
-  final String apiUrl = 'YOUR_RAILWAY_BACKEND_URL/check';
+  final String apiUrl =
+      'https://philgepsnotifalert-production.up.railway.app/check';
 
   @override
   void initState() {
