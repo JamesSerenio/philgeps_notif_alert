@@ -344,7 +344,22 @@ async function scrapePhilgeps() {
   return uniquePosts;
 }
 
+async function deleteExpiredPosts() {
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("philgeps_posts")
+    .delete()
+    .lt("closing_date", now);
+
+  if (error) {
+    console.error("Delete expired posts failed:", error.message);
+  }
+}
+
 async function runChecker() {
+  await deleteExpiredPosts();
+
   const posts = await scrapePhilgeps();
 
   for (const post of posts) {
