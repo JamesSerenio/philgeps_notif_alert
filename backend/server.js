@@ -50,7 +50,7 @@ if (!admin.apps.length) {
 }
 
 function normalize(text = "") {
-  return text.toLowerCase().replace(/\s+/g, " ").trim();
+  return String(text).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function cleanText(text = "") {
@@ -64,8 +64,7 @@ function sanitizeData(text = "") {
 function parsePhilgepsDate(value) {
   if (!value) return null;
 
-  const text = cleanText(value);
-  const match = text.match(
+  const match = cleanText(value).match(
     /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i
   );
 
@@ -92,12 +91,7 @@ function isStillActive(closingDate) {
 
 function isPostedRecently(postingDate) {
   if (!postingDate) return false;
-
-  const posted = new Date(postingDate).getTime();
-  const now = Date.now();
-  const oneDay = 24 * 60 * 60 * 1000;
-
-  return now - posted <= oneDay;
+  return Date.now() - new Date(postingDate).getTime() <= 24 * 60 * 60 * 1000;
 }
 
 function extractRefId(url = "") {
@@ -111,7 +105,6 @@ function getHiddenFields($) {
   $("input[type='hidden']").each((_, el) => {
     const name = $(el).attr("name");
     const value = $(el).attr("value") || "";
-
     if (name) fields[name] = value;
   });
 
@@ -124,8 +117,10 @@ async function fetchHtml(url, options = {}) {
     method: options.method || "GET",
     data: options.data,
     headers: {
-      "User-Agent": "Mozilla/5.0 PhilGEPS Notif Alert",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
       "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "text/html",
       ...options.headers,
     },
     timeout: 30000,
@@ -163,51 +158,48 @@ function parseSearchResults(html, keyword) {
   const $ = cheerio.load(html);
   const posts = [];
 
-  $("#dgSearchResult tr.GridItem, #dgSearchResult tr.GridAltItem").each(
-    (_, row) => {
-      const cells = $(row).find("td");
+  $("tr").each((_, row) => {
+    const cells = $(row).find("td");
 
-      const publishDateText = cleanText($(cells[1]).text());
-      const closingDateText = cleanText($(cells[2]).text());
+    if (cells.length < 4) return;
 
-      const titleCell = $(cells[3]);
-      const titleLink = titleCell.find("a").first();
+    const postingDateText = cleanText($(cells[1]).text());
+    const closingDateText = cleanText($(cells[2]).text());
 
-      const href = titleLink.attr("href");
-      const title = cleanText(titleLink.text());
-      const detailsText = cleanText(titleCell.text());
+    const titleCell = $(cells[3]);
+    const titleLink = titleCell.find("a[href*='SplashBidNoticeAbstractUI']").first();
 
-      if (!href || !title) return;
+    const href = titleLink.attr("href");
+    const title = cleanText(titleLink.text());
+    const detailsText = cleanText(titleCell.text());
 
-      const fullUrl = new URL(href, SEARCH_URL).toString();
-      const refId = extractRefId(fullUrl);
+    if (!href || !title) return;
 
-      const postingDate = parsePhilgepsDate(publishDateText);
-      const closingDate = parsePhilgepsDate(closingDateText);
+    const combinedText = normalize(`${title} ${detailsText}`);
+    const keywordText = normalize(keyword);
 
-      if (!isStillActive(closingDate)) return;
+    if (!combinedText.includes(keywordText)) return;
 
-      const matchedLgu = WATCH_LGUS.find((lgu) =>
-        normalize(detailsText).includes(normalize(lgu))
-      );
+    const postingDate = parsePhilgepsDate(postingDateText);
+    const closingDate = parsePhilgepsDate(closingDateText);
 
-      if (!matchedLgu && !normalize(detailsText).includes(normalize(keyword))) {
-        return;
-      }
+    if (!isStillActive(closingDate)) return;
 
-      posts.push({
-        id: refId || `${keyword}-${title}`,
-        referenceNumber: refId,
-        lgu: matchedLgu || keyword,
-        procuringEntity: detailsText,
-        title,
-        abc: "",
-        postingDate,
-        closingDate,
-        url: fullUrl,
-      });
-    }
-  );
+    const fullUrl = new URL(href, SEARCH_URL).toString();
+    const refId = extractRefId(fullUrl);
+
+    posts.push({
+      id: refId || `${keyword}-${title}`,
+      referenceNumber: refId,
+      lgu: keyword,
+      procuringEntity: detailsText,
+      title,
+      abc: "",
+      postingDate,
+      closingDate,
+      url: fullUrl,
+    });
+  });
 
   return posts;
 }
@@ -324,7 +316,6 @@ app.all("/check", async (req, res) => {
       .order("closing_date", { ascending: true });
 
     if (error) {
-      console.error(error);
       return res.status(500).json({
         error: error.message,
       });
