@@ -184,6 +184,7 @@ class ProjectPost {
   final String closingDate;
   final String postingDate;
   final String url;
+  final bool isBiddingDoc;
 
   ProjectPost({
     required this.id,
@@ -197,6 +198,7 @@ class ProjectPost {
     required this.areaOfDelivery,
     required this.classification,
     required this.abc,
+    required this.isBiddingDoc,
   });
 
   factory ProjectPost.fromJson(Map<String, dynamic> json) {
@@ -215,6 +217,7 @@ class ProjectPost {
           '',
       classification: json['classification']?.toString() ?? '',
       abc: (json['abc'] ?? 0).toDouble(),
+      isBiddingDoc: json['is_bidding_doc'] == true,
       closingDate: json['closingDate']?.toString() ??
           json['closing_date']?.toString() ??
           '',
@@ -270,11 +273,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   int get biddingDocsCount {
-    return posts.where((post) => biddingDocsIds.contains(post.id)).length;
+    return posts.where((post) => post.isBiddingDoc).length;
   }
 
   bool isInBiddingDocs(ProjectPost post) {
-    return biddingDocsIds.contains(post.id);
+    return post.isBiddingDoc;
   }
 
   Future<void> toggleBiddingDocs(ProjectPost post) async {
@@ -327,7 +330,7 @@ class _HomePageState extends State<HomePage> {
 
     if (selectedStatFilter == 'bidding') {
       basePosts = posts.where((post) {
-        return biddingDocsIds.contains(post.id);
+        return post.isBiddingDoc;
       }).toList();
     }
 
@@ -390,6 +393,7 @@ ${post.abc}
           areaOfDelivery: item['area_of_delivery']?.toString() ?? '',
           classification: item['classification']?.toString() ?? '',
           abc: (item['abc'] ?? 0).toDouble(),
+          isBiddingDoc: item['is_bidding_doc'] == true,
           postingDate: item['posting_date']?.toString() ?? '',
           closingDate: item['closing_date']?.toString() ?? '',
           url: item['url']?.toString() ?? '',

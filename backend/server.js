@@ -330,10 +330,15 @@ async function sendNotification(post, type = "new") {
 
     data: {
     url: String(post.url || "https://notices.philgeps.gov.ph/"),
+    postId: String(post.id || ""),
+    apiUrl: "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc",
+    notificationType: String(notificationType),
+
     title:
         notificationType === "deadline"
         ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
         : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
+
     body:
         `📌 ${post.title || "N/A"}\n\n` +
         `Posted: ${formatPHDate(post.postingDate)}\n` +
@@ -345,6 +350,7 @@ async function sendNotification(post, type = "new") {
         maximumFractionDigits: 2,
         })}\n` +
         `Procuring Entity: ${post.procuringEntity || "N/A"}`,
+
     lgu: sanitizeData(post.lgu || ""),
     postTitle: sanitizeData(post.title || ""),
     postingDate: sanitizeData(formatPHDate(post.postingDate)),
@@ -627,28 +633,41 @@ app.all("/check", async (req, res) => {
 
 app.post("/add-bidding-doc", async (req, res) => {
   try {
+    console.log("ADD BIDDING DOC BODY:", req.body);
+
     const { postId } = req.body;
 
     if (!postId) {
-      return res.status(400).json({ error: "postId is required" });
+      return res.status(400).json({
+        error: "postId is required",
+      });
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("philgeps_posts")
       .update({ is_bidding_doc: true })
-      .eq("id", postId);
+      .eq("id", postId)
+      .select("id,is_bidding_doc");
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      console.error("ADD BIDDING DOC ERROR:", error.message);
+      return res.status(500).json({
+        error: error.message,
+      });
     }
+
+    console.log("ADD BIDDING DOC UPDATED:", data);
 
     res.json({
       success: true,
       postId,
-      is_bidding_doc: true,
+      data,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("ADD BIDDING DOC CATCH:", error.message);
+    res.status(500).json({
+      error: error.message,
+    });
   }
 });
 
