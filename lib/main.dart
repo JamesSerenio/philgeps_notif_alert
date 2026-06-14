@@ -1005,23 +1005,23 @@ ${post.abc}
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
                   color: isInBiddingDocs(post)
-                      ? AppStyles.softGreen
-                      : const Color(0xFFFFF1F1),
+                      ? const Color(0xFFFFF1F1)
+                      : AppStyles.softGreen,
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: isInBiddingDocs(post)
-                        ? AppStyles.primaryGreen
-                        : AppStyles.danger.withOpacity(0.4),
+                        ? AppStyles.danger.withOpacity(0.4)
+                        : AppStyles.primaryGreen,
                   ),
                 ),
                 child: Icon(
                   isInBiddingDocs(post)
-                      ? Icons.thumb_up_alt_rounded
-                      : Icons.thumb_down_alt_rounded,
+                      ? Icons.thumb_down_alt_rounded
+                      : Icons.thumb_up_alt_rounded,
                   size: 16,
                   color: isInBiddingDocs(post)
-                      ? AppStyles.primaryGreen
-                      : AppStyles.danger,
+                      ? AppStyles.danger
+                      : AppStyles.primaryGreen,
                 ),
               ),
             ),
