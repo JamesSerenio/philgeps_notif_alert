@@ -66,6 +66,24 @@ function sanitizeData(text = "") {
   return String(text).replace(/[^\x00-\xFF]/g, "");
 }
 
+function formatPHDate(value) {
+  if (!value) return "N/A";
+
+  const date = new Date(value);
+
+  if (isNaN(date.getTime())) return "N/A";
+
+  return date.toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 function canonicalLgu(lgu) {
   return lgu === "impasug-ong" ? "impasugong" : lgu;
 }
@@ -247,27 +265,55 @@ async function getDeviceTokens() {
 
   if (error) return [];
 
-  return (data || []).map((item) => item.token).filter(Boolean);
+  const tokens = (data || []).map((item) => item.token).filter(Boolean);
+
+  return [...new Set(tokens)];
 }
 
 async function sendNotification(post, type = "new") {
+  const notificationType = type === "deadline" ? "deadline" : "new";
+
+  const { error: logError } = await supabase.from("notification_logs").insert({
+    post_id: post.id,
+    lgu: post.lgu,
+    title: post.title,
+    posting_date: post.postingDate,
+    closing_date: post.closingDate,
+    status: notificationType,
+    classification: post.classification,
+    procuring_entity: post.procuringEntity,
+    url: post.url,
+    notification_type: notificationType,
+  });
+
+  if (logError) {
+    if (logError.code === "23505") {
+      console.log(`Skipped duplicate notification: ${post.id} - ${notificationType}`);
+      return;
+    }
+
+    console.error("Notification log insert failed:", logError.message);
+    return;
+  }
+
   const tokens = await getDeviceTokens();
 
   if (tokens.length === 0) return;
 
-const response = await admin.messaging().sendEachForMulticast({
+  const response = await admin.messaging().sendEachForMulticast({
+    
   tokens,
     notification: {
     title:
-        type === "deadline"
+    notificationType === "deadline"
         ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
         : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
 
     body:
     `📌 ${post.title || "N/A"}\n\n` +
-    `Posting Date: ${post.postingDate || "N/A"}\n` +
-    `Closing Date: ${post.closingDate || "N/A"}\n` +
-    `Status: ${type === "deadline" ? "deadline" : "new"}\n` +
+    `Posted: ${formatPHDate(post.postingDate)}\n` +
+    `Closing: ${formatPHDate(post.closingDate)}\n` +
+    `Status: ${notificationType}\n` +
     `Classification: ${post.classification || "N/A"}\n` +
     `Procuring Entity: ${post.procuringEntity || "N/A"}`,
     },
@@ -276,9 +322,9 @@ const response = await admin.messaging().sendEachForMulticast({
     url: String(post.url || "https://notices.philgeps.gov.ph/"),
     lgu: sanitizeData(post.lgu || ""),
     title: sanitizeData(post.title || ""),
-    postingDate: sanitizeData(post.postingDate || ""),
-    closingDate: sanitizeData(post.closingDate || ""),
-    status: sanitizeData(type === "deadline" ? "deadline" : "new"),
+    postingDate: sanitizeData(formatPHDate(post.postingDate)),
+    closingDate: sanitizeData(formatPHDate(post.closingDate)),
+    status: sanitizeData(notificationType),
     classification: sanitizeData(post.classification || ""),
     procuringEntity: sanitizeData(post.procuringEntity || ""),
     },
@@ -306,24 +352,6 @@ const response = await admin.messaging().sendEachForMulticast({
       );
     }
   });
-
-    await supabase.from("notification_logs").upsert(
-    {
-        post_id: post.id,
-        lgu: post.lgu,
-        title: post.title,
-        posting_date: post.postingDate,
-        closing_date: post.closingDate,
-        status: type,
-        classification: post.classification,
-        procuring_entity: post.procuringEntity,
-        url: post.url,
-        notification_type: type,
-    },
-    {
-        onConflict: "post_id,notification_type",
-    }
-    );
 }
 
 async function savePostAndNotify(post) {
