@@ -366,6 +366,10 @@ async function sendNotification(post, type = "new") {
         `Closing: ${formatPHDate(post.closingDate)}\n` +
         `Status: ${notificationType}\n` +
         `Classification: ${post.classification || "N/A"}\n` +
+        `ABC: ${(post.abc || 0).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+        })}\n` +
         `Procuring Entity: ${post.procuringEntity || "N/A"}`,
         icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
         badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
@@ -530,6 +534,7 @@ async function sendDeadlineReminders() {
         url: item.url,
         classification: item.classification,
         procuringEntity: item.procuring_entity,
+        abc: item.abc || 0,
       },
       "deadline"
     );
