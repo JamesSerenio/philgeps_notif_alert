@@ -185,6 +185,7 @@ class ProjectPost {
   final String postingDate;
   final String url;
   final bool isBiddingDoc;
+  final String status;
 
   ProjectPost({
     required this.id,
@@ -199,6 +200,7 @@ class ProjectPost {
     required this.classification,
     required this.abc,
     required this.isBiddingDoc,
+    required this.status,
   });
 
   factory ProjectPost.fromJson(Map<String, dynamic> json) {
@@ -218,6 +220,7 @@ class ProjectPost {
       classification: json['classification']?.toString() ?? '',
       abc: (json['abc'] ?? 0).toDouble(),
       isBiddingDoc: json['is_bidding_doc'] == true,
+      status: json['status']?.toString() ?? 'old',
       closingDate: json['closingDate']?.toString() ??
           json['closing_date']?.toString() ??
           '',
@@ -307,7 +310,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   int get newCount {
-    return posts.where(isNewPost).length;
+    return posts.where((post) => post.status == 'new').length;
   }
 
   final NumberFormat abcFormatter = NumberFormat('#,##0.00', 'en_US');
@@ -325,7 +328,9 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (selectedStatFilter == 'new') {
-      basePosts = posts.where(isNewPost).toList();
+      basePosts = posts.where((post) {
+        return post.status == 'new';
+      }).toList();
     }
 
     if (selectedStatFilter == 'bidding') {
@@ -394,6 +399,7 @@ ${post.abc}
           classification: item['classification']?.toString() ?? '',
           abc: (item['abc'] ?? 0).toDouble(),
           isBiddingDoc: item['is_bidding_doc'] == true,
+          status: item['status']?.toString() ?? 'old',
           postingDate: item['posting_date']?.toString() ?? '',
           closingDate: item['closing_date']?.toString() ?? '',
           url: item['url']?.toString() ?? '',
@@ -455,8 +461,8 @@ ${post.abc}
 
   void sortByDeadline() {
     posts.sort((a, b) {
-      final aIsNew = isNewPost(a);
-      final bIsNew = isNewPost(b);
+      final aIsNew = a.status == 'new';
+      final bIsNew = b.status == 'new';
 
       if (aIsNew && !bIsNew) return -1;
       if (!aIsNew && bIsNew) return 1;
@@ -475,12 +481,6 @@ ${post.abc}
 
       return da.compareTo(db);
     });
-  }
-
-  bool isNewPost(ProjectPost post) {
-    final posted = DateTime.tryParse(post.postingDate);
-    if (posted == null) return false;
-    return DateTime.now().difference(posted).inHours <= 24;
   }
 
   DeadlineStatus getDeadlineStatus(String dateText) {
@@ -896,7 +896,7 @@ ${post.abc}
   Widget buildPostCard(ProjectPost post) {
     final deadlineStatus = getDeadlineStatus(post.closingDate);
     final statusColor = getStatusColor(deadlineStatus);
-    final newPost = isNewPost(post);
+    final newPost = post.status == 'new';
     final closed = deadlineStatus == DeadlineStatus.closed;
 
     return InkWell(
