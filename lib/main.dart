@@ -262,6 +262,34 @@ class _HomePageState extends State<HomePage> {
   bool isLoading = false;
   String statusMessage = 'Monitoring PhilGEPS notifications...';
   String selectedStatFilter = 'all';
+  Set<String> biddingDocsIds = {};
+
+  Future<void> saveBiddingDocs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('bidding_docs_ids', biddingDocsIds.toList());
+  }
+
+  int get biddingDocsCount {
+    return posts.where((post) => biddingDocsIds.contains(post.id)).length;
+  }
+
+  bool isInBiddingDocs(ProjectPost post) {
+    return biddingDocsIds.contains(post.id);
+  }
+
+  Future<void> toggleBiddingDocs(ProjectPost post) async {
+    setState(() {
+      if (biddingDocsIds.contains(post.id)) {
+        biddingDocsIds.remove(post.id);
+        statusMessage = 'Removed from Bidding Docs.';
+      } else {
+        biddingDocsIds.add(post.id);
+        statusMessage = 'Added to Bidding Docs.';
+      }
+    });
+
+    await saveBiddingDocs();
+  }
 
   final String apiUrl =
       'https://philgepsnotifalert-production.up.railway.app/check';
@@ -297,6 +325,12 @@ class _HomePageState extends State<HomePage> {
       basePosts = posts.where(isNewPost).toList();
     }
 
+    if (selectedStatFilter == 'bidding') {
+      basePosts = posts.where((post) {
+        return biddingDocsIds.contains(post.id);
+      }).toList();
+    }
+
     if (keyword.isEmpty) return basePosts;
 
     return basePosts.where((post) {
@@ -310,6 +344,7 @@ ${post.classification}
 ${post.postingDate}
 ${post.closingDate}
 ${post.url}
+${post.abc}
 '''
           .toLowerCase();
 
@@ -329,6 +364,7 @@ ${post.url}
 
     setState(() {
       keywordController.text = prefs.getString('keywords') ?? '';
+      biddingDocsIds = (prefs.getStringList('bidding_docs_ids') ?? []).toSet();
     });
   }
 
@@ -823,6 +859,19 @@ ${post.url}
           });
         },
       ),
+      statCard(
+        label: 'Bidding Docs',
+        value: biddingDocsCount.toString(),
+        icon: Icons.thumb_up_alt_rounded,
+        color: AppStyles.primaryGreen,
+        isSelected: selectedStatFilter == 'bidding',
+        onTap: () {
+          setState(() {
+            selectedStatFilter = 'bidding';
+            statusMessage = 'Showing selected bidding documents.';
+          });
+        },
+      ),
     ];
 
     return Row(
@@ -848,98 +897,136 @@ ${post.url}
 
     return InkWell(
       onTap: () => openPhilgepsLink(post.url),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: statusColor.withOpacity(0.28)),
-          boxShadow: [
-            BoxShadow(
-              color: statusColor.withOpacity(0.07),
-              blurRadius: 14,
-              offset: const Offset(0, 7),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                badge(
-                  text: newPost ? 'NEW' : 'OLD',
-                  color: newPost ? AppStyles.gold : AppStyles.old,
-                  icon: newPost ? Icons.fiber_new_rounded : Icons.history,
-                ),
-                badge(
-                  text: closed ? 'CLOSED' : getCountdown(post.closingDate),
-                  color: statusColor,
-                  icon: closed ? Icons.lock_clock : Icons.timer_rounded,
+      child: Stack(
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: statusColor.withOpacity(0.28)),
+              boxShadow: [
+                BoxShadow(
+                  color: statusColor.withOpacity(0.07),
+                  blurRadius: 14,
+                  offset: const Offset(0, 7),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              post.title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF101828),
-                height: 1.25,
-              ),
-            ),
-            const SizedBox(height: 10),
-            infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
-            infoLine(
-              Icons.confirmation_number_rounded,
-              'Reference No.: ${post.referenceNumber}',
-            ),
-            infoLine(
-              Icons.business_rounded,
-              'Procuring Entity: ${post.procuringEntity}',
-            ),
-            infoLine(
-              Icons.place_rounded,
-              'Area of Delivery: ${post.areaOfDelivery}',
-            ),
-            infoLine(
-              Icons.category_rounded,
-              'Classification: ${post.classification}',
-            ),
-            infoLine(
-              Icons.payments_rounded,
-              'ABC: ${abcFormatter.format(post.abc)}',
-            ),
-            infoLine(
-              Icons.calendar_month_rounded,
-              'Posted: ${formatDate(post.postingDate)}',
-            ),
-            infoLine(
-              Icons.event_available_rounded,
-              'Closing: ${formatDate(post.closingDate)}',
-              color: statusColor,
-            ),
-            const SizedBox(height: 5),
-            const Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.open_in_new, size: 14, color: AppStyles.gold),
-                SizedBox(width: 5),
-                Text(
-                  'Tap to open PhilGEPS post',
-                  style: TextStyle(
-                    color: AppStyles.primaryGreen,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: [
+                    badge(
+                      text: newPost ? 'NEW' : 'OLD',
+                      color: newPost ? AppStyles.gold : AppStyles.old,
+                      icon: newPost ? Icons.fiber_new_rounded : Icons.history,
+                    ),
+                    badge(
+                      text: closed ? 'CLOSED' : getCountdown(post.closingDate),
+                      color: statusColor,
+                      icon: closed ? Icons.lock_clock : Icons.timer_rounded,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.only(right: 42),
+                  child: Text(
+                    post.title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF101828),
+                      height: 1.25,
+                    ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
+                infoLine(
+                  Icons.confirmation_number_rounded,
+                  'Reference No.: ${post.referenceNumber}',
+                ),
+                infoLine(
+                  Icons.business_rounded,
+                  'Procuring Entity: ${post.procuringEntity}',
+                ),
+                infoLine(
+                  Icons.place_rounded,
+                  'Area of Delivery: ${post.areaOfDelivery}',
+                ),
+                infoLine(
+                  Icons.category_rounded,
+                  'Classification: ${post.classification}',
+                ),
+                infoLine(
+                  Icons.payments_rounded,
+                  'ABC: ${abcFormatter.format(post.abc)}',
+                ),
+                infoLine(
+                  Icons.calendar_month_rounded,
+                  'Posted: ${formatDate(post.postingDate)}',
+                ),
+                infoLine(
+                  Icons.event_available_rounded,
+                  'Closing: ${formatDate(post.closingDate)}',
+                  color: statusColor,
+                ),
+                const SizedBox(height: 5),
+                const Row(
+                  children: [
+                    Icon(Icons.open_in_new, size: 14, color: AppStyles.gold),
+                    SizedBox(width: 5),
+                    Text(
+                      'Tap to open PhilGEPS post',
+                      style: TextStyle(
+                        color: AppStyles.primaryGreen,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: InkWell(
+              onTap: () => toggleBiddingDocs(post),
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: isInBiddingDocs(post)
+                      ? AppStyles.softGreen
+                      : const Color(0xFFFFF1F1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isInBiddingDocs(post)
+                        ? AppStyles.primaryGreen
+                        : AppStyles.danger.withOpacity(0.4),
+                  ),
+                ),
+                child: Icon(
+                  isInBiddingDocs(post)
+                      ? Icons.thumb_up_alt_rounded
+                      : Icons.thumb_down_alt_rounded,
+                  size: 16,
+                  color: isInBiddingDocs(post)
+                      ? AppStyles.primaryGreen
+                      : AppStyles.danger,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

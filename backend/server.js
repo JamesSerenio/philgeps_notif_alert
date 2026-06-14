@@ -494,20 +494,7 @@ async function scrapePhilgeps() {
 }
 
 async function deleteOldNotificationLogs() {
-  const fiveDaysAgo = new Date(
-    Date.now() - 5 * 24 * 60 * 60 * 1000
-  ).toISOString();
-
-  const { error } = await supabase
-    .from("notification_logs")
-    .delete()
-    .lt("posting_date", fiveDaysAgo);
-
-  if (error) {
-    console.error("Delete old notification logs failed:", error.message);
-  } else {
-    console.log("Old notification logs deleted.");
-  }
+  console.log("Notification logs are kept to prevent duplicate alerts.");
 }
 
 async function deleteExpiredPosts() {
@@ -540,13 +527,16 @@ async function sendDeadlineReminders() {
 
   for (const item of data || []) {
     const { data: existingLog } = await supabase
-      .from("notification_logs")
-      .select("id")
-      .eq("post_id", item.id)
-      .eq("notification_type", "deadline")
-      .maybeSingle();
+    .from("notification_logs")
+    .select("id")
+    .eq("post_id", item.id)
+    .eq("notification_type", "deadline")
+    .maybeSingle();
 
-    if (existingLog) continue;
+    if (existingLog) {
+    console.log(`Deadline alert already sent: ${item.id}`);
+    continue;
+    }
 
     await sendNotification(
       {

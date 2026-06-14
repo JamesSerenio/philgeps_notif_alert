@@ -15,58 +15,6 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log("Background Message:", payload);
-
-  const title =
-    payload.data?.title ||
-    payload.notification?.title ||
-    "PhilGEPS Notif & Alert";
-
-  const body =
-    payload.data?.body ||
-    payload.notification?.body ||
-    "New PhilGEPS notification.";
-
-  const url =
-    payload.data?.url ||
-    "https://notices.philgeps.gov.ph/";
-
-  const postId =
-    payload.data?.postId ||
-    payload.data?.post_id ||
-    Date.now().toString();
-
-  const notificationType =
-    payload.data?.notificationType ||
-    payload.data?.notification_type ||
-    "new";
-
-  self.registration.showNotification(title, {
-    body: body,
-    icon: "icons/Icon-192.png",
-    badge: "icons/Icon-192.png",
-
-    tag: `${postId}-${notificationType}`,
-    renotify: false,
-    requireInteraction: true,
-    silent: false,
-
-    actions: [
-      {
-        action: "open",
-        title: "Open"
-      },
-      {
-        action: "close",
-        title: "Close"
-      }
-    ],
-
-    data: {
-      url: url,
-      postId: postId,
-      notificationType: notificationType
-    }
-  });
 });
 
 self.addEventListener("notificationclick", function (event) {
