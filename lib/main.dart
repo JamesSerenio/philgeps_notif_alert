@@ -180,6 +180,7 @@ class ProjectPost {
   final String procuringEntity;
   final String areaOfDelivery;
   final String classification;
+  final double abc;
   final String closingDate;
   final String postingDate;
   final String url;
@@ -195,6 +196,7 @@ class ProjectPost {
     required this.procuringEntity,
     required this.areaOfDelivery,
     required this.classification,
+    required this.abc,
   });
 
   factory ProjectPost.fromJson(Map<String, dynamic> json) {
@@ -212,6 +214,7 @@ class ProjectPost {
           json['areaOfDelivery']?.toString() ??
           '',
       classification: json['classification']?.toString() ?? '',
+      abc: (json['abc'] ?? 0).toDouble(),
       closingDate: json['closingDate']?.toString() ??
           json['closing_date']?.toString() ??
           '',
@@ -275,6 +278,8 @@ class _HomePageState extends State<HomePage> {
   int get newCount {
     return posts.where(isNewPost).length;
   }
+
+  final NumberFormat abcFormatter = NumberFormat('#,##0.00', 'en_US');
 
   List<ProjectPost> get filteredPosts {
     final keyword = keywordController.text.toLowerCase().trim();
@@ -348,6 +353,7 @@ ${post.url}
           procuringEntity: item['procuring_entity']?.toString() ?? '',
           areaOfDelivery: item['area_of_delivery']?.toString() ?? '',
           classification: item['classification']?.toString() ?? '',
+          abc: (item['abc'] ?? 0).toDouble(),
           postingDate: item['posting_date']?.toString() ?? '',
           closingDate: item['closing_date']?.toString() ?? '',
           url: item['url']?.toString() ?? '',
@@ -903,6 +909,10 @@ ${post.url}
             infoLine(
               Icons.category_rounded,
               'Classification: ${post.classification}',
+            ),
+            infoLine(
+              Icons.payments_rounded,
+              'ABC: ${abcFormatter.format(post.abc)}',
             ),
             infoLine(
               Icons.calendar_month_rounded,

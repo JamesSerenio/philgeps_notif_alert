@@ -168,6 +168,9 @@ async function getBidDetails(page, url) {
     title: getValueAfterLabel("Title"),
     areaOfDelivery: getValueAfterLabel("Area of Delivery"),
     classification: getValueAfterLabel("Classification:") || getValueAfterLabel("Classification"),
+    abc:
+        getValueAfterLabel("Approved Budget for the Contract:") ||
+        getValueAfterLabel("Approved Budget for the Contract"),
     };
   });
 }
@@ -251,6 +254,13 @@ posts.push({
   title: bidDetails.title || item.title,
   areaOfDelivery: cleanAreaOfDelivery,
   classification: bidDetails.classification || "",
+    abc:
+    Number(
+        String(bidDetails.abc || "0")
+        .replace(/PHP/gi, "")
+        .replace(/,/g, "")
+        .trim()
+    ) || 0,
   postingDate,
   closingDate,
   url: fullUrl,
@@ -294,6 +304,7 @@ async function sendNotification(post, type = "new") {
     closing_date: post.closingDate,
     status: notificationType,
     classification: post.classification,
+    abc: post.abc || 0,
     procuring_entity: post.procuringEntity,
     url: post.url,
     notification_type: notificationType,
@@ -329,6 +340,10 @@ async function sendNotification(post, type = "new") {
         `Closing: ${formatPHDate(post.closingDate)}\n` +
         `Status: ${notificationType}\n` +
         `Classification: ${post.classification || "N/A"}\n` +
+        `ABC: ${(post.abc || 0).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+        })}\n` +
         `Procuring Entity: ${post.procuringEntity || "N/A"}`,
     lgu: sanitizeData(post.lgu || ""),
     postTitle: sanitizeData(post.title || ""),
@@ -400,6 +415,7 @@ async function savePostAndNotify(post) {
     procuring_entity: post.procuringEntity,
     area_of_delivery: post.areaOfDelivery,
     classification: post.classification,
+    abc: post.abc || 0,
   };
 
   const { error } = await supabase
@@ -542,6 +558,7 @@ async function sendDeadlineReminders() {
             procuring_entity: post.procuringEntity,
             area_of_delivery: post.areaOfDelivery,
             classification: post.classification,
+            abc: post.abc || 0,
         };
 
         const { error } = await supabase
