@@ -261,13 +261,26 @@ posts.push({
 }
 
 async function getDeviceTokens() {
-  const { data, error } = await supabase.from("device_tokens").select("token");
+  const { data, error } = await supabase
+    .from("device_tokens")
+    .select("token, device_key")
+    .order("created_at", { ascending: false });
 
   if (error) return [];
 
-  const tokens = (data || []).map((item) => item.token).filter(Boolean);
+  const latestByDevice = new Map();
 
-  return [...new Set(tokens)];
+  for (const item of data || []) {
+    if (!item.token) continue;
+
+    const key = item.device_key || item.token;
+
+    if (!latestByDevice.has(key)) {
+      latestByDevice.set(key, item.token);
+    }
+  }
+
+  return [...new Set([...latestByDevice.values()])];
 }
 
 async function sendNotification(post, type = "new") {

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:html' as html;
 
 import 'firebase_options.dart';
 import 'styles/app_styles.dart';
@@ -39,12 +40,19 @@ Future<void> main() async {
   await NotificationService.initialize();
 
   FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+    final prefs = await SharedPreferences.getInstance();
+    final deviceKey = prefs.getString('device_key') ??
+        '${DateTime.now().millisecondsSinceEpoch}-${html.window.navigator.userAgent.hashCode}';
+
+    await prefs.setString('device_key', deviceKey);
+
     await SupabaseConfig.client.from('device_tokens').upsert(
       {
         'token': token,
         'platform': 'web',
+        'device_key': deviceKey,
       },
-      onConflict: 'token',
+      onConflict: 'device_key',
     );
   });
 
@@ -78,12 +86,19 @@ class NotificationService {
 
     if (token != null) {
       try {
+        final prefs = await SharedPreferences.getInstance();
+        final deviceKey = prefs.getString('device_key') ??
+            '${DateTime.now().millisecondsSinceEpoch}-${html.window.navigator.userAgent.hashCode}';
+
+        await prefs.setString('device_key', deviceKey);
+
         await SupabaseConfig.client.from('device_tokens').upsert(
           {
             'token': token,
             'platform': 'web',
+            'device_key': deviceKey,
           },
-          onConflict: 'token',
+          onConflict: 'device_key',
         );
       } catch (e) {
         debugPrint('Supabase token save error: $e');
