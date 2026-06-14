@@ -341,10 +341,12 @@ async function sendNotification(post, type = "new") {
     classification: sanitizeData(post.classification || ""),
     procuringEntity: sanitizeData(post.procuringEntity || ""),
     },
-  webpush: {
+    webpush: {
     notification: {
-      icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
-      badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
+        icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
+        badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
+        silent: false,
+        requireInteraction: true,
     },
     fcmOptions: {
       link: String(post.url || "https://notices.philgeps.gov.ph/"),
