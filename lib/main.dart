@@ -482,6 +482,26 @@ ${post.url}
 
   double get maxWidth => 1180;
 
+  Widget fadeItem({
+    required Widget child,
+    int delay = 0,
+  }) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 500 + delay),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   Widget premiumCard({required Widget child}) {
     return Container(
       width: double.infinity,
@@ -622,28 +642,37 @@ ${post.url}
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                badge(
-                  text: 'LIVE PHILGEPS MONITOR',
-                  color: AppStyles.gold,
-                  icon: Icons.notifications_active,
+                fadeItem(
+                  delay: 50,
+                  child: badge(
+                    text: 'LIVE PHILGEPS MONITOR',
+                    color: AppStyles.gold,
+                    icon: Icons.notifications_active,
+                  ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  'PhilGEPS Notif & Alert',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w900,
-                    height: 1.05,
+                fadeItem(
+                  delay: 120,
+                  child: const Text(
+                    'PhilGEPS Notif & Alert',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      height: 1.05,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Automatic monitoring for selected LGUs with deadline alerts, new post tracking, and bid reminders.',
-                  style: TextStyle(
-                    color: Color(0xFFEAF6EF),
-                    fontSize: 15,
-                    height: 1.5,
+                fadeItem(
+                  delay: 200,
+                  child: const Text(
+                    'Automatic monitoring for selected LGUs with deadline alerts, new post tracking, and bid reminders.',
+                    style: TextStyle(
+                      color: Color(0xFFEAF6EF),
+                      fontSize: 15,
+                      height: 1.5,
+                    ),
                   ),
                 ),
               ],
@@ -850,94 +879,97 @@ ${post.url}
     final newPost = isNewPost(post);
     final closed = deadlineStatus == DeadlineStatus.closed;
 
-    return InkWell(
-      onTap: () => openPhilgepsLink(post.url),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: statusColor.withOpacity(0.28)),
-          boxShadow: [
-            BoxShadow(
-              color: statusColor.withOpacity(0.07),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                badge(
-                  text: newPost ? 'NEW' : 'OLD',
-                  color: newPost ? AppStyles.gold : AppStyles.old,
-                  icon: newPost ? Icons.fiber_new_rounded : Icons.history,
-                ),
-                badge(
-                  text: closed ? 'CLOSED' : getCountdown(post.closingDate),
-                  color: statusColor,
-                  icon: closed ? Icons.lock_clock : Icons.timer_rounded,
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              post.title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF101828),
-                height: 1.25,
+    return fadeItem(
+      delay: 120,
+      child: InkWell(
+        onTap: () => openPhilgepsLink(post.url),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: statusColor.withOpacity(0.28)),
+            boxShadow: [
+              BoxShadow(
+                color: statusColor.withOpacity(0.07),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-            ),
-            const SizedBox(height: 14),
-            infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
-            infoLine(
-              Icons.confirmation_number_rounded,
-              'Reference No.: ${post.referenceNumber}',
-            ),
-            infoLine(
-              Icons.business_rounded,
-              'Procuring Entity: ${post.procuringEntity}',
-            ),
-            infoLine(
-              Icons.place_rounded,
-              'Area of Delivery: ${post.areaOfDelivery}',
-            ),
-            infoLine(
-              Icons.category_rounded,
-              'Classification: ${post.classification}',
-            ),
-            infoLine(
-              Icons.calendar_month_rounded,
-              'Posted: ${formatDate(post.postingDate)}',
-            ),
-            infoLine(
-              Icons.event_available_rounded,
-              'Closing: ${formatDate(post.closingDate)}',
-              color: statusColor,
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: const [
-                Icon(Icons.open_in_new, size: 17, color: AppStyles.gold),
-                SizedBox(width: 6),
-                Text(
-                  'Tap to open PhilGEPS post',
-                  style: TextStyle(
-                    color: AppStyles.primaryGreen,
-                    fontWeight: FontWeight.w800,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  badge(
+                    text: newPost ? 'NEW' : 'OLD',
+                    color: newPost ? AppStyles.gold : AppStyles.old,
+                    icon: newPost ? Icons.fiber_new_rounded : Icons.history,
                   ),
+                  badge(
+                    text: closed ? 'CLOSED' : getCountdown(post.closingDate),
+                    color: statusColor,
+                    icon: closed ? Icons.lock_clock : Icons.timer_rounded,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                post.title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF101828),
+                  height: 1.25,
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 14),
+              infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
+              infoLine(
+                Icons.confirmation_number_rounded,
+                'Reference No.: ${post.referenceNumber}',
+              ),
+              infoLine(
+                Icons.business_rounded,
+                'Procuring Entity: ${post.procuringEntity}',
+              ),
+              infoLine(
+                Icons.place_rounded,
+                'Area of Delivery: ${post.areaOfDelivery}',
+              ),
+              infoLine(
+                Icons.category_rounded,
+                'Classification: ${post.classification}',
+              ),
+              infoLine(
+                Icons.calendar_month_rounded,
+                'Posted: ${formatDate(post.postingDate)}',
+              ),
+              infoLine(
+                Icons.event_available_rounded,
+                'Closing: ${formatDate(post.closingDate)}',
+                color: statusColor,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: const [
+                  Icon(Icons.open_in_new, size: 17, color: AppStyles.gold),
+                  SizedBox(width: 6),
+                  Text(
+                    'Tap to open PhilGEPS post',
+                    style: TextStyle(
+                      color: AppStyles.primaryGreen,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
