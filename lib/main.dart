@@ -256,13 +256,27 @@ class _HomePageState extends State<HomePage> {
   List<ProjectPost> posts = [];
   bool isLoading = false;
   String statusMessage = 'Monitoring PhilGEPS notifications...';
+  String selectedStatFilter = 'all';
 
   List<ProjectPost> get filteredPosts {
     final keyword = keywordController.text.toLowerCase().trim();
 
-    if (keyword.isEmpty) return posts;
+    List<ProjectPost> basePosts = posts;
 
-    return posts.where((post) {
+    if (selectedStatFilter == 'near') {
+      basePosts = posts.where((post) {
+        final s = getDeadlineStatus(post.closingDate);
+        return s == DeadlineStatus.urgent || s == DeadlineStatus.near;
+      }).toList();
+    }
+
+    if (selectedStatFilter == 'new') {
+      basePosts = posts.where(isNewPost).toList();
+    }
+
+    if (keyword.isEmpty) return basePosts;
+
+    return basePosts.where((post) {
       final searchableText = '''
 ${post.lgu}
 ${post.title}
@@ -559,50 +573,77 @@ ${post.url}
     required String value,
     required IconData icon,
     required Color color,
+    required bool isSelected,
+    required VoidCallback onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color.withOpacity(0.13),
-            Colors.white,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              color.withOpacity(isSelected ? 0.22 : 0.13),
+              Colors.white,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isSelected ? color : color.withOpacity(0.18),
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(isSelected ? 0.18 : 0.07),
+              blurRadius: isSelected ? 24 : 12,
+              offset: const Offset(0, 8),
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: color.withOpacity(0.18)),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: color.withOpacity(0.13),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: color,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF667085),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: color.withOpacity(0.15),
+              child: Icon(icon, color: color),
             ),
-          ),
-        ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: color,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF667085),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isSelected ? 'Selected' : 'Tap to filter',
+                    style: TextStyle(
+                      color: isSelected ? color : const Color(0xFF98A2B3),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -831,18 +872,39 @@ ${post.url}
         value: posts.length.toString(),
         icon: Icons.article_rounded,
         color: AppStyles.primaryGreen,
+        isSelected: selectedStatFilter == 'all',
+        onTap: () {
+          setState(() {
+            selectedStatFilter = 'all';
+            statusMessage = 'Showing all PhilGEPS posts.';
+          });
+        },
       ),
       statCard(
         label: 'Near Deadline',
         value: urgentCount.toString(),
         icon: Icons.warning_amber_rounded,
         color: AppStyles.warning,
+        isSelected: selectedStatFilter == 'near',
+        onTap: () {
+          setState(() {
+            selectedStatFilter = 'near';
+            statusMessage = 'Showing near deadline posts only.';
+          });
+        },
       ),
       statCard(
         label: 'New Posts',
         value: newCount.toString(),
         icon: Icons.fiber_new_rounded,
         color: AppStyles.gold,
+        isSelected: selectedStatFilter == 'new',
+        onTap: () {
+          setState(() {
+            selectedStatFilter = 'new';
+            statusMessage = 'Showing new PhilGEPS posts only.';
+          });
+        },
       ),
     ];
 
