@@ -47,6 +47,7 @@ Future<void> main() async {
       onConflict: 'token',
     );
   });
+
   final token = await FirebaseMessaging.instance.getToken(
     vapidKey:
         'BKH3mkFzPUhN06q8LmpgXdsXwgfFY2coyzo1qBs2IH2qH_GdfP2VBLMgQRgpOLBtX2gkYp6OtP-qQbxjvTIRuJE',
@@ -84,16 +85,12 @@ class NotificationService {
           },
           onConflict: 'token',
         );
-
-        debugPrint('FCM token saved to Supabase.');
       } catch (e) {
-        debugPrint('Token already saved or Supabase token save error: $e');
+        debugPrint('Supabase token save error: $e');
       }
     }
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Foreground notification: ${message.notification?.title}');
-
       final title = message.notification?.title ?? 'PhilGEPS Notif & Alert';
       final body = message.notification?.body ?? 'New PhilGEPS post detected.';
       final url = message.data['url'] ?? 'https://notices.philgeps.gov.ph/';
@@ -105,9 +102,7 @@ class NotificationService {
           content: Text(body),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(navigatorKey.currentContext!);
-              },
+              onPressed: () => Navigator.pop(navigatorKey.currentContext!),
               child: const Text('Close'),
             ),
             TextButton(
@@ -124,18 +119,13 @@ class NotificationService {
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       final url = message.data['url'];
-      if (url != null) {
-        openPhilgepsLink(url);
-      }
+      if (url != null) openPhilgepsLink(url);
     });
 
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-
     if (initialMessage != null) {
       final url = initialMessage.data['url'];
-      if (url != null) {
-        openPhilgepsLink(url);
-      }
+      if (url != null) openPhilgepsLink(url);
     }
   }
 }
@@ -146,10 +136,7 @@ Future<void> openPhilgepsLink(String url) async {
   final uri = Uri.parse(url);
 
   if (await canLaunchUrl(uri)) {
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
 
@@ -258,6 +245,22 @@ class _HomePageState extends State<HomePage> {
   String statusMessage = 'Monitoring PhilGEPS notifications...';
   String selectedStatFilter = 'all';
 
+  final String apiUrl =
+      'https://philgepsnotifalert-production.up.railway.app/check';
+
+  double get maxWidth => 1180;
+
+  int get urgentCount {
+    return posts.where((post) {
+      final s = getDeadlineStatus(post.closingDate);
+      return s == DeadlineStatus.urgent || s == DeadlineStatus.near;
+    }).length;
+  }
+
+  int get newCount {
+    return posts.where(isNewPost).length;
+  }
+
   List<ProjectPost> get filteredPosts {
     final keyword = keywordController.text.toLowerCase().trim();
 
@@ -293,9 +296,6 @@ ${post.url}
       return searchableText.contains(keyword);
     }).toList();
   }
-
-  final String apiUrl =
-      'https://philgepsnotifalert-production.up.railway.app/check';
 
   @override
   void initState() {
@@ -352,11 +352,6 @@ ${post.url}
   }
 
   Future<void> checkPhilgeps() async {
-    if (apiUrl.contains('YOUR_RAILWAY_BACKEND_URL')) {
-      await loadPostsFromSupabase();
-      return;
-    }
-
     setState(() {
       isLoading = true;
       statusMessage = 'Checking PhilGEPS through Railway...';
@@ -429,7 +424,6 @@ ${post.url}
 
   DeadlineStatus getDeadlineStatus(String dateText) {
     final date = DateTime.tryParse(dateText);
-
     if (date == null) return DeadlineStatus.unknown;
 
     final diff = date.difference(DateTime.now());
@@ -458,8 +452,7 @@ ${post.url}
 
   String getCountdown(String dateText) {
     final date = DateTime.tryParse(dateText);
-
-    if (date == null) return 'No closing date found';
+    if (date == null) return 'No closing date';
 
     final diff = date.difference(DateTime.now());
 
@@ -469,67 +462,33 @@ ${post.url}
     final hours = diff.inHours % 24;
     final minutes = diff.inMinutes % 60;
 
-    if (days > 0) return 'Closes in ${days}d ${hours}h';
-    if (hours > 0) return 'Closes in ${hours}h ${minutes}m';
+    if (days > 0) return '${days}d ${hours}h';
+    if (hours > 0) return '${hours}h ${minutes}m';
 
-    return 'Closes in ${minutes}m';
+    return '${minutes}m';
   }
 
   String formatDate(String dateText) {
     final date = DateTime.tryParse(dateText);
-
     if (date == null) return dateText;
 
     return DateFormat('MMM dd, yyyy - hh:mm a').format(date);
   }
 
-  int get urgentCount {
-    return posts.where((post) {
-      final s = getDeadlineStatus(post.closingDate);
-      return s == DeadlineStatus.urgent || s == DeadlineStatus.near;
-    }).length;
-  }
-
-  int get newCount {
-    return posts.where(isNewPost).length;
-  }
-
-  double get maxWidth => 1180;
-
-  Widget fadeItem({
-    required Widget child,
-    int delay = 0,
-  }) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 500 + delay),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, _) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-    );
-  }
-
   Widget premiumCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 18),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppStyles.card,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE6E8DD)),
         boxShadow: [
           BoxShadow(
             color: AppStyles.deepGreen.withOpacity(0.06),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -543,7 +502,7 @@ ${post.url}
     required IconData icon,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(999),
@@ -552,15 +511,14 @@ ${post.url}
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 5),
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
               color: color,
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w900,
-              letterSpacing: 0.4,
             ),
           ),
         ],
@@ -578,11 +536,10 @@ ${post.url}
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(7),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -590,53 +547,46 @@ ${post.url}
               Colors.white,
             ],
           ),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? color : color.withOpacity(0.18),
-            width: isSelected ? 2 : 1,
+            width: isSelected ? 1.5 : 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(isSelected ? 0.18 : 0.07),
-              blurRadius: isSelected ? 24 : 12,
-              offset: const Offset(0, 8),
-            ),
-          ],
         ),
         child: Row(
           children: [
             CircleAvatar(
-              radius: 24,
+              radius: 13,
               backgroundColor: color.withOpacity(0.15),
-              child: Icon(icon, color: color),
+              child: Icon(icon, color: color, size: 14),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 6),
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
                       color: color,
+                      height: 1,
                     ),
                   ),
+                  const SizedBox(height: 3),
                   Text(
                     label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF667085),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isSelected ? 'Selected' : 'Tap to filter',
-                    style: TextStyle(
-                      color: isSelected ? color : const Color(0xFF98A2B3),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10,
+                      height: 1,
                     ),
                   ),
                 ],
@@ -651,138 +601,80 @@ ${post.url}
   Widget buildHero(bool isWide) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isWide ? 34 : 24),
-      margin: const EdgeInsets.only(bottom: 18),
+      padding: EdgeInsets.all(isWide ? 18 : 12),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(34),
+        borderRadius: BorderRadius.circular(isWide ? 24 : 20),
         gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
           colors: [
             AppStyles.deepGreen,
             AppStyles.primaryGreen,
-            Color(0xFF1D6B43),
           ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.deepGreen.withOpacity(0.22),
-            blurRadius: 30,
-            offset: const Offset(0, 16),
-          ),
-        ],
       ),
-      child: Wrap(
-        spacing: 20,
-        runSpacing: 20,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      child: Row(
         children: [
-          SizedBox(
-            width: isWide ? 620 : double.infinity,
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                fadeItem(
-                  delay: 50,
-                  child: badge(
-                    text: 'LIVE PHILGEPS MONITOR',
-                    color: AppStyles.gold,
-                    icon: Icons.notifications_active,
+                badge(
+                  text: 'LIVE PHILGEPS MONITOR',
+                  color: AppStyles.gold,
+                  icon: Icons.notifications_active,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'PhilGEPS Notif & Alert',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: isWide ? 26 : 19,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
                   ),
                 ),
-                const SizedBox(height: 18),
-                fadeItem(
-                  delay: 120,
-                  child: const Text(
-                    'PhilGEPS Notif & Alert',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      height: 1.05,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                fadeItem(
-                  delay: 200,
-                  child: const Text(
-                    'Automatic monitoring for selected LGUs with deadline alerts, new post tracking, and bid reminders.',
-                    style: TextStyle(
-                      color: Color(0xFFEAF6EF),
-                      fontSize: 15,
-                      height: 1.5,
-                    ),
+                const SizedBox(height: 6),
+                Text(
+                  'Deadline alerts, new posts, and bid reminders.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: const Color(0xFFEAF6EF),
+                    fontSize: isWide ? 13 : 10,
+                    height: 1,
                   ),
                 ),
               ],
             ),
           ),
-          ElevatedButton.icon(
-            onPressed: isLoading ? null : checkPhilgeps,
-            icon: isLoading
-                ? const SizedBox(
-                    width: 17,
-                    height: 17,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.search),
-            label: Text(isLoading ? 'Checking...' : 'Check Now'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppStyles.gold,
-              foregroundColor: AppStyles.deepGreen,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 18,
+          const SizedBox(width: 8),
+          SizedBox(
+            height: isWide ? 40 : 34,
+            child: ElevatedButton.icon(
+              onPressed: isLoading ? null : checkPhilgeps,
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 13,
+                      height: 13,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.search, size: 15),
+              label: Text(isLoading ? '...' : 'Check'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppStyles.gold,
+                foregroundColor: AppStyles.deepGreen,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildLguSection() {
-    return premiumCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          titleRow(
-            icon: Icons.location_city_rounded,
-            title: 'Monitoring LGUs',
-            subtitle: '${lguList.length} selected LGUs for notification alerts',
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: lguList.map((lgu) {
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: AppStyles.softGreen,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: AppStyles.primaryGreen.withOpacity(0.16),
-                  ),
-                ),
-                child: Text(
-                  toTitleCase(lgu),
-                  style: const TextStyle(
-                    color: AppStyles.primaryGreen,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              );
-            }).toList(),
           ),
         ],
       ),
@@ -797,27 +689,32 @@ ${post.url}
     return Row(
       children: [
         CircleAvatar(
+          radius: 18,
           backgroundColor: AppStyles.softGold,
-          child: Icon(icon, color: AppStyles.gold),
+          child: Icon(icon, color: AppStyles.gold, size: 18),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 19,
+                  fontSize: 17,
                   fontWeight: FontWeight.w900,
                   color: Color(0xFF101828),
                 ),
               ),
               Text(
                 subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF667085),
-                  fontSize: 13,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -844,19 +741,18 @@ ${post.url}
           titleRow(
             icon: Icons.tune_rounded,
             title: 'Keyword Filter',
-            subtitle:
-                'Search by LGU, Title, Reference No., Procuring Entity, Area, Classification',
+            subtitle: 'Search by LGU, title, reference no., entity, or area',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           TextField(
             controller: keywordController,
-            maxLines: 3,
+            maxLines: 1,
             onChanged: (_) {
               saveData();
               setState(() {});
             },
             decoration: const InputDecoration(
-              hintText: 'Search CCTV, LED Wall, Solar, LGU, Classification...',
+              hintText: 'Search CCTV, LED Wall, Solar, LGU...',
               prefixIcon: Icon(Icons.search_rounded),
             ),
           ),
@@ -868,7 +764,7 @@ ${post.url}
   Widget buildStats(bool isWide) {
     final cards = [
       statCard(
-        label: 'Total Posts',
+        label: 'Total',
         value: posts.length.toString(),
         icon: Icons.article_rounded,
         color: AppStyles.primaryGreen,
@@ -881,7 +777,7 @@ ${post.url}
         },
       ),
       statCard(
-        label: 'Near Deadline',
+        label: 'Deadline',
         value: urgentCount.toString(),
         icon: Icons.warning_amber_rounded,
         color: AppStyles.warning,
@@ -894,7 +790,7 @@ ${post.url}
         },
       ),
       statCard(
-        label: 'New Posts',
+        label: 'New',
         value: newCount.toString(),
         icon: Icons.fiber_new_rounded,
         color: AppStyles.gold,
@@ -908,30 +804,18 @@ ${post.url}
       ),
     ];
 
-    if (isWide) {
-      return Row(
-        children: cards
-            .map(
-              (card) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: card,
-                ),
-              ),
-            )
-            .toList(),
-      );
-    }
-
-    return Column(
-      children: cards
-          .map(
-            (card) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: card,
+    return Row(
+      children: List.generate(cards.length, (index) {
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: index == cards.length - 1 ? 0 : 6),
+            child: SizedBox(
+              height: isWide ? 76 : 62,
+              child: cards[index],
             ),
-          )
-          .toList(),
+          ),
+        );
+      }),
     );
   }
 
@@ -941,97 +825,95 @@ ${post.url}
     final newPost = isNewPost(post);
     final closed = deadlineStatus == DeadlineStatus.closed;
 
-    return fadeItem(
-      delay: 120,
-      child: InkWell(
-        onTap: () => openPhilgepsLink(post.url),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: statusColor.withOpacity(0.28)),
-            boxShadow: [
-              BoxShadow(
-                color: statusColor.withOpacity(0.07),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  badge(
-                    text: newPost ? 'NEW' : 'OLD',
-                    color: newPost ? AppStyles.gold : AppStyles.old,
-                    icon: newPost ? Icons.fiber_new_rounded : Icons.history,
-                  ),
-                  badge(
-                    text: closed ? 'CLOSED' : getCountdown(post.closingDate),
-                    color: statusColor,
-                    icon: closed ? Icons.lock_clock : Icons.timer_rounded,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                post.title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF101828),
-                  height: 1.25,
+    return InkWell(
+      onTap: () => openPhilgepsLink(post.url),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: statusColor.withOpacity(0.28)),
+          boxShadow: [
+            BoxShadow(
+              color: statusColor.withOpacity(0.07),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                badge(
+                  text: newPost ? 'NEW' : 'OLD',
+                  color: newPost ? AppStyles.gold : AppStyles.old,
+                  icon: newPost ? Icons.fiber_new_rounded : Icons.history,
                 ),
+                badge(
+                  text: closed ? 'CLOSED' : getCountdown(post.closingDate),
+                  color: statusColor,
+                  icon: closed ? Icons.lock_clock : Icons.timer_rounded,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              post.title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF101828),
+                height: 1.25,
               ),
-              const SizedBox(height: 14),
-              infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
-              infoLine(
-                Icons.confirmation_number_rounded,
-                'Reference No.: ${post.referenceNumber}',
-              ),
-              infoLine(
-                Icons.business_rounded,
-                'Procuring Entity: ${post.procuringEntity}',
-              ),
-              infoLine(
-                Icons.place_rounded,
-                'Area of Delivery: ${post.areaOfDelivery}',
-              ),
-              infoLine(
-                Icons.category_rounded,
-                'Classification: ${post.classification}',
-              ),
-              infoLine(
-                Icons.calendar_month_rounded,
-                'Posted: ${formatDate(post.postingDate)}',
-              ),
-              infoLine(
-                Icons.event_available_rounded,
-                'Closing: ${formatDate(post.closingDate)}',
-                color: statusColor,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: const [
-                  Icon(Icons.open_in_new, size: 17, color: AppStyles.gold),
-                  SizedBox(width: 6),
-                  Text(
-                    'Tap to open PhilGEPS post',
-                    style: TextStyle(
-                      color: AppStyles.primaryGreen,
-                      fontWeight: FontWeight.w800,
-                    ),
+            ),
+            const SizedBox(height: 10),
+            infoLine(Icons.location_city_rounded, toTitleCase(post.lgu)),
+            infoLine(
+              Icons.confirmation_number_rounded,
+              'Reference No.: ${post.referenceNumber}',
+            ),
+            infoLine(
+              Icons.business_rounded,
+              'Procuring Entity: ${post.procuringEntity}',
+            ),
+            infoLine(
+              Icons.place_rounded,
+              'Area of Delivery: ${post.areaOfDelivery}',
+            ),
+            infoLine(
+              Icons.category_rounded,
+              'Classification: ${post.classification}',
+            ),
+            infoLine(
+              Icons.calendar_month_rounded,
+              'Posted: ${formatDate(post.postingDate)}',
+            ),
+            infoLine(
+              Icons.event_available_rounded,
+              'Closing: ${formatDate(post.closingDate)}',
+              color: statusColor,
+            ),
+            const SizedBox(height: 5),
+            const Row(
+              children: [
+                Icon(Icons.open_in_new, size: 14, color: AppStyles.gold),
+                SizedBox(width: 5),
+                Text(
+                  'Tap to open PhilGEPS post',
+                  style: TextStyle(
+                    color: AppStyles.primaryGreen,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -1039,17 +921,18 @@ ${post.url}
 
   Widget infoLine(IconData icon, String text, {Color? color}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.only(bottom: 7),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: color ?? AppStyles.primaryGreen),
-          const SizedBox(width: 9),
+          Icon(icon, size: 14, color: color ?? AppStyles.primaryGreen),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
               style: TextStyle(
                 color: color ?? const Color(0xFF344054),
                 fontWeight: FontWeight.w600,
+                fontSize: 11,
               ),
             ),
           ),
@@ -1068,40 +951,72 @@ ${post.url}
             title: 'Bid Deadline Dashboard',
             subtitle: 'Nearest closing deadline appears first',
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           if (filteredPosts.isEmpty)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(28),
+              padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 color: AppStyles.softGreen,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: const Column(
                 children: [
                   Icon(
                     Icons.notifications_none_rounded,
-                    size: 44,
+                    size: 38,
                     color: AppStyles.primaryGreen,
                   ),
-                  SizedBox(height: 10),
+                  SizedBox(height: 8),
                   Text(
                     'No posts yet',
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: 15,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Click Check Now to start monitoring.',
-                    style: TextStyle(color: Color(0xFF667085)),
+                    'Click Check to start monitoring.',
+                    style: TextStyle(
+                      color: Color(0xFF667085),
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
             )
           else
             ...filteredPosts.map(buildPostCard),
+        ],
+      ),
+    );
+  }
+
+  Widget buildStatusMessage() {
+    return premiumCard(
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 17,
+            backgroundColor: AppStyles.softGold,
+            child: Icon(
+              Icons.notifications_active_rounded,
+              color: AppStyles.gold,
+              size: 17,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              statusMessage,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF344054),
+                fontSize: 12,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1116,7 +1031,7 @@ ${post.url}
             final isWide = constraints.maxWidth >= 850;
 
             return SingleChildScrollView(
-              padding: EdgeInsets.all(isWide ? 26 : 16),
+              padding: EdgeInsets.all(isWide ? 22 : 10),
               child: Center(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxWidth),
@@ -1124,45 +1039,9 @@ ${post.url}
                     children: [
                       buildHero(isWide),
                       buildStats(isWide),
-                      const SizedBox(height: 18),
-                      isWide
-                          ? Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(child: buildLguSection()),
-                                const SizedBox(width: 18),
-                                Expanded(child: buildFilterSection()),
-                              ],
-                            )
-                          : Column(
-                              children: [
-                                buildLguSection(),
-                                buildFilterSection(),
-                              ],
-                            ),
-                      premiumCard(
-                        child: Row(
-                          children: [
-                            const CircleAvatar(
-                              backgroundColor: AppStyles.softGold,
-                              child: Icon(
-                                Icons.notifications_active_rounded,
-                                color: AppStyles.gold,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                statusMessage,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF344054),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      const SizedBox(height: 8),
+                      buildFilterSection(),
+                      buildStatusMessage(),
                       buildDashboard(),
                     ],
                   ),
