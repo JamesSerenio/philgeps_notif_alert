@@ -27,24 +27,35 @@ self.addEventListener("notificationclick", function (event) {
     data?.FCM_MSG?.data?.url ||
     "https://notices.philgeps.gov.ph/";
 
-  if (event.action === "close") {
+  const postId =
+    data.postId ||
+    data?.FCM_MSG?.data?.postId ||
+    "";
+
+  const apiUrl =
+    data.apiUrl ||
+    data?.FCM_MSG?.data?.apiUrl ||
+    "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc";
+
+  if (event.action === "add_bidding_open") {
+    event.waitUntil(
+      fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          postId: postId
+        })
+      }).finally(() => {
+        return clients.openWindow(url);
+      })
+    );
     return;
   }
 
   event.waitUntil(
-    clients.matchAll({
-      type: "window",
-      includeUncontrolled: true
-    }).then((clientList) => {
-      for (const client of clientList) {
-        if ("focus" in client) {
-          client.focus();
-          return clients.openWindow(url);
-        }
-      }
-
-      return clients.openWindow(url);
-    })
+    clients.openWindow(url)
   );
 });
 

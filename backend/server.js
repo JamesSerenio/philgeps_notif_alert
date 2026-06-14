@@ -388,12 +388,8 @@ async function sendNotification(post, type = "new") {
 
             actions: [
             {
-                action: "open",
-                title: "Open",
-            },
-            {
-                action: "close",
-                title: "Close",
+                action: "add_bidding_open",
+                title: "👍 Bidding Docs",
             },
             ],
 
@@ -401,6 +397,7 @@ async function sendNotification(post, type = "new") {
             url: String(post.url || "https://notices.philgeps.gov.ph/"),
             postId: String(post.id || ""),
             notificationType: String(notificationType),
+            apiUrl: "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc",
             },
         },
         fcmOptions: {
@@ -625,6 +622,33 @@ app.all("/check", async (req, res) => {
     res.status(500).json({
       error: error.message,
     });
+  }
+});
+
+app.post("/add-bidding-doc", async (req, res) => {
+  try {
+    const { postId } = req.body;
+
+    if (!postId) {
+      return res.status(400).json({ error: "postId is required" });
+    }
+
+    const { error } = await supabase
+      .from("philgeps_posts")
+      .update({ is_bidding_doc: true })
+      .eq("id", postId);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({
+      success: true,
+      postId,
+      is_bidding_doc: true,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
