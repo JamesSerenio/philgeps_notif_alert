@@ -15,28 +15,6 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log("Background Message:", payload);
-
-  const title =
-      payload.notification?.title ||
-      "PhilGEPS Notif & Alert";
-
-  const options = {
-    body:
-        payload.notification?.body ||
-        "New PhilGEPS post detected.",
-    icon: "/icons/Icon-192.png",
-    badge: "/icons/Icon-192.png",
-    data: {
-      url:
-          payload.data?.url ||
-          "https://notices.philgeps.gov.ph/"
-    }
-  };
-
-  self.registration.showNotification(
-    title,
-    options
-  );
 });
 
 self.addEventListener(
