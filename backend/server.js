@@ -316,37 +316,49 @@ async function sendNotification(post, type = "new") {
   const response = await admin.messaging().sendEachForMulticast({
     
   tokens,
-    notification: {
-    title:
-    notificationType === "deadline"
-        ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
-        : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
-
-    body:
-    `📌 ${post.title || "N/A"}\n\n` +
-    `Posted: ${formatPHDate(post.postingDate)}\n` +
-    `Closing: ${formatPHDate(post.closingDate)}\n` +
-    `Status: ${notificationType}\n` +
-    `Classification: ${post.classification || "N/A"}\n` +
-    `Procuring Entity: ${post.procuringEntity || "N/A"}`,
-    },
 
     data: {
     url: String(post.url || "https://notices.philgeps.gov.ph/"),
+    title:
+        notificationType === "deadline"
+        ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
+        : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
+    body:
+        `📌 ${post.title || "N/A"}\n\n` +
+        `Posted: ${formatPHDate(post.postingDate)}\n` +
+        `Closing: ${formatPHDate(post.closingDate)}\n` +
+        `Status: ${notificationType}\n` +
+        `Classification: ${post.classification || "N/A"}\n` +
+        `Procuring Entity: ${post.procuringEntity || "N/A"}`,
     lgu: sanitizeData(post.lgu || ""),
-    title: sanitizeData(post.title || ""),
+    postTitle: sanitizeData(post.title || ""),
     postingDate: sanitizeData(formatPHDate(post.postingDate)),
     closingDate: sanitizeData(formatPHDate(post.closingDate)),
     status: sanitizeData(notificationType),
     classification: sanitizeData(post.classification || ""),
     procuringEntity: sanitizeData(post.procuringEntity || ""),
     },
+
     webpush: {
     notification: {
+        title:
+        notificationType === "deadline"
+            ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
+            : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
+        body:
+        `📌 ${post.title || "N/A"}\n\n` +
+        `Posted: ${formatPHDate(post.postingDate)}\n` +
+        `Closing: ${formatPHDate(post.closingDate)}\n` +
+        `Status: ${notificationType}\n` +
+        `Classification: ${post.classification || "N/A"}\n` +
+        `Procuring Entity: ${post.procuringEntity || "N/A"}`,
         icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
         badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
         silent: false,
-        requireInteraction: true,
+        requireInteraction: false,
+        data: {
+        url: String(post.url || "https://notices.philgeps.gov.ph/"),
+        },
     },
     fcmOptions: {
       link: String(post.url || "https://notices.philgeps.gov.ph/"),
