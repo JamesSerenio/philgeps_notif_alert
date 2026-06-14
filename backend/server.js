@@ -422,6 +422,23 @@ async function scrapePhilgeps() {
   return uniquePosts;
 }
 
+async function deleteOldNotificationLogs() {
+  const fiveDaysAgo = new Date(
+    Date.now() - 5 * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { error } = await supabase
+    .from("notification_logs")
+    .delete()
+    .lt("posting_date", fiveDaysAgo);
+
+  if (error) {
+    console.error("Delete old notification logs failed:", error.message);
+  } else {
+    console.log("Old notification logs deleted.");
+  }
+}
+
 async function deleteExpiredPosts() {
   const now = new Date().toISOString();
 
@@ -477,6 +494,7 @@ async function sendDeadlineReminders() {
 }
 
 async function runChecker() {
+  await deleteOldNotificationLogs();
   await deleteExpiredPosts();
 
   const posts = await scrapePhilgeps();
