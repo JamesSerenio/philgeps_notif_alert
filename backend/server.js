@@ -260,19 +260,28 @@ const response = await admin.messaging().sendEachForMulticast({
     notification: {
     title:
         type === "deadline"
-        ? `Deadline Alert: ${post.lgu}`
-        : `${post.lgu} posted in PhilGEPS`,
+        ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
+        : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
+
     body:
-        type === "deadline"
-        ? `${post.title} is near deadline.`
-        : post.title,
+    `📌 ${post.title || "N/A"}\n\n` +
+    `Posting Date: ${post.postingDate || "N/A"}\n` +
+    `Closing Date: ${post.closingDate || "N/A"}\n` +
+    `Status: ${type === "deadline" ? "deadline" : "new"}\n` +
+    `Classification: ${post.classification || "N/A"}\n` +
+    `Procuring Entity: ${post.procuringEntity || "N/A"}`,
     },
-  data: {
+
+    data: {
     url: String(post.url || "https://notices.philgeps.gov.ph/"),
-    postId: String(post.id || ""),
     lgu: sanitizeData(post.lgu || ""),
     title: sanitizeData(post.title || ""),
-  },
+    postingDate: sanitizeData(post.postingDate || ""),
+    closingDate: sanitizeData(post.closingDate || ""),
+    status: sanitizeData(type === "deadline" ? "deadline" : "new"),
+    classification: sanitizeData(post.classification || ""),
+    procuringEntity: sanitizeData(post.procuringEntity || ""),
+    },
   webpush: {
     notification: {
       icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
