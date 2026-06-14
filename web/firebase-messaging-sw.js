@@ -17,31 +17,15 @@ messaging.onBackgroundMessage((payload) => {
   console.log("Background Message:", payload);
 });
 
-self.addEventListener(
-  "notificationclick",
-  function (event) {
-    event.notification.close();
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
 
-    const url =
-      event.notification.data?.url ||
-      "https://notices.philgeps.gov.ph/";
+  const url =
+    event.notification.data?.FCM_MSG?.data?.url ||
+    event.notification.data?.url ||
+    "https://notices.philgeps.gov.ph/";
 
-    event.waitUntil(
-      clients.matchAll({
-        type: "window",
-        includeUncontrolled: true
-      }).then((clientList) => {
-        for (const client of clientList) {
-          if ("focus" in client) {
-            client.navigate(url);
-            return client.focus();
-          }
-        }
-
-        if (clients.openWindow) {
-          return clients.openWindow(url);
-        }
-      })
-    );
-  }
-);
+  event.waitUntil(
+    clients.openWindow(url)
+  );
+});

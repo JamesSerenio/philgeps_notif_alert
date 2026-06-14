@@ -508,20 +508,44 @@ async function sendDeadlineReminders() {
   }
 }
 
-async function runChecker() {
-  await deleteOldNotificationLogs();
-  await deleteExpiredPosts();
+    async function runChecker({ sendAlerts = true } = {}) {
+    await deleteOldNotificationLogs();
+    await deleteExpiredPosts();
 
-  const posts = await scrapePhilgeps();
+    const posts = await scrapePhilgeps();
 
-  for (const post of posts) {
-    await savePostAndNotify(post);
-  }
+    for (const post of posts) {
+        if (sendAlerts) {
+        await savePostAndNotify(post);
+        } else {
+        const row = {
+            id: post.id,
+            lgu: post.lgu,
+            title: post.title,
+            posting_date: post.postingDate,
+            closing_date: post.closingDate,
+            url: post.url,
+            status: isPostedRecently(post.postingDate) ? "new" : "old",
+            reference_number: post.referenceNumber,
+            procuring_entity: post.procuringEntity,
+            area_of_delivery: post.areaOfDelivery,
+            classification: post.classification,
+        };
 
-  await sendDeadlineReminders();
+        const { error } = await supabase
+            .from("philgeps_posts")
+            .upsert(row, { onConflict: "id" });
 
-  return posts;
-}
+        if (error) console.error(error.message);
+        }
+    }
+
+    if (sendAlerts) {
+        await sendDeadlineReminders();
+    }
+
+    return posts;
+    }
 
 app.get("/", (req, res) => {
   res.json({
@@ -531,7 +555,7 @@ app.get("/", (req, res) => {
 
 app.all("/check", async (req, res) => {
   try {
-    const posts = await runChecker();
+    const posts = await runChecker({ sendAlerts: false });
 
     const { data, error } = await supabase
       .from("philgeps_posts")
@@ -606,7 +630,7 @@ app.all("/send-test-notification", async (req, res) => {
 
 cron.schedule("*/5 * * * *", async () => {
   try {
-    await runChecker();
+    await runChecker({ sendAlerts: true });
     console.log("PhilGEPS checked.");
   } catch (error) {
     console.error(error.message);
