@@ -15,17 +15,91 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log("Background Message:", payload);
+
+  const title =
+    payload.data?.title ||
+    payload.notification?.title ||
+    "PhilGEPS Notif & Alert";
+
+  const body =
+    payload.data?.body ||
+    payload.notification?.body ||
+    "New PhilGEPS notification.";
+
+  const url =
+    payload.data?.url ||
+    "https://notices.philgeps.gov.ph/";
+
+  const postId =
+    payload.data?.postId ||
+    payload.data?.post_id ||
+    Date.now().toString();
+
+  const notificationType =
+    payload.data?.notificationType ||
+    payload.data?.notification_type ||
+    "new";
+
+  self.registration.showNotification(title, {
+    body: body,
+    icon: "icons/Icon-192.png",
+    badge: "icons/Icon-192.png",
+
+    tag: `${postId}-${notificationType}`,
+    renotify: false,
+    requireInteraction: true,
+    silent: false,
+
+    actions: [
+      {
+        action: "open",
+        title: "Open"
+      },
+      {
+        action: "close",
+        title: "Close"
+      }
+    ],
+
+    data: {
+      url: url,
+      postId: postId,
+      notificationType: notificationType
+    }
+  });
 });
 
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
+  const data = event.notification.data || {};
+
   const url =
-    event.notification.data?.FCM_MSG?.data?.url ||
-    event.notification.data?.url ||
+    data.url ||
+    data?.FCM_MSG?.data?.url ||
     "https://notices.philgeps.gov.ph/";
 
+  if (event.action === "close") {
+    return;
+  }
+
   event.waitUntil(
-    clients.openWindow(url)
+    clients.matchAll({
+      type: "window",
+      includeUncontrolled: true
+    }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) {
+          client.focus();
+          return clients.openWindow(url);
+        }
+      }
+
+      return clients.openWindow(url);
+    })
   );
+});
+
+self.addEventListener("notificationclose", function (event) {
+  event.notification.close();
 });

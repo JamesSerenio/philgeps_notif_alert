@@ -354,35 +354,59 @@ async function sendNotification(post, type = "new") {
     procuringEntity: sanitizeData(post.procuringEntity || ""),
     },
 
-    webpush: {
-    notification: {
-        title:
-        notificationType === "deadline"
-            ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
-            : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
-        body:
-        `📌 ${post.title || "N/A"}\n\n` +
-        `Posted: ${formatPHDate(post.postingDate)}\n` +
-        `Closing: ${formatPHDate(post.closingDate)}\n` +
-        `Status: ${notificationType}\n` +
-        `Classification: ${post.classification || "N/A"}\n` +
-        `ABC: ${(post.abc || 0).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-        })}\n` +
-        `Procuring Entity: ${post.procuringEntity || "N/A"}`,
-        icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
-        badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
-        silent: false,
-        requireInteraction: false,
-        data: {
-        url: String(post.url || "https://notices.philgeps.gov.ph/"),
+        webpush: {
+        headers: {
+            TTL: "86400",
+            Urgency: "high",
+            Topic: `${post.id}-${notificationType}`,
         },
-    },
-    fcmOptions: {
-      link: String(post.url || "https://notices.philgeps.gov.ph/"),
-    },
-  },
+        notification: {
+            title:
+            notificationType === "deadline"
+                ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
+                : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
+
+            body:
+            `📌 ${post.title || "N/A"}\n\n` +
+            `Posted: ${formatPHDate(post.postingDate)}\n` +
+            `Closing: ${formatPHDate(post.closingDate)}\n` +
+            `Status: ${notificationType}\n` +
+            `Classification: ${post.classification || "N/A"}\n` +
+            `ABC: ${(post.abc || 0).toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            })}\n` +
+            `Procuring Entity: ${post.procuringEntity || "N/A"}`,
+
+            icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
+            badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
+
+            tag: `${post.id}-${notificationType}`,
+            renotify: false,
+            requireInteraction: true,
+            silent: false,
+
+            actions: [
+            {
+                action: "open",
+                title: "Open",
+            },
+            {
+                action: "close",
+                title: "Close",
+            },
+            ],
+
+            data: {
+            url: String(post.url || "https://notices.philgeps.gov.ph/"),
+            postId: String(post.id || ""),
+            notificationType: String(notificationType),
+            },
+        },
+        fcmOptions: {
+            link: String(post.url || "https://notices.philgeps.gov.ph/"),
+        },
+        },
 });
 
      console.log("FCM success:", response.successCount);
