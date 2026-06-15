@@ -151,7 +151,10 @@ Future<void> openPhilgepsLink(String url) async {
   final uri = Uri.parse(url);
 
   if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    await launchUrl(
+      uri,
+      mode: LaunchMode.platformDefault,
+    );
   }
 }
 
@@ -284,17 +287,44 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> toggleBiddingDocs(ProjectPost post) async {
-    setState(() {
-      if (biddingDocsIds.contains(post.id)) {
-        biddingDocsIds.remove(post.id);
-        statusMessage = 'Removed from Bidding Docs.';
-      } else {
-        biddingDocsIds.add(post.id);
-        statusMessage = 'Added to Bidding Docs.';
-      }
-    });
+    try {
+      final newValue = !post.isBiddingDoc;
 
-    await saveBiddingDocs();
+      await SupabaseConfig.client.from('philgeps_posts').update({
+        'is_bidding_doc': newValue,
+      }).eq('id', post.id);
+
+      setState(() {
+        final index = posts.indexWhere((e) => e.id == post.id);
+
+        if (index != -1) {
+          posts[index] = ProjectPost(
+            id: post.id,
+            lgu: post.lgu,
+            title: post.title,
+            referenceNumber: post.referenceNumber,
+            procuringEntity: post.procuringEntity,
+            areaOfDelivery: post.areaOfDelivery,
+            classification: post.classification,
+            abc: post.abc,
+            postingDate: post.postingDate,
+            closingDate: post.closingDate,
+            url: post.url,
+            status: post.status,
+            isBiddingDoc: newValue,
+          );
+        }
+
+        statusMessage =
+            newValue ? 'Added to Bidding Docs.' : 'Removed from Bidding Docs.';
+      });
+
+      await loadPostsFromSupabase();
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Failed to update Bidding Docs.';
+      });
+    }
   }
 
   final String apiUrl =
