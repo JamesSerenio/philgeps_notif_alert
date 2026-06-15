@@ -146,19 +146,13 @@ class NotificationService {
 }
 
 Future<void> openPhilgepsLink(String url) async {
-  final refMatch = RegExp(r'refID=(\d+)', caseSensitive: false).firstMatch(url);
+  if (url.isEmpty) return;
 
-  if (refMatch == null) return;
+  final uri = Uri.parse(url);
 
-  final finalUrl =
-      'https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refMatch.group(1)}&highlight=true';
-
-  final uri = Uri.parse(finalUrl);
-
-  await launchUrl(
-    uri,
-    mode: LaunchMode.externalApplication,
-  );
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -290,55 +284,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> toggleBiddingDocs(ProjectPost post) async {
-    try {
-      final newValue = !post.isBiddingDoc;
-
-      final response = await http.post(
-        Uri.parse(
-          'https://philgepsnotifalert-production.up.railway.app/set-bidding-doc',
-        ),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'postId': post.id,
-          'isBiddingDoc': newValue,
-        }),
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed update');
+    setState(() {
+      if (biddingDocsIds.contains(post.id)) {
+        biddingDocsIds.remove(post.id);
+        statusMessage = 'Removed from Bidding Docs.';
+      } else {
+        biddingDocsIds.add(post.id);
+        statusMessage = 'Added to Bidding Docs.';
       }
+    });
 
-      setState(() {
-        final index = posts.indexWhere((e) => e.id == post.id);
-
-        if (index != -1) {
-          posts[index] = ProjectPost(
-            id: post.id,
-            lgu: post.lgu,
-            title: post.title,
-            referenceNumber: post.referenceNumber,
-            procuringEntity: post.procuringEntity,
-            areaOfDelivery: post.areaOfDelivery,
-            classification: post.classification,
-            abc: post.abc,
-            postingDate: post.postingDate,
-            closingDate: post.closingDate,
-            url: post.url,
-            status: post.status,
-            isBiddingDoc: newValue,
-          );
-        }
-
-        statusMessage =
-            newValue ? 'Added to Bidding Docs.' : 'Removed from Bidding Docs.';
-      });
-
-      await loadPostsFromSupabase();
-    } catch (e) {
-      setState(() {
-        statusMessage = 'Failed to update Bidding Docs.';
-      });
-    }
+    await saveBiddingDocs();
   }
 
   final String apiUrl =
@@ -944,9 +900,7 @@ ${post.abc}
     final closed = deadlineStatus == DeadlineStatus.closed;
 
     return InkWell(
-      onTap: () => openPhilgepsLink(
-        'https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${post.referenceNumber}&highlight=true',
-      ),
+      onTap: () => openPhilgepsLink(post.url),
       child: Stack(
         children: [
           Container(
