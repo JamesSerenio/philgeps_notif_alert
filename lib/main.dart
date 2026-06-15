@@ -37,8 +37,8 @@ Future<void> main() async {
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  Future.microtask(() async {
-    await NotificationService.initialize();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    NotificationService.initialize();
   });
 
   FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
@@ -84,19 +84,22 @@ class NotificationService {
     if (token != null) {
       try {
         final prefs = await SharedPreferences.getInstance();
+
         final deviceKey = prefs.getString('device_key') ??
-            '${DateTime.now().millisecondsSinceEpoch}-${defaultTargetPlatform.name}';
+            '${DateTime.now().millisecondsSinceEpoch}-${DateTime.now().microsecondsSinceEpoch}-${defaultTargetPlatform.name}';
 
         await prefs.setString('device_key', deviceKey);
 
         await SupabaseConfig.client.from('device_tokens').upsert(
           {
             'token': token,
-            'platform': 'web',
+            'platform': defaultTargetPlatform.name,
             'device_key': deviceKey,
           },
           onConflict: 'device_key',
         );
+
+        debugPrint('FCM TOKEN SAVED: $token');
       } catch (e) {
         debugPrint('Supabase token save error: $e');
       }

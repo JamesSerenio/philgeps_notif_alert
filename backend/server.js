@@ -724,21 +724,24 @@ app.all("/send-test-notification", async (req, res) => {
 
     const response = await admin.messaging().sendEachForMulticast({
     tokens,
-    notification: {
-        title: "PhilGEPS Notif & Alert",
-        body: "Test notification working. Tap to open PhilGEPS.",
-    },
-    data: {
-        url: "https://notices.philgeps.gov.ph/",
-    },
+
+// notification removed
+
+data: {
+    title: "PhilGEPS Notif & Alert",
+    body: "Test notification working. Tap to open PhilGEPS.",
+    url: "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=13038413",
+    postId: "13038413",
+},
+
     webpush: {
         notification: {
         icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
         badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
         },
-        fcmOptions: {
-        link: "https://notices.philgeps.gov.ph/",
-        },
+
+// fcmOptions removed
+
     },
     });
 
