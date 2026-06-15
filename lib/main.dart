@@ -148,14 +148,19 @@ class NotificationService {
 Future<void> openPhilgepsLink(String url) async {
   if (url.isEmpty) return;
 
-  final uri = Uri.parse(url);
+  final refMatch = RegExp(r'refID=(\d+)', caseSensitive: false).firstMatch(url);
 
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-  }
+  final finalUrl = refMatch != null
+      ? 'https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=${refMatch.group(1)}'
+      : url;
+
+  final uri = Uri.parse(finalUrl);
+
+  await launchUrl(
+    uri,
+    mode: LaunchMode.externalApplication,
+    webOnlyWindowName: '_blank',
+  );
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

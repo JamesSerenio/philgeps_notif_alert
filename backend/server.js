@@ -273,7 +273,7 @@ posts.push({
     ) || 0,
   postingDate,
   closingDate,
-  url: fullUrl,
+  url: `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=${bidDetails.referenceNumber || refId}`,
 });
   }
 
@@ -526,7 +526,7 @@ async function deleteExpiredPosts() {
 async function sendDeadlineReminders() {
   const now = new Date();
   const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  
+
     await deleteExpiredPosts();
 
   const { data, error } = await supabase

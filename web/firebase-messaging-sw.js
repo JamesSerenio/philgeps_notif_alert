@@ -22,10 +22,17 @@ self.addEventListener("notificationclick", function (event) {
 
   const data = event.notification.data || {};
 
-  const url =
-    data.url ||
-    data?.FCM_MSG?.data?.url ||
-    "https://notices.philgeps.gov.ph/";
+let url =
+  data.url ||
+  data?.FCM_MSG?.data?.url ||
+  "https://notices.philgeps.gov.ph/";
+
+const refMatch = url.match(/refID=(\d+)/i);
+
+if (refMatch) {
+  url =
+    `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=${refMatch[1]}`;
+}
 
   const postId =
     data.postId ||
