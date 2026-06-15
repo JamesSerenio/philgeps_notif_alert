@@ -151,7 +151,7 @@ Future<void> openPhilgepsLink(String url) async {
   final refMatch = RegExp(r'refID=(\d+)', caseSensitive: false).firstMatch(url);
 
   final finalUrl = refMatch != null
-      ? 'https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=${refMatch.group(1)}'
+      ? 'https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refMatch.group(1)}&highlight=true'
       : url;
 
   final uri = Uri.parse(finalUrl);

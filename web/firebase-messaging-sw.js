@@ -31,7 +31,7 @@ const refMatch = url.match(/refID=(\d+)/i);
 
 if (refMatch) {
   url =
-    `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=${refMatch[1]}`;
+    `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refMatch[1]}&highlight=true`;
 }
 
   const postId =
