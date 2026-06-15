@@ -735,13 +735,18 @@ data: {
 },
 
     webpush: {
-        notification: {
+    headers: {
+        TTL: "86400",
+        Urgency: "high",
+    },
+    notification: {
+        title: "PhilGEPS Notif & Alert",
+        body: "Test notification working. Tap to open PhilGEPS.",
         icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
         badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
-        },
-
-// fcmOptions removed
-
+        requireInteraction: true,
+        tag: "test-philgeps-alert",
+    },
     },
     });
 

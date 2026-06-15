@@ -15,6 +15,25 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log("Background Message:", payload);
+
+  const data = payload.data || {};
+  const title = data.title || "PhilGEPS Notif & Alert";
+  const body = data.body || "New PhilGEPS update detected.";
+
+  self.registration.showNotification(title, {
+    body,
+    icon: "/icons/Icon-192.png",
+    badge: "/icons/Icon-192.png",
+    tag: `${data.postId || Date.now()}-${data.notificationType || "alert"}`,
+    requireInteraction: true,
+    data: data,
+    actions: [
+      {
+        action: "add_bidding_open",
+        title: "👍 Bidding Docs",
+      },
+    ],
+  });
 });
 
 self.addEventListener("notificationclick", function (event) {

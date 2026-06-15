@@ -106,8 +106,13 @@ class NotificationService {
     }
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      final title = message.notification?.title ?? 'PhilGEPS Notif & Alert';
-      final body = message.notification?.body ?? 'New PhilGEPS post detected.';
+      final title = message.notification?.title ??
+          message.data['title'] ??
+          'PhilGEPS Notif & Alert';
+
+      final body = message.notification?.body ??
+          message.data['body'] ??
+          'New PhilGEPS post detected.';
       final url = message.data['url'] ?? 'https://notices.philgeps.gov.ph/';
 
       showDialog(
