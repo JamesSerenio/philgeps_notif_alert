@@ -370,11 +370,10 @@ async function sendNotification(post, type = "new") {
     procuringEntity: sanitizeData(post.procuringEntity || ""),
     },
 
-        webpush: {
+webpush: {
         headers: {
             TTL: "86400",
             Urgency: "high",
-            Topic: `${post.id}-${notificationType}`,
         },
         notification: {
             title:
@@ -415,9 +414,6 @@ async function sendNotification(post, type = "new") {
             notificationType: String(notificationType),
             apiUrl: "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc",
             },
-        },
-        fcmOptions: {
-            link: String(post.url || "https://notices.philgeps.gov.ph/"),
         },
         },
 });

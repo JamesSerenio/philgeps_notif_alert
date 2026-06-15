@@ -284,17 +284,55 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> toggleBiddingDocs(ProjectPost post) async {
-    setState(() {
-      if (biddingDocsIds.contains(post.id)) {
-        biddingDocsIds.remove(post.id);
-        statusMessage = 'Removed from Bidding Docs.';
-      } else {
-        biddingDocsIds.add(post.id);
-        statusMessage = 'Added to Bidding Docs.';
-      }
-    });
+    try {
+      final newValue = !post.isBiddingDoc;
 
-    await saveBiddingDocs();
+      final response = await http.post(
+        Uri.parse(
+          'https://philgepsnotifalert-production.up.railway.app/set-bidding-doc',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'postId': post.id,
+          'isBiddingDoc': newValue,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update bidding docs');
+      }
+
+      setState(() {
+        final index = posts.indexWhere((e) => e.id == post.id);
+
+        if (index != -1) {
+          posts[index] = ProjectPost(
+            id: post.id,
+            lgu: post.lgu,
+            title: post.title,
+            referenceNumber: post.referenceNumber,
+            procuringEntity: post.procuringEntity,
+            areaOfDelivery: post.areaOfDelivery,
+            classification: post.classification,
+            abc: post.abc,
+            postingDate: post.postingDate,
+            closingDate: post.closingDate,
+            url: post.url,
+            status: post.status,
+            isBiddingDoc: newValue,
+          );
+        }
+
+        statusMessage =
+            newValue ? 'Added to Bidding Docs.' : 'Removed from Bidding Docs.';
+      });
+
+      await loadPostsFromSupabase();
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Failed to update Bidding Docs.';
+      });
+    }
   }
 
   final String apiUrl =
@@ -481,6 +519,18 @@ ${post.abc}
 
       return da.compareTo(db);
     });
+  }
+
+  bool isNewPost(ProjectPost post) {
+    final posted = DateTime.tryParse(post.postingDate);
+
+    if (posted == null) return false;
+
+    final postedPH = posted.toLocal();
+
+    final ageHours = DateTime.now().difference(postedPH).inHours;
+
+    return ageHours < 24;
   }
 
   DeadlineStatus getDeadlineStatus(String dateText) {

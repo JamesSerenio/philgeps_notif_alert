@@ -20,29 +20,29 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
-  const data = event.notification.data || {};
+  const rawData = event.notification.data || {};
+  const fcmData = rawData.FCM_MSG?.data || {};
+  const data = Object.keys(fcmData).length ? fcmData : rawData;
 
-let url =
-  data.url ||
-  data?.FCM_MSG?.data?.url ||
-  "https://notices.philgeps.gov.ph/";
+  const postId =
+    data.postId ||
+    data.post_id ||
+    "";
 
-const postId =
-  data.postId ||
-  data?.FCM_MSG?.data?.postId ||
-  "";
+  let url =
+    data.url ||
+    "https://notices.philgeps.gov.ph/";
 
-const refMatch = url.match(/refID=(\d+)/i);
-const refId = refMatch ? refMatch[1] : postId;
+  const refMatch = url.match(/refID=(\d+)/i);
+  const refId = refMatch ? refMatch[1] : postId;
 
-if (refId) {
-  url =
-    `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refId}&highlight=true`;
-}
+  if (refId) {
+    url =
+      `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refId}&highlight=true`;
+  }
 
   const apiUrl =
     data.apiUrl ||
-    data?.FCM_MSG?.data?.apiUrl ||
     "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc";
 
   if (event.action === "add_bidding_open") {
@@ -53,7 +53,7 @@ if (refId) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          postId: postId
+          postId: postId || refId
         })
       }).finally(() => {
         return clients.openWindow(url);
