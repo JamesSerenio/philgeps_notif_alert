@@ -108,7 +108,12 @@ function parsePhilgepsDate(value) {
   if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
   if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
 
-  return new Date(yyyy, mm - 1, dd, hour, minute).toISOString();
+const MM = String(mm).padStart(2, "0");
+const DD = String(dd).padStart(2, "0");
+const HH = String(hour).padStart(2, "0");
+const MIN = String(minute).padStart(2, "0");
+
+return new Date(`${yyyy}-${MM}-${DD}T${HH}:${MIN}:00+08:00`).toISOString();  
 }
 
 function isStillActive(closingDate) {
@@ -118,7 +123,12 @@ function isStillActive(closingDate) {
 
 function isPostedRecently(postingDate) {
   if (!postingDate) return false;
-  return Date.now() - new Date(postingDate).getTime() <= 24 * 60 * 60 * 1000;
+
+  const ageHours =
+    (Date.now() - new Date(postingDate).getTime()) /
+    (1000 * 60 * 60);
+
+  return ageHours < 24;
 }
 
 function extractRefId(url = "") {
@@ -516,6 +526,8 @@ async function deleteExpiredPosts() {
 async function sendDeadlineReminders() {
   const now = new Date();
   const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  
+    await deleteExpiredPosts();
 
   const { data, error } = await supabase
     .from("philgeps_posts")
@@ -623,6 +635,42 @@ app.all("/check", async (req, res) => {
     res.json({
       checked: posts.length,
       items: data || [],
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+app.post("/set-bidding-doc", async (req, res) => {
+  try {
+    const { postId, isBiddingDoc } = req.body;
+
+    if (!postId) {
+      return res.status(400).json({
+        error: "postId is required",
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("philgeps_posts")
+      .update({
+        is_bidding_doc: isBiddingDoc === true,
+      })
+      .eq("id", postId)
+      .select("id,is_bidding_doc");
+
+    if (error) {
+      return res.status(500).json({
+        error: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      postId,
+      data,
     });
   } catch (error) {
     res.status(500).json({

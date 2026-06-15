@@ -153,7 +153,7 @@ Future<void> openPhilgepsLink(String url) async {
   if (await canLaunchUrl(uri)) {
     await launchUrl(
       uri,
-      mode: LaunchMode.platformDefault,
+      mode: LaunchMode.externalApplication,
     );
   }
 }
@@ -290,9 +290,20 @@ class _HomePageState extends State<HomePage> {
     try {
       final newValue = !post.isBiddingDoc;
 
-      await SupabaseConfig.client.from('philgeps_posts').update({
-        'is_bidding_doc': newValue,
-      }).eq('id', post.id);
+      final response = await http.post(
+        Uri.parse(
+          'https://philgepsnotifalert-production.up.railway.app/set-bidding-doc',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'postId': post.id,
+          'isBiddingDoc': newValue,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed update');
+      }
 
       setState(() {
         final index = posts.indexWhere((e) => e.id == post.id);
