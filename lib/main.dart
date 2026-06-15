@@ -37,7 +37,9 @@ Future<void> main() async {
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  await NotificationService.initialize();
+  Future.microtask(() async {
+    await NotificationService.initialize();
+  });
 
   FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -56,12 +58,7 @@ Future<void> main() async {
     );
   });
 
-  final token = await FirebaseMessaging.instance.getToken(
-    vapidKey:
-        'BKH3mkFzPUhN06q8LmpgXdsXwgfFY2coyzo1qBs2IH2qH_GdfP2VBLMgQRgpOLBtX2gkYp6OtP-qQbxjvTIRuJE',
-  );
-
-  debugPrint('FCM TOKEN: $token');
+// Removed from startup para mas paspas mo-open ang app.
 
   runApp(const PhilgepsAlertApp());
 }
@@ -327,7 +324,7 @@ class _HomePageState extends State<HomePage> {
             newValue ? 'Added to Bidding Docs.' : 'Removed from Bidding Docs.';
       });
 
-      await loadPostsFromSupabase();
+// await loadPostsFromSupabase();
     } catch (e) {
       setState(() {
         statusMessage = 'Failed to update Bidding Docs.';
@@ -401,8 +398,10 @@ ${post.abc}
   @override
   void initState() {
     super.initState();
-    loadSavedData();
-    loadPostsFromSupabase();
+    Future.microtask(() {
+      loadSavedData();
+      loadPostsFromSupabase();
+    });
   }
 
   Future<void> loadSavedData() async {
@@ -445,7 +444,7 @@ ${post.abc}
       }).toList();
 
       setState(() {
-        posts = items;
+        posts = items.take(100).toList();
         sortByDeadline();
         statusMessage = 'Loaded ${posts.length} post(s) from Supabase.';
       });
@@ -649,7 +648,7 @@ ${post.abc}
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 120),
         padding: const EdgeInsets.all(7),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -1153,7 +1152,20 @@ ${post.abc}
               ),
             )
           else
-            ...filteredPosts.map(buildPostCard),
+            Builder(
+              builder: (context) {
+                final visiblePosts = filteredPosts;
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: visiblePosts.length,
+                  itemBuilder: (context, index) {
+                    return buildPostCard(visiblePosts[index]);
+                  },
+                );
+              },
+            ),
         ],
       ),
     );

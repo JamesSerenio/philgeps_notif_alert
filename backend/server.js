@@ -273,7 +273,7 @@ posts.push({
     ) || 0,
   postingDate,
   closingDate,
-  url: `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${bidDetails.referenceNumber || refId}&highlight=true`,
+  url: `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=${bidDetails.referenceNumber || refId}`,
 });
   }
 
