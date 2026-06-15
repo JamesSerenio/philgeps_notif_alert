@@ -146,20 +146,18 @@ class NotificationService {
 }
 
 Future<void> openPhilgepsLink(String url) async {
-  if (url.isEmpty) return;
-
   final refMatch = RegExp(r'refID=(\d+)', caseSensitive: false).firstMatch(url);
 
-  final finalUrl = refMatch != null
-      ? 'https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refMatch.group(1)}&highlight=true'
-      : url;
+  if (refMatch == null) return;
+
+  final finalUrl =
+      'https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refMatch.group(1)}&highlight=true';
 
   final uri = Uri.parse(finalUrl);
 
   await launchUrl(
     uri,
     mode: LaunchMode.externalApplication,
-    webOnlyWindowName: '_blank',
   );
 }
 
@@ -946,7 +944,9 @@ ${post.abc}
     final closed = deadlineStatus == DeadlineStatus.closed;
 
     return InkWell(
-      onTap: () => openPhilgepsLink(post.url),
+      onTap: () => openPhilgepsLink(
+        'https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${post.referenceNumber}&highlight=true',
+      ),
       child: Stack(
         children: [
           Container(

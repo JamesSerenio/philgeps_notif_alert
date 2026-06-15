@@ -27,17 +27,18 @@ let url =
   data?.FCM_MSG?.data?.url ||
   "https://notices.philgeps.gov.ph/";
 
+const postId =
+  data.postId ||
+  data?.FCM_MSG?.data?.postId ||
+  "";
+
 const refMatch = url.match(/refID=(\d+)/i);
+const refId = refMatch ? refMatch[1] : postId;
 
-if (refMatch) {
+if (refId) {
   url =
-    `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refMatch[1]}&highlight=true`;
+    `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/SplashBidNoticeAbstractUI.aspx?menuIndex=3&refID=${refId}&highlight=true`;
 }
-
-  const postId =
-    data.postId ||
-    data?.FCM_MSG?.data?.postId ||
-    "";
 
   const apiUrl =
     data.apiUrl ||
