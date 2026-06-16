@@ -186,6 +186,7 @@ class ProjectPost {
   final String areaOfDelivery;
   final String classification;
   final double abc;
+  final String budgetType;
   final String closingDate;
   final String postingDate;
   final String url;
@@ -204,6 +205,7 @@ class ProjectPost {
     required this.areaOfDelivery,
     required this.classification,
     required this.abc,
+    required this.budgetType,
     required this.isBiddingDoc,
     required this.status,
   });
@@ -224,6 +226,7 @@ class ProjectPost {
           '',
       classification: json['classification']?.toString() ?? '',
       abc: (json['abc'] ?? 0).toDouble(),
+      budgetType: json['budget_type']?.toString() ?? 'ABC',
       isBiddingDoc: json['is_bidding_doc'] == true,
       status: json['status']?.toString() ?? 'old',
       closingDate: json['closingDate']?.toString() ??
@@ -320,6 +323,7 @@ class _HomePageState extends State<HomePage> {
             areaOfDelivery: post.areaOfDelivery,
             classification: post.classification,
             abc: post.abc,
+            budgetType: post.budgetType,
             postingDate: post.postingDate,
             closingDate: post.closingDate,
             url: post.url,
@@ -443,6 +447,7 @@ ${post.abc}
           areaOfDelivery: item['area_of_delivery']?.toString() ?? '',
           classification: item['classification']?.toString() ?? '',
           abc: (item['abc'] ?? 0).toDouble(),
+          budgetType: item['budget_type']?.toString() ?? 'ABC',
           isBiddingDoc: item['is_bidding_doc'] == true,
           status: item['status']?.toString() ?? 'old',
           postingDate: item['posting_date']?.toString() ?? '',
@@ -1027,7 +1032,7 @@ ${post.abc}
                 ),
                 infoLine(
                   Icons.payments_rounded,
-                  'ABC: ${abcFormatter.format(post.abc)}',
+                  '${post.budgetType}: ${abcFormatter.format(post.abc)}',
                 ),
                 infoLine(
                   Icons.calendar_month_rounded,
