@@ -483,9 +483,20 @@ async function savePostAndNotify(post) {
     return;
   }
 
-  if (!existing && isPostedRecently(post.postingDate)) {
+if (isPostedRecently(post.postingDate)) {
+  const { data: existingNewLog } = await supabase
+    .from("notification_logs")
+    .select("id")
+    .eq("post_id", post.id)
+    .eq("notification_type", "new")
+    .maybeSingle();
+
+  if (!existingNewLog) {
     await sendNotification(post, "new");
+  } else {
+    console.log(`New alert already sent: ${post.id}`);
   }
+}
 }
 
 async function scrapePhilgeps() {
