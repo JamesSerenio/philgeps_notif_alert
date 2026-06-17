@@ -343,9 +343,14 @@ async function sendNotification(post, type = "new") {
     return;
   }
 
-  const tokens = await getDeviceTokens();
+const tokens = await getDeviceTokens();
 
-  if (tokens.length === 0) return;
+console.log(`Sending ${notificationType} notification to ${tokens.length} token(s)`);
+
+if (tokens.length === 0) {
+  console.log("No device tokens found, notification not sent.");
+  return;
+}
 
   const response = await admin.messaging().sendEachForMulticast({
     
@@ -574,6 +579,7 @@ async function sendDeadlineReminders() {
         classification: item.classification,
         procuringEntity: item.procuring_entity,
         abc: item.abc || 0,
+        budgetType: item.budget_type || "ABC",
       },
       "deadline"
     );
@@ -629,7 +635,7 @@ app.get("/", (req, res) => {
 
 app.all("/check", async (req, res) => {
   try {
-    const posts = await runChecker({ sendAlerts: false });
+    const posts = await runChecker({ sendAlerts: true });
 
     const { data, error } = await supabase
       .from("philgeps_posts")
