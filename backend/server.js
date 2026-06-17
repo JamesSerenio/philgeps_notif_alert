@@ -124,11 +124,22 @@ function isStillActive(closingDate) {
 function isPostedRecently(postingDate) {
   if (!postingDate) return false;
 
-  const ageHours =
-    (Date.now() - new Date(postingDate).getTime()) /
-    (1000 * 60 * 60);
+  const posted = new Date(postingDate);
+  if (isNaN(posted.getTime())) return false;
 
-  return ageHours < 24;
+  const phNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
+  );
+
+  const phPosted = new Date(
+    posted.toLocaleString("en-US", { timeZone: "Asia/Manila" })
+  );
+
+  return (
+    phPosted.getFullYear() === phNow.getFullYear() &&
+    phPosted.getMonth() === phNow.getMonth() &&
+    phPosted.getDate() === phNow.getDate()
+  );
 }
 
 function extractRefId(url = "") {
@@ -296,24 +307,12 @@ posts.push({
 async function getDeviceTokens() {
   const { data, error } = await supabase
     .from("device_tokens")
-    .select("token, device_key")
-    .order("created_at", { ascending: false });
+    .select("token")
+    .not("token", "is", null);
 
   if (error) return [];
 
-  const latestByDevice = new Map();
-
-  for (const item of data || []) {
-    if (!item.token) continue;
-
-    const key = item.device_key || item.token;
-
-    if (!latestByDevice.has(key)) {
-      latestByDevice.set(key, item.token);
-    }
-  }
-
-  return [...new Set([...latestByDevice.values()])];
+  return [...new Set((data || []).map((item) => item.token).filter(Boolean))];
 }
 
 async function sendNotification(post, type = "new") {
@@ -604,6 +603,7 @@ async function sendDeadlineReminders() {
             area_of_delivery: post.areaOfDelivery,
             classification: post.classification,
             abc: post.abc || 0,
+            budget_type: post.budgetType || "ABC",
         };
 
         const { error } = await supabase
