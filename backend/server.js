@@ -133,23 +133,6 @@ function isPostedRecently(postingDate) {
   return ageHours <= 48;
 }
 
-  const posted = new Date(postingDate);
-  if (isNaN(posted.getTime())) return false;
-
-  const phNow = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
-  );
-
-  const phPosted = new Date(
-    posted.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-  );
-
-  return (
-    phPosted.getFullYear() === phNow.getFullYear() &&
-    phPosted.getMonth() === phNow.getMonth() &&
-    phPosted.getDate() === phNow.getDate()
-  );
-
 function extractRefId(url = "") {
   const match = url.match(/refID=(\d+)/i);
   return match ? match[1] : "";
