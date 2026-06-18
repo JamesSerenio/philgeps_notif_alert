@@ -149,7 +149,6 @@ function isPostedRecently(postingDate) {
     phPosted.getMonth() === phNow.getMonth() &&
     phPosted.getDate() === phNow.getDate()
   );
-}
 
 function extractRefId(url = "") {
   const match = url.match(/refID=(\d+)/i);
