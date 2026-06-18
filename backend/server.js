@@ -344,90 +344,49 @@ if (tokens.length === 0) {
 }
 
   const response = await admin.messaging().sendEachForMulticast({
-    
-  tokens,
+    tokens,
 
     data: {
-    url: String(post.url || "https://notices.philgeps.gov.ph/"),
-    postId: String(post.id || ""),
-    apiUrl: "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc",
-    notificationType: String(notificationType),
+      url: String(post.url || "https://notices.philgeps.gov.ph/"),
+      postId: String(post.id || ""),
+      apiUrl: "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc",
+      notificationType: String(notificationType),
 
-    title:
+      title:
         notificationType === "deadline"
-        ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
-        : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
+          ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
+          : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
 
-    body:
+      body:
         `📌 ${post.title || "N/A"}\n\n` +
         `Posted: ${formatPHDate(post.postingDate)}\n` +
         `Closing: ${formatPHDate(post.closingDate)}\n` +
         `Status: ${notificationType}\n` +
         `Classification: ${post.classification || "N/A"}\n` +
         `${post.budgetType || "ABC"}: ${(post.abc || 0).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
         })}\n` +
         `Procuring Entity: ${post.procuringEntity || "N/A"}`,
 
-    lgu: sanitizeData(post.lgu || ""),
-    postTitle: sanitizeData(post.title || ""),
-    postingDate: sanitizeData(formatPHDate(post.postingDate)),
-    closingDate: sanitizeData(formatPHDate(post.closingDate)),
-    status: sanitizeData(notificationType),
-    classification: sanitizeData(post.classification || ""),
-    procuringEntity: sanitizeData(post.procuringEntity || ""),
+      lgu: sanitizeData(post.lgu || ""),
+      postTitle: sanitizeData(post.title || ""),
+      postingDate: sanitizeData(formatPHDate(post.postingDate)),
+      closingDate: sanitizeData(formatPHDate(post.closingDate)),
+      status: sanitizeData(notificationType),
+      classification: sanitizeData(post.classification || ""),
+      procuringEntity: sanitizeData(post.procuringEntity || ""),
     },
 
-webpush: {
-        headers: {
-            TTL: "86400",
-            Urgency: "high",
-        },
-        notification: {
-            title:
-            notificationType === "deadline"
-                ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
-                : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
+    webpush: {
+      headers: {
+        TTL: "86400",
+        Urgency: "high",
+      },
+    },
+  });
 
-            body:
-            `📌 ${post.title || "N/A"}\n\n` +
-            `Posted: ${formatPHDate(post.postingDate)}\n` +
-            `Closing: ${formatPHDate(post.closingDate)}\n` +
-            `Status: ${notificationType}\n` +
-            `Classification: ${post.classification || "N/A"}\n` +
-            `${post.budgetType || "ABC"}: ${(post.abc || 0).toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-            })}\n` +
-            `Procuring Entity: ${post.procuringEntity || "N/A"}`,
-
-            icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
-            badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
-
-            tag: `${post.id}-${notificationType}`,
-            renotify: false,
-            requireInteraction: true,
-            silent: false,
-
-            actions: [
-            {
-                action: "add_bidding_open",
-                title: "👍 Bidding Docs",
-            },
-            ],
-
-            data: {
-            url: String(post.url || "https://notices.philgeps.gov.ph/"),
-            postId: String(post.id || ""),
-            notificationType: String(notificationType),
-            apiUrl: "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc",
-            },
-        },
-        },
-});
-
-     console.log("FCM success:", response.successCount);
+  console.log("FCM success:", response.successCount);
   console.log("FCM failed:", response.failureCount);
 
   response.responses.forEach((result, index) => {
@@ -757,20 +716,12 @@ data: {
     postId: "13038413",
 },
 
-    webpush: {
-    headers: {
-        TTL: "86400",
-        Urgency: "high",
-    },
-    notification: {
-        title: "PhilGEPS Notif & Alert",
-        body: "Test notification working. Tap to open PhilGEPS.",
-        icon: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
-        badge: "https://philgeps-notif-alert.vercel.app/icons/Icon-192.png",
-        requireInteraction: true,
-        tag: "test-philgeps-alert",
-    },
-    },
+webpush: {
+  headers: {
+    TTL: "86400",
+    Urgency: "high",
+  },
+},
     });
 
   console.log("TEST FCM success:", response.successCount);
