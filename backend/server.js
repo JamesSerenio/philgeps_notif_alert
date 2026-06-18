@@ -127,11 +127,11 @@ function isPostedRecently(postingDate) {
   const posted = new Date(postingDate);
   if (isNaN(posted.getTime())) return false;
 
-  const ageHours = (Date.now() - posted.getTime()) / (1000 * 60 * 60);
+  const ageHours =
+    (Date.now() - posted.getTime()) / (1000 * 60 * 60);
 
-  return ageHours <= 48; // testing: resend new posts within 48 hours
+  return ageHours <= 48;
 }
-  if (!postingDate) return false;
 
   const posted = new Date(postingDate);
   if (isNaN(posted.getTime())) return false;
