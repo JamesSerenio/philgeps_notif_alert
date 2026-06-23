@@ -517,19 +517,14 @@ ${post.abc}
       if (aIsNew && !bIsNew) return -1;
       if (!aIsNew && bIsNew) return 1;
 
-      final da = DateTime.tryParse(a.closingDate);
-      final db = DateTime.tryParse(b.closingDate);
+      final aPosted = DateTime.tryParse(a.postingDate);
+      final bPosted = DateTime.tryParse(b.postingDate);
 
-      if (da == null) return 1;
-      if (db == null) return -1;
+      if (aPosted == null && bPosted == null) return 0;
+      if (aPosted == null) return 1;
+      if (bPosted == null) return -1;
 
-      final aClosed = da.isBefore(DateTime.now());
-      final bClosed = db.isBefore(DateTime.now());
-
-      if (!aClosed && bClosed) return -1;
-      if (aClosed && !bClosed) return 1;
-
-      return da.compareTo(db);
+      return bPosted.compareTo(aPosted);
     });
   }
 
