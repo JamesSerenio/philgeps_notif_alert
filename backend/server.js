@@ -512,7 +512,7 @@ async function deleteExpiredPosts() {
 
 async function sendDeadlineReminders() {
   const now = new Date();
-  const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const next24Hours = new Date(now.getTime() + 30 * 60 * 60 * 1000);
 
     await deleteExpiredPosts();
 
