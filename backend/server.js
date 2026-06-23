@@ -132,7 +132,7 @@ function isPostedRecently(postingDate) {
   const ageHours =
     (Date.now() - posted.getTime()) / (1000 * 60 * 60);
 
-  return ageHours <= 48;
+  return ageHours <= 24;
 }
 
 function extractRefId(url = "") {
