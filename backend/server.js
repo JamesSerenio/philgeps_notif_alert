@@ -48,6 +48,8 @@ const SEARCH_URL =
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+let isRunning = false;
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT)),
@@ -451,27 +453,36 @@ if (isPostedRecently(post.postingDate)) {
 
 async function scrapePhilgeps() {
   const allPosts = [];
+  let browser;
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+      ],
+    });
 
-  const page = await browser.newPage();
+    const page = await browser.newPage();
 
-  for (const lgu of WATCH_LGUS) {
-    try {
-      const posts = await searchPhilgepsByKeyword(page, lgu);
-
-      console.log(`${lgu}: scraped ${posts.length} active post(s)`);
-
-      allPosts.push(...posts);
-    } catch (error) {
-      console.error(`${lgu} scrape failed: ${error.message}`);
+    for (const lgu of WATCH_LGUS) {
+      try {
+        const posts = await searchPhilgepsByKeyword(page, lgu);
+        console.log(`${lgu}: scraped ${posts.length} active post(s)`);
+        allPosts.push(...posts);
+      } catch (error) {
+        console.error(`${lgu} scrape failed: ${error.message}`);
+      }
+    }
+  } finally {
+    if (browser) {
+      await browser.close();
+      console.log("Chromium browser closed.");
     }
   }
-
-  await browser.close();
 
   const uniquePosts = Array.from(
     new Map(allPosts.map((post) => [post.id, post])).values()
@@ -547,46 +558,57 @@ async function sendDeadlineReminders() {
   }
 }
 
-    async function runChecker({ sendAlerts = true } = {}) {
+async function runChecker({ sendAlerts = true } = {}) {
+  if (isRunning) {
+    console.log("Checker already running. Skipping this run.");
+    return [];
+  }
+
+  isRunning = true;
+
+  try {
     await deleteOldNotificationLogs();
     await deleteExpiredPosts();
 
     const posts = await scrapePhilgeps();
 
     for (const post of posts) {
-        if (sendAlerts) {
+      if (sendAlerts) {
         await savePostAndNotify(post);
-        } else {
+      } else {
         const row = {
-            id: post.id,
-            lgu: post.lgu,
-            title: post.title,
-            posting_date: post.postingDate,
-            closing_date: post.closingDate,
-            url: post.url,
-            status: isPostedRecently(post.postingDate) ? "new" : "old",
-            reference_number: post.referenceNumber,
-            procuring_entity: post.procuringEntity,
-            area_of_delivery: post.areaOfDelivery,
-            classification: post.classification,
-            abc: post.abc || 0,
-            budget_type: post.budgetType || "ABC",
+          id: post.id,
+          lgu: post.lgu,
+          title: post.title,
+          posting_date: post.postingDate,
+          closing_date: post.closingDate,
+          url: post.url,
+          status: isPostedRecently(post.postingDate) ? "new" : "old",
+          reference_number: post.referenceNumber,
+          procuring_entity: post.procuringEntity,
+          area_of_delivery: post.areaOfDelivery,
+          classification: post.classification,
+          abc: post.abc || 0,
+          budget_type: post.budgetType || "ABC",
         };
 
         const { error } = await supabase
-            .from("philgeps_posts")
-            .upsert(row, { onConflict: "id" });
+          .from("philgeps_posts")
+          .upsert(row, { onConflict: "id" });
 
         if (error) console.error(error.message);
-        }
+      }
     }
 
     if (sendAlerts) {
-        await sendDeadlineReminders();
+      await sendDeadlineReminders();
     }
 
     return posts;
-    }
+  } finally {
+    isRunning = false;
+  }
+}
 
 app.get("/", (req, res) => {
   res.json({
@@ -745,7 +767,7 @@ webpush: {
   });
 });
 
-cron.schedule("*/5 * * * *", async () => {
+cron.schedule("*/30 * * * *", async () => {
   try {
     await runChecker({ sendAlerts: true });
     console.log("PhilGEPS checked.");
