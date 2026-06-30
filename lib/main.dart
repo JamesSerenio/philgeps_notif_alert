@@ -270,6 +270,7 @@ class _HomePageState extends State<HomePage> {
     'impasugong',
     'impasug-ong',
     'baungon',
+    'manolo fortich',
   ];
 
   List<ProjectPost> posts = [];

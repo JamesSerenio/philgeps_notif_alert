@@ -34,6 +34,7 @@ const WATCH_LGUS = [
   "impasugong",
   "impasug-ong",
   "baungon",
+  "manolo fortich",
 ];
 
 const ALLOWED_DELIVERY_AREAS = [
