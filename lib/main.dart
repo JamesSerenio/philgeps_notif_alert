@@ -436,7 +436,8 @@ ${post.abc}
       final response = await SupabaseConfig.client
           .from('philgeps_posts')
           .select()
-          .order('closing_date', ascending: true);
+          .order('closing_date', ascending: true)
+          .limit(1000);
 
       final items = response.map<ProjectPost>((item) {
         return ProjectPost(
