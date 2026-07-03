@@ -459,7 +459,7 @@ ${post.abc}
       }).toList();
 
       setState(() {
-        posts = items.take(100).toList();
+        posts = items.toList();
         sortByDeadline();
         statusMessage = 'Loaded ${posts.length} post(s) from Supabase.';
       });
