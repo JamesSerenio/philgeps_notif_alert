@@ -14,6 +14,7 @@ import 'firebase_options.dart';
 import 'styles/app_styles.dart';
 import 'utils/supabase_client.dart';
 import 'pdf_viewer_page.dart';
+import 'pdf_editor/screens/pdf_editor_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -1071,7 +1072,7 @@ ${post.abc}
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const PdfViewerPage(),
+                          builder: (_) => const PdfEditorScreen(),
                         ),
                       );
                     },
