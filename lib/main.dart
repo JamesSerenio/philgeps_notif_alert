@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'firebase_options.dart';
 import 'styles/app_styles.dart';
 import 'utils/supabase_client.dart';
+import 'pdf_viewer_page.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -1061,32 +1062,66 @@ ${post.abc}
           Positioned(
             top: 8,
             right: 8,
-            child: InkWell(
-              onTap: () => toggleBiddingDocs(post),
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: isInBiddingDocs(post)
-                      ? const Color(0xFFFFF1F1)
-                      : AppStyles.softGreen,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isInBiddingDocs(post)
-                        ? AppStyles.danger.withOpacity(0.4)
-                        : AppStyles.primaryGreen,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (post.isBiddingDoc) ...[
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PdfViewerPage(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF4E5),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppStyles.gold,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.picture_as_pdf_rounded,
+                        size: 16,
+                        color: AppStyles.gold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                InkWell(
+                  onTap: () => toggleBiddingDocs(post),
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: isInBiddingDocs(post)
+                          ? const Color(0xFFFFF1F1)
+                          : AppStyles.softGreen,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isInBiddingDocs(post)
+                            ? AppStyles.danger.withOpacity(0.4)
+                            : AppStyles.primaryGreen,
+                      ),
+                    ),
+                    child: Icon(
+                      isInBiddingDocs(post)
+                          ? Icons.thumb_down_alt_rounded
+                          : Icons.thumb_up_alt_rounded,
+                      size: 16,
+                      color: isInBiddingDocs(post)
+                          ? AppStyles.danger
+                          : AppStyles.primaryGreen,
+                    ),
                   ),
                 ),
-                child: Icon(
-                  isInBiddingDocs(post)
-                      ? Icons.thumb_down_alt_rounded
-                      : Icons.thumb_up_alt_rounded,
-                  size: 16,
-                  color: isInBiddingDocs(post)
-                      ? AppStyles.danger
-                      : AppStyles.primaryGreen,
-                ),
-              ),
+              ],
             ),
           ),
         ],
