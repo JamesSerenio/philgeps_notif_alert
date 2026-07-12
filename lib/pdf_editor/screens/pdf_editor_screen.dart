@@ -6,25 +6,74 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../services/pdf_service.dart';
 
 class PdfEditorScreen extends StatefulWidget {
-  const PdfEditorScreen({super.key});
+  final String province;
+  final String municipality;
+  final String projectTitle;
+  final String referenceNumber;
+  final String date;
+  final String bidderName;
+  final String procuringEntity;
+
+  const PdfEditorScreen({
+    super.key,
+    required this.province,
+    required this.municipality,
+    required this.projectTitle,
+    required this.referenceNumber,
+    required this.date,
+    required this.bidderName,
+    required this.procuringEntity,
+  });
 
   @override
   State<PdfEditorScreen> createState() => _PdfEditorScreenState();
 }
 
 class _PdfEditorScreenState extends State<PdfEditorScreen> {
-  final provinceController = TextEditingController(text: 'Bukidnon');
-  final municipalityController = TextEditingController(text: 'Impasugong');
-  final projectTitleController = TextEditingController();
-  final referenceNumberController = TextEditingController();
-  final dateController = TextEditingController();
-  final bidderNameController = TextEditingController(
-    text: 'MIKATA PRIME CORPORATION',
-  );
+  late final TextEditingController provinceController;
+  late final TextEditingController municipalityController;
+  late final TextEditingController projectTitleController;
+  late final TextEditingController referenceNumberController;
+  late final TextEditingController dateController;
+  late final TextEditingController bidderNameController;
+  late final TextEditingController procuringEntityController;
 
   Uint8List? generatedPdf;
   bool isGenerating = false;
   String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+
+    provinceController = TextEditingController(
+      text: widget.province,
+    );
+
+    municipalityController = TextEditingController(
+      text: widget.municipality,
+    );
+
+    projectTitleController = TextEditingController(
+      text: widget.projectTitle,
+    );
+
+    referenceNumberController = TextEditingController(
+      text: widget.referenceNumber,
+    );
+
+    dateController = TextEditingController(
+      text: widget.date,
+    );
+
+    bidderNameController = TextEditingController(
+      text: widget.bidderName,
+    );
+
+    procuringEntityController = TextEditingController(
+      text: widget.procuringEntity,
+    );
+  }
 
   Future<void> generatePdf() async {
     setState(() {
@@ -35,12 +84,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     try {
       final bytes = await PdfService.generateBidDocs(
         values: {
-          'province': provinceController.text,
-          'municipality': municipalityController.text,
-          'projectTitle': projectTitleController.text,
-          'referenceNumber': referenceNumberController.text,
-          'date': dateController.text,
-          'bidderName': bidderNameController.text,
+          'province': provinceController.text.trim(),
+          'municipality': municipalityController.text.trim(),
+          'projectTitle': projectTitleController.text.trim(),
+          'referenceNumber': referenceNumberController.text.trim(),
+          'date': dateController.text.trim(),
+          'bidderName': bidderNameController.text.trim(),
+          'procuringEntity': procuringEntityController.text.trim(),
         },
       );
 
@@ -88,6 +138,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     municipalityController.dispose();
     projectTitleController.dispose();
     referenceNumberController.dispose();
+    procuringEntityController.dispose();
     dateController.dispose();
     bidderNameController.dispose();
     super.dispose();
@@ -124,6 +175,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 formField(
                   label: 'Reference Number',
                   controller: referenceNumberController,
+                ),
+                formField(
+                  label: 'Procuring Entity',
+                  controller: procuringEntityController,
+                  maxLines: 2,
                 ),
                 formField(
                   label: 'Date',

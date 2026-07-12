@@ -13,7 +13,6 @@ import 'package:flutter/foundation.dart';
 import 'firebase_options.dart';
 import 'styles/app_styles.dart';
 import 'utils/supabase_client.dart';
-import 'pdf_viewer_page.dart';
 import 'pdf_editor/screens/pdf_editor_screen.dart';
 
 @pragma('vm:entry-point')
@@ -1072,7 +1071,18 @@ ${post.abc}
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const PdfEditorScreen(),
+                          builder: (_) => PdfEditorScreen(
+                            province: post.areaOfDelivery.trim().isNotEmpty
+                                ? post.areaOfDelivery.trim()
+                                : 'Bukidnon',
+                            municipality: toTitleCase(post.lgu.trim()),
+                            projectTitle: post.title.trim(),
+                            referenceNumber: post.referenceNumber.trim(),
+                            procuringEntity: post.procuringEntity.trim(),
+                            date: DateFormat('MMMM d, yyyy')
+                                .format(DateTime.now()),
+                            bidderName: 'MIKATA PRIME CORPORATION',
+                          ),
                         ),
                       );
                     },
