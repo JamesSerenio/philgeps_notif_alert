@@ -121,10 +121,10 @@ class PdfService {
     graphics.drawRectangle(
       brush: whiteBrush,
       bounds: const Rect.fromLTWH(
-        100,
-        25,
-        395,
-        70,
+        90,
+        24,
+        415,
+        56,
       ),
     );
 
@@ -135,27 +135,45 @@ class PdfService {
     graphics.drawRectangle(
       brush: whiteBrush,
       bounds: const Rect.fromLTWH(
-        175,
-        125,
-        390,
-        115,
+        55,
+        120,
+        505,
+        120,
+      ),
+    );
+
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(
+        75,
+        82,
+        445,
+        30,
       ),
     );
 
     final PdfFont republicFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      10,
+      style: PdfFontStyle.regular,
     );
 
-    final PdfFont headerBoldFont = PdfStandardFont(
+    final PdfFont headerFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       10,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.regular,
     );
 
     final PdfFont municipalityFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      10,
+      style: PdfFontStyle.regular,
+    );
+
+    final PdfFont checklistFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      12,
+      style: PdfFontStyle.regular,
     );
 
     final PdfFont labelFont = PdfStandardFont(
@@ -183,22 +201,35 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         100,
-        30,
+        28,
         395,
-        15,
+        18,
+      ),
+      format: centerFormat,
+    );
+
+    graphics.drawString(
+      'CHECKLIST OF ELIGIBILITY REQUIREMENTS FOR GOODS',
+      checklistFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(
+        75,
+        87,
+        445,
+        22,
       ),
       format: centerFormat,
     );
 
     graphics.drawString(
       'PROVINCE OF $province',
-      headerBoldFont,
+      headerFont,
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         100,
-        45,
+        43,
         395,
-        17,
+        18,
       ),
       format: centerFormat,
     );
@@ -209,9 +240,9 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         100,
-        62,
+        58,
         395,
-        16,
+        18,
       ),
       format: centerFormat,
     );
@@ -219,14 +250,17 @@ class PdfService {
     /*
      * Redraw labels.
      */
+/*
+ * Project information labels.
+ */
     graphics.drawString(
       'Project',
       labelFont,
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         65,
-        140,
-        85,
+        137,
+        80,
         18,
       ),
     );
@@ -237,8 +271,8 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         155,
-        140,
-        15,
+        137,
+        12,
         18,
       ),
     );
@@ -249,8 +283,8 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         65,
-        192,
-        85,
+        190,
+        80,
         18,
       ),
     );
@@ -261,8 +295,8 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         155,
-        192,
-        15,
+        190,
+        12,
         18,
       ),
     );
@@ -273,7 +307,7 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         65,
-        212,
+        210,
         90,
         18,
       ),
@@ -285,22 +319,22 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         155,
-        212,
-        15,
+        210,
+        12,
         18,
       ),
     );
 
-    /*
-     * Redraw values.
-     */
+/*
+ * Project information values.
+ */
     graphics.drawString(
       projectTitle,
       valueFont,
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         175,
-        137,
+        135,
         360,
         50,
       ),
@@ -317,7 +351,7 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         175,
-        192,
+        190,
         220,
         18,
       ),
@@ -329,7 +363,7 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(
         175,
-        212,
+        210,
         330,
         18,
       ),
