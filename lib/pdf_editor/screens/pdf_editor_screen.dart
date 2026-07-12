@@ -1,7 +1,8 @@
+import 'dart:html' as html;
 import 'dart:typed_data';
+import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../services/pdf_service.dart';
 
@@ -41,6 +42,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   Uint8List? generatedPdf;
   bool isGenerating = false;
   String? errorMessage;
+
+  String? previewViewType;
+  String? previewBlobUrl;
 
   @override
   void initState() {
@@ -96,8 +100,35 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
       if (!mounted) return;
 
+      if (previewBlobUrl != null) {
+        html.Url.revokeObjectUrl(previewBlobUrl!);
+      }
+
+      final blob = html.Blob(
+        <dynamic>[bytes],
+        'application/pdf',
+      );
+
+      final blobUrl = html.Url.createObjectUrlFromBlob(blob);
+
+      final viewType = 'generated-pdf-${DateTime.now().microsecondsSinceEpoch}';
+
+      ui_web.platformViewRegistry.registerViewFactory(
+        viewType,
+        (int viewId) {
+          return html.IFrameElement()
+            ..src = blobUrl
+            ..style.border = 'none'
+            ..style.width = '100%'
+            ..style.height = '100%'
+            ..allowFullscreen = true;
+        },
+      );
+
       setState(() {
         generatedPdf = bytes;
+        previewBlobUrl = blobUrl;
+        previewViewType = viewType;
       });
     } catch (error) {
       if (!mounted) return;
@@ -134,6 +165,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   @override
   void dispose() {
+    if (previewBlobUrl != null) {
+      html.Url.revokeObjectUrl(previewBlobUrl!);
+    }
+
     provinceController.dispose();
     municipalityController.dispose();
     projectTitleController.dispose();
@@ -141,6 +176,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     procuringEntityController.dispose();
     dateController.dispose();
     bidderNameController.dispose();
+
     super.dispose();
   }
 
@@ -220,14 +256,26 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
           final previewPanel = Container(
             color: const Color(0xFFF2F2F2),
-            child: generatedPdf == null
+            child: previewViewType == null
                 ? const Center(
-                    child: Text(
-                      'Fill up the form, then click Generate PDF.',
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.picture_as_pdf_outlined,
+                          size: 54,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Fill up the form, then click Generate PDF.',
+                        ),
+                      ],
                     ),
                   )
-                : SfPdfViewer.memory(
-                    generatedPdf!,
+                : HtmlElementView(
+                    key: ValueKey(previewViewType),
+                    viewType: previewViewType!,
                   ),
           );
 

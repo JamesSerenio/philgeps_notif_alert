@@ -3,95 +3,117 @@ import 'dart:ui';
 import '../models/pdf_field.dart';
 
 const List<PdfField> bidDocsFields = [
+  // Header: PROVINCE OF ______
   PdfField(
     key: 'province',
     label: 'Province',
-    fontSize: 12,
+    fontSize: 10,
     isBold: true,
     positions: [
       PdfFieldPosition(
         pageIndex: 0,
-        bounds: Rect.fromLTWH(250, 92, 220, 22),
+        bounds: Rect.fromLTWH(
+          190,
+          54,
+          220,
+          17,
+        ),
       ),
     ],
   ),
+
+  // Header: Municipality of ______
   PdfField(
     key: 'municipality',
     label: 'Municipality',
-    fontSize: 12,
+    fontSize: 9,
+    isBold: false,
     positions: [
       PdfFieldPosition(
         pageIndex: 0,
-        bounds: Rect.fromLTWH(250, 112, 220, 22),
+        bounds: Rect.fromLTWH(
+          190,
+          72,
+          220,
+          17,
+        ),
       ),
     ],
   ),
+
+  // Project value on Page 1
   PdfField(
     key: 'projectTitle',
     label: 'Project Title',
-    fontSize: 11,
+    fontSize: 8,
     isBold: true,
     positions: [
       PdfFieldPosition(
         pageIndex: 0,
-        bounds: Rect.fromLTWH(285, 205, 260, 45),
-      ),
-      PdfFieldPosition(
-        pageIndex: 19,
-        bounds: Rect.fromLTWH(275, 42, 390, 45),
-      ),
-      PdfFieldPosition(
-        pageIndex: 20,
-        bounds: Rect.fromLTWH(275, 42, 390, 45),
+        bounds: Rect.fromLTWH(
+          285,
+          150,
+          270,
+          38,
+        ),
       ),
     ],
   ),
-  PdfField(
-    key: 'referenceNumber',
-    label: 'Reference Number',
-    fontSize: 11,
-    isBold: true,
-    positions: [
-      PdfFieldPosition(
-        pageIndex: 19,
-        bounds: Rect.fromLTWH(275, 88, 180, 22),
-      ),
-      PdfFieldPosition(
-        pageIndex: 20,
-        bounds: Rect.fromLTWH(275, 88, 180, 22),
-      ),
-    ],
-  ),
+
+  // Date value on Page 1
   PdfField(
     key: 'date',
     label: 'Date',
-    fontSize: 11,
+    fontSize: 9,
     isBold: true,
     positions: [
       PdfFieldPosition(
         pageIndex: 0,
-        bounds: Rect.fromLTWH(285, 250, 180, 22),
-      ),
-      PdfFieldPosition(
-        pageIndex: 19,
-        bounds: Rect.fromLTWH(145, 505, 170, 22),
-      ),
-      PdfFieldPosition(
-        pageIndex: 20,
-        bounds: Rect.fromLTWH(145, 555, 170, 22),
+        bounds: Rect.fromLTWH(
+          285,
+          190,
+          180,
+          18,
+        ),
       ),
     ],
   ),
+
+  // Bidder value on Page 1
   PdfField(
     key: 'bidderName',
     label: 'Bidder Name',
-    fontSize: 11,
+    fontSize: 9,
     isBold: true,
     positions: [
       PdfFieldPosition(
         pageIndex: 0,
-        bounds: Rect.fromLTWH(285, 275, 260, 22),
+        bounds: Rect.fromLTWH(
+          285,
+          210,
+          260,
+          18,
+        ),
       ),
     ],
+  ),
+
+  // Wala pa ni sa Page 1.
+  // I-map nato later sa exact pages nga adunay Reference Number.
+  PdfField(
+    key: 'referenceNumber',
+    label: 'Reference Number',
+    fontSize: 9,
+    isBold: true,
+    positions: [],
+  ),
+
+  // Wala pud visible nga slot sa Page 1.
+  PdfField(
+    key: 'procuringEntity',
+    label: 'Procuring Entity',
+    fontSize: 9,
+    isBold: true,
+    positions: [],
   ),
 ];
