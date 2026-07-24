@@ -13,8 +13,10 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
+const FIREBASE_SERVICE_ACCOUNT =
+  process.env.FIREBASE_SERVICE_ACCOUNT;
 
 const WATCH_LGUS = [
   "alubijid",
@@ -37,36 +39,95 @@ const WATCH_LGUS = [
   "manolo fortich",
 ];
 
-const ALLOWED_DELIVERY_AREAS = [
-  "bukidnon",
-  "misamis oriental",
-];
+const BASE_URL =
+  "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/";
 
-const BASE_URL = "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/";
 const SEARCH_URL =
-  BASE_URL +
-  "SplashOpportunitiesSearchUI.aspx?menuIndex=3&ClickFrom=OpenOpp&Result=3";
+  `${BASE_URL}SplashOpportunitiesSearchUI.aspx` +
+  "?menuIndex=3&ClickFrom=OpenOpp&Result=3";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error(
+    "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY."
+  );
+}
+
+if (!FIREBASE_SERVICE_ACCOUNT) {
+  throw new Error(
+    "Missing FIREBASE_SERVICE_ACCOUNT."
+  );
+}
+
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY
+);
+
+/*
+|--------------------------------------------------------------------------
+| CHECKER LOCK
+|--------------------------------------------------------------------------
+*/
 
 let isRunning = false;
+let checkerStartedAt = 0;
+let activeBrowser = null;
+let currentRunId = 0;
+
+// Kapag 20 minutes nang naka-lock, ire-reset.
+const CHECKER_STALE_MS = 20 * 60 * 1000;
+
+// Kapag 18 minutes na ang Chromium, sapilitang isasara.
+const CHECKER_FORCE_STOP_MS = 18 * 60 * 1000;
+
+/*
+|--------------------------------------------------------------------------
+| FIREBASE
+|--------------------------------------------------------------------------
+*/
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT)),
+    credential: admin.credential.cert(
+      JSON.parse(FIREBASE_SERVICE_ACCOUNT)
+    ),
   });
 }
 
+/*
+|--------------------------------------------------------------------------
+| HELPERS
+|--------------------------------------------------------------------------
+*/
+
 function normalize(text = "") {
-  return String(text).toLowerCase().replace(/\s+/g, " ").trim();
+  return String(text)
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function cleanText(text = "") {
-  return String(text).replace(/\s+/g, " ").trim();
+  return String(text)
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function sanitizeData(text = "") {
-  return String(text).replace(/[^\x00-\xFF]/g, "");
+  return String(text).replace(
+    /[^\x00-\xFF]/g,
+    ""
+  );
+}
+
+function canonicalLgu(lgu = "") {
+  const value = normalize(lgu);
+
+  if (value === "impasug-ong") {
+    return "impasugong";
+  }
+
+  return value;
 }
 
 function formatPHDate(value) {
@@ -74,7 +135,9 @@ function formatPHDate(value) {
 
   const date = new Date(value);
 
-  if (isNaN(date.getTime())) return "N/A";
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
 
   return date.toLocaleString("en-PH", {
     timeZone: "Asia/Manila",
@@ -87,10 +150,6 @@ function formatPHDate(value) {
   });
 }
 
-function canonicalLgu(lgu) {
-  return lgu === "impasug-ong" ? "impasugong" : lgu;
-}
-
 function parsePhilgepsDate(value) {
   const text = cleanText(value);
 
@@ -98,9 +157,19 @@ function parsePhilgepsDate(value) {
     /(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})\s*(AM|PM))?/i
   );
 
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
 
-  let [, dd, mm, yyyy, hour = "12", minute = "00", ampm = "AM"] = match;
+  let [
+    ,
+    dd,
+    mm,
+    yyyy,
+    hour = "12",
+    minute = "00",
+    ampm = "AM",
+  ] = match;
 
   dd = Number(dd);
   mm = Number(mm);
@@ -108,44 +177,86 @@ function parsePhilgepsDate(value) {
   hour = Number(hour);
   minute = Number(minute);
 
-  if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
-  if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
+  if (
+    ampm.toUpperCase() === "PM" &&
+    hour !== 12
+  ) {
+    hour += 12;
+  }
 
-const MM = String(mm).padStart(2, "0");
-const DD = String(dd).padStart(2, "0");
-const HH = String(hour).padStart(2, "0");
-const MIN = String(minute).padStart(2, "0");
+  if (
+    ampm.toUpperCase() === "AM" &&
+    hour === 12
+  ) {
+    hour = 0;
+  }
 
-return new Date(`${yyyy}-${MM}-${DD}T${HH}:${MIN}:00+08:00`).toISOString();  
+  const MM = String(mm).padStart(2, "0");
+  const DD = String(dd).padStart(2, "0");
+  const HH = String(hour).padStart(2, "0");
+  const MIN = String(minute).padStart(2, "0");
+
+  const date = new Date(
+    `${yyyy}-${MM}-${DD}T${HH}:${MIN}:00+08:00`
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
 }
 
 function isStillActive(closingDate) {
-  if (!closingDate) return true;
-  return new Date(closingDate).getTime() >= Date.now();
+  if (!closingDate) {
+    return true;
+  }
+
+  const closing = new Date(closingDate);
+
+  if (Number.isNaN(closing.getTime())) {
+    return true;
+  }
+
+  return closing.getTime() >= Date.now();
 }
 
 function isPostedRecently(postingDate) {
-  if (!postingDate) return false;
+  if (!postingDate) {
+    return false;
+  }
 
   const posted = new Date(postingDate);
-  if (isNaN(posted.getTime())) return false;
+
+  if (Number.isNaN(posted.getTime())) {
+    return false;
+  }
 
   const ageHours =
-    (Date.now() - posted.getTime()) / (1000 * 60 * 60);
+    (Date.now() - posted.getTime()) /
+    (1000 * 60 * 60);
 
-  return ageHours <= 24;
+  return ageHours >= 0 && ageHours <= 24;
 }
 
 function extractRefId(url = "") {
-  const match = url.match(/refID=(\d+)/i);
+  const match = String(url).match(
+    /refID=(\d+)/i
+  );
+
   return match ? match[1] : "";
 }
 
 function normalizeAreaOfDelivery(area = "") {
   const text = normalize(area);
 
-  if (text.includes("bukidnon")) return "Bukidnon";
-  if (text.includes("misamis oriental")) return "Misamis Oriental";
+  if (text.includes("bukidnon")) {
+    return "Bukidnon";
+  }
+
+  if (text.includes("misamis oriental")) {
+    return "Misamis Oriental";
+  }
 
   return "";
 }
@@ -154,81 +265,286 @@ function isAllowedAreaOfDelivery(area = "") {
   return normalizeAreaOfDelivery(area) !== "";
 }
 
+function parseBudgetAmount(value = "") {
+  const cleaned = String(value)
+    .replace(/PHP/gi, "")
+    .replace(/[₱,]/g, "")
+    .replace(/[^\d.-]/g, "")
+    .trim();
+
+  const amount = Number(cleaned);
+
+  return Number.isFinite(amount)
+    ? amount
+    : 0;
+}
+
+/*
+|--------------------------------------------------------------------------
+| EXISTING POSTS
+|--------------------------------------------------------------------------
+*/
+
+async function getExistingPostIds() {
+  const { data, error } = await supabase
+    .from("philgeps_posts")
+    .select("id")
+    .limit(5000);
+
+  if (error) {
+    console.error(
+      "Existing post IDs fetch failed:",
+      error.message
+    );
+
+    return new Set();
+  }
+
+  return new Set(
+    (data || [])
+      .map((item) =>
+        String(item.id || "").trim()
+      )
+      .filter(Boolean)
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| GET BID DETAILS
+|--------------------------------------------------------------------------
+*/
+
 async function getBidDetails(page, url) {
   await page.goto(url, {
     waitUntil: "domcontentloaded",
     timeout: 60000,
   });
 
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(700);
 
-  return await page.evaluate(() => {
-    const clean = (text) => (text || "").replace(/\s+/g, " ").trim();
+  return page.evaluate(() => {
+    const clean = (text) =>
+      (text || "")
+        .replace(/\s+/g, " ")
+        .trim();
 
-    const getValueAfterLabel = (label) => {
-      const all = Array.from(document.querySelectorAll("td, span, div"));
-      for (const el of all) {
-        const text = clean(el.textContent);
-        if (text.toLowerCase() === label.toLowerCase()) {
-          const next = el.nextElementSibling;
-          if (next) return clean(next.textContent);
+    const normalizeLabel = (text) =>
+      clean(text)
+        .toLowerCase()
+        .replace(/:$/, "")
+        .trim();
+
+    const getValueAfterLabel = (
+      ...labels
+    ) => {
+      const expectedLabels =
+        labels.map(normalizeLabel);
+
+      const rows = Array.from(
+        document.querySelectorAll("tr")
+      );
+
+      for (const row of rows) {
+        const cells = Array.from(
+          row.querySelectorAll("th, td")
+        );
+
+        for (
+          let index = 0;
+          index < cells.length;
+          index += 1
+        ) {
+          const label = normalizeLabel(
+            cells[index].textContent
+          );
+
+          if (
+            !expectedLabels.includes(label)
+          ) {
+            continue;
+          }
+
+          for (
+            let nextIndex = index + 1;
+            nextIndex < cells.length;
+            nextIndex += 1
+          ) {
+            const value = clean(
+              cells[nextIndex].textContent
+            );
+
+            if (value) {
+              return value;
+            }
+          }
         }
       }
+
+      const elements = Array.from(
+        document.querySelectorAll(
+          "td, th, span, div"
+        )
+      );
+
+      for (const element of elements) {
+        const label = normalizeLabel(
+          element.textContent
+        );
+
+        if (
+          !expectedLabels.includes(label)
+        ) {
+          continue;
+        }
+
+        const next =
+          element.nextElementSibling;
+
+        if (next) {
+          const value = clean(
+            next.textContent
+          );
+
+          if (value) {
+            return value;
+          }
+        }
+      }
+
       return "";
     };
 
-    return {
-    referenceNumber: getValueAfterLabel("Reference Number"),
-    procuringEntity: getValueAfterLabel("Procuring Entity"),
-    title: getValueAfterLabel("Title"),
-    areaOfDelivery: getValueAfterLabel("Area of Delivery"),
-    classification: getValueAfterLabel("Classification:") || getValueAfterLabel("Classification"),
-    budgetLabel: getValueAfterLabel("Approved Budget for the Contract:")
-    ? "ABC"
-    : getValueAfterLabel("Approved Budget for the Contract")
-    ? "ABC"
-    : getValueAfterLabel("Estimated Budget for the Contract:")
-    ? "EBC"
-    : getValueAfterLabel("Estimated Budget for the Contract")
-    ? "EBC"
-    : "ABC",
+    const approvedBudget =
+      getValueAfterLabel(
+        "Approved Budget for the Contract",
+        "Approved Budget for the Contract:"
+      );
 
-    abc:
-    getValueAfterLabel("Approved Budget for the Contract:") ||
-    getValueAfterLabel("Approved Budget for the Contract") ||
-    getValueAfterLabel("Estimated Budget for the Contract:") ||
-    getValueAfterLabel("Estimated Budget for the Contract"),
+    const estimatedBudget =
+      getValueAfterLabel(
+        "Estimated Budget for the Contract",
+        "Estimated Budget for the Contract:"
+      );
+
+    return {
+      referenceNumber:
+        getValueAfterLabel(
+          "Reference Number",
+          "Reference Number:"
+        ),
+
+      procuringEntity:
+        getValueAfterLabel(
+          "Procuring Entity",
+          "Procuring Entity:"
+        ),
+
+      title:
+        getValueAfterLabel(
+          "Title",
+          "Title:"
+        ),
+
+      areaOfDelivery:
+        getValueAfterLabel(
+          "Area of Delivery",
+          "Area of Delivery:"
+        ),
+
+      classification:
+        getValueAfterLabel(
+          "Classification",
+          "Classification:"
+        ),
+
+      budgetLabel:
+        estimatedBudget ? "EBC" : "ABC",
+
+      abc:
+        approvedBudget ||
+        estimatedBudget,
     };
   });
 }
 
-async function searchPhilgepsByKeyword(page, keyword) {
+/*
+|--------------------------------------------------------------------------
+| SEARCH ONE LGU
+|--------------------------------------------------------------------------
+*/
+
+async function searchPhilgepsByKeyword(
+  page,
+  keyword,
+  existingPostIds,
+  runId
+) {
+  if (runId !== currentRunId) {
+    return [];
+  }
+
   await page.goto(SEARCH_URL, {
     waitUntil: "domcontentloaded",
     timeout: 60000,
   });
 
-  await page.waitForSelector("#txtKeyword", { timeout: 30000 });
+  await page.waitForSelector(
+    "#txtKeyword",
+    {
+      timeout: 30000,
+    }
+  );
 
-  await page.fill("#txtKeyword", keyword);
+  await page.fill(
+    "#txtKeyword",
+    keyword
+  );
+
   await page.click("#btnSearch");
 
-  await page.waitForLoadState("domcontentloaded");
-  await page.waitForTimeout(1500);
+  await page.waitForLoadState(
+    "domcontentloaded"
+  );
+
+  await page.waitForTimeout(1200);
 
   const rows = await page.$$eval(
     "a[href*='SplashBidNoticeAbstractUI.aspx']",
     (links) => {
       return links.map((link) => {
-        const row = link.closest("tr");
-        const cells = row ? Array.from(row.querySelectorAll("td")) : [];
+        const row =
+          link.closest("tr");
+
+        const cells = row
+          ? Array.from(
+              row.querySelectorAll("td")
+            )
+          : [];
 
         return {
-          href: link.getAttribute("href"),
-          title: link.textContent?.replace(/\s+/g, " ").trim() || "",
-          postingDate: cells[1]?.textContent?.replace(/\s+/g, " ").trim() || "",
-          closingDate: cells[2]?.textContent?.replace(/\s+/g, " ").trim() || "",
-          details: cells[3]?.textContent?.replace(/\s+/g, " ").trim() || "",
+          href:
+            link.getAttribute("href"),
+
+          title:
+            link.textContent
+              ?.replace(/\s+/g, " ")
+              .trim() || "",
+
+          postingDate:
+            cells[1]?.textContent
+              ?.replace(/\s+/g, " ")
+              .trim() || "",
+
+          closingDate:
+            cells[2]?.textContent
+              ?.replace(/\s+/g, " ")
+              .trim() || "",
+
+          details:
+            cells[3]?.textContent
+              ?.replace(/\s+/g, " ")
+              .trim() || "",
         };
       });
     }
@@ -237,66 +553,174 @@ async function searchPhilgepsByKeyword(page, keyword) {
   const posts = [];
 
   for (const item of rows) {
-    if (!item.href || !item.title) continue;
+    if (runId !== currentRunId) {
+      console.log(
+        `Checker run ${runId} cancelled.`
+      );
 
-    const postingDate = parsePhilgepsDate(item.postingDate);
-    const closingDate = parsePhilgepsDate(item.closingDate);
+      break;
+    }
 
-    if (!isStillActive(closingDate)) continue;
+    if (!item.href || !item.title) {
+      continue;
+    }
 
-    const fullUrl = new URL(item.href, SEARCH_URL).toString();
-    const refId = extractRefId(fullUrl);
-    const lgu = canonicalLgu(keyword);
+    const postingDate =
+      parsePhilgepsDate(
+        item.postingDate
+      );
+
+    const closingDate =
+      parsePhilgepsDate(
+        item.closingDate
+      );
+
+    if (!isStillActive(closingDate)) {
+      continue;
+    }
+
+    const fullUrl = new URL(
+      item.href,
+      SEARCH_URL
+    ).toString();
+
+    const refId =
+      extractRefId(fullUrl);
+
+    if (!refId) {
+      console.log(
+        `Skipped without reference ID: ${item.title}`
+      );
+
+      continue;
+    }
+
+    /*
+     * MAHALAGANG FIX:
+     * Kapag existing na ang post sa Supabase,
+     * hindi na bubuksan ulit ang detail page.
+     */
+    if (existingPostIds.has(refId)) {
+      continue;
+    }
+
+    const lgu =
+      canonicalLgu(keyword);
 
     let bidDetails = {
-    referenceNumber: refId,
-    procuringEntity: "",
-    title: item.title,
-    areaOfDelivery: "",
-    classification: "",
+      referenceNumber: refId,
+      procuringEntity: "",
+      title: item.title,
+      areaOfDelivery: "",
+      classification: "",
+      budgetLabel: "ABC",
+      abc: "",
     };
 
     try {
-    bidDetails = await getBidDetails(page, fullUrl);
+      bidDetails =
+        await getBidDetails(
+          page,
+          fullUrl
+        );
     } catch (error) {
-    console.error(`Detail scrape failed ${refId}: ${error.message}`);
+      console.error(
+        `Detail scrape failed ${refId}:`,
+        error.message
+      );
     }
 
-const cleanAreaOfDelivery = normalizeAreaOfDelivery(
-  bidDetails.areaOfDelivery || ""
-);
+    const cleanArea =
+      normalizeAreaOfDelivery(
+        bidDetails.areaOfDelivery || ""
+      );
 
-if (!isAllowedAreaOfDelivery(cleanAreaOfDelivery)) {
-  console.log(
-    `Skipped ${bidDetails.referenceNumber || refId}: area not allowed (${bidDetails.areaOfDelivery || "none"})`
-  );
-  continue;
-}
+    if (
+      !isAllowedAreaOfDelivery(
+        cleanArea
+      )
+    ) {
+      console.log(
+        `Skipped ${
+          bidDetails.referenceNumber ||
+          refId
+        }: area not allowed (${
+          bidDetails.areaOfDelivery ||
+          "none"
+        })`
+      );
 
-posts.push({
-  id: bidDetails.referenceNumber || refId || `${lgu}-${item.title}`,
-  referenceNumber: bidDetails.referenceNumber || refId,
-  lgu,
-  procuringEntity: bidDetails.procuringEntity || item.details,
-  title: bidDetails.title || item.title,
-  areaOfDelivery: cleanAreaOfDelivery,
-  classification: bidDetails.classification || "",
-  budgetType: bidDetails.budgetLabel || "ABC",
-    abc:
-    Number(
-        String(bidDetails.abc || "0")
-        .replace(/PHP/gi, "")
-        .replace(/,/g, "")
-        .trim()
-    ) || 0,
-  postingDate,
-  closingDate,
-  url: `https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=${bidDetails.referenceNumber || refId}`,
-});
+      continue;
+    }
+
+    const finalReferenceNumber =
+      cleanText(
+        bidDetails.referenceNumber
+      ) || refId;
+
+    const post = {
+      id: finalReferenceNumber,
+
+      referenceNumber:
+        finalReferenceNumber,
+
+      lgu,
+
+      procuringEntity:
+        cleanText(
+          bidDetails.procuringEntity
+        ) || item.details,
+
+      title:
+        cleanText(
+          bidDetails.title
+        ) || item.title,
+
+      areaOfDelivery:
+        cleanArea,
+
+      classification:
+        cleanText(
+          bidDetails.classification
+        ),
+
+      budgetType:
+        bidDetails.budgetLabel === "EBC"
+          ? "EBC"
+          : "ABC",
+
+      abc:
+        parseBudgetAmount(
+          bidDetails.abc
+        ),
+
+      postingDate,
+
+      closingDate,
+
+      url:
+        `${BASE_URL}` +
+        "PrintableBidNoticeAbstractUI.aspx" +
+        `?refID=${encodeURIComponent(
+          finalReferenceNumber
+        )}`,
+    };
+
+    posts.push(post);
+
+    existingPostIds.add(
+      finalReferenceNumber
+    );
   }
 
   return posts;
 }
+
+/*
+|--------------------------------------------------------------------------
+| DEVICE TOKENS
+|--------------------------------------------------------------------------
+*/
 
 async function getDeviceTokens() {
   const { data, error } = await supabase
@@ -304,202 +728,469 @@ async function getDeviceTokens() {
     .select("token")
     .not("token", "is", null);
 
-  if (error) return [];
+  if (error) {
+    console.error(
+      "Device token fetch failed:",
+      error.message
+    );
 
-  return [...new Set((data || []).map((item) => item.token).filter(Boolean))];
+    return [];
+  }
+
+  return [
+    ...new Set(
+      (data || [])
+        .map((item) => item.token)
+        .filter(Boolean)
+    ),
+  ];
 }
 
-async function sendNotification(post, type = "new") {
-  const notificationType = type === "deadline" ? "deadline" : "new";
+/*
+|--------------------------------------------------------------------------
+| SEND NOTIFICATION
+|--------------------------------------------------------------------------
+*/
 
-  const { error: logError } = await supabase.from("notification_logs").insert({
-    post_id: post.id,
-    lgu: post.lgu,
-    title: post.title,
-    posting_date: post.postingDate,
-    closing_date: post.closingDate,
-    status: notificationType,
-    classification: post.classification,
-    abc: post.abc || 0,
-    budget_type: post.budgetType || "ABC",
-    procuring_entity: post.procuringEntity,
-    url: post.url,
-    notification_type: notificationType,
-  });
+async function sendNotification(
+  post,
+  type = "new"
+) {
+  const notificationType =
+    type === "deadline"
+      ? "deadline"
+      : "new";
+
+  const { error: logError } =
+    await supabase
+      .from("notification_logs")
+      .insert({
+        post_id: post.id,
+        lgu: post.lgu,
+        title: post.title,
+        posting_date:
+          post.postingDate,
+        closing_date:
+          post.closingDate,
+        status:
+          notificationType,
+        classification:
+          post.classification,
+        abc: post.abc || 0,
+        budget_type:
+          post.budgetType ||
+          "ABC",
+        procuring_entity:
+          post.procuringEntity,
+        url: post.url,
+        notification_type:
+          notificationType,
+      });
 
   if (logError) {
     if (logError.code === "23505") {
-      console.log(`Skipped duplicate notification: ${post.id} - ${notificationType}`);
+      console.log(
+        `Duplicate notification skipped: ${post.id} - ${notificationType}`
+      );
+
       return;
     }
 
-    console.error("Notification log insert failed:", logError.message);
+    console.error(
+      "Notification log insert failed:",
+      logError.message
+    );
+
     return;
   }
 
-const tokens = await getDeviceTokens();
+  const tokens =
+    await getDeviceTokens();
 
-console.log(`Sending ${notificationType} notification to ${tokens.length} token(s)`);
+  console.log(
+    `Sending ${notificationType} notification to ${tokens.length} token(s)`
+  );
 
-if (tokens.length === 0) {
-  console.log("No device tokens found, notification not sent.");
-  return;
-}
+  if (tokens.length === 0) {
+    console.log(
+      "No device tokens found."
+    );
 
-  const response = await admin.messaging().sendEachForMulticast({
-    tokens,
+    return;
+  }
 
-    data: {
-      url: String(post.url || "https://notices.philgeps.gov.ph/"),
-      postId: String(post.id || ""),
-      apiUrl: "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc",
-      notificationType: String(notificationType),
+  const response =
+    await admin
+      .messaging()
+      .sendEachForMulticast({
+        tokens,
 
-      title:
-        notificationType === "deadline"
-          ? `DEADLINE ALERT - ${String(post.lgu || "").toUpperCase()}`
-          : `NEW PHILGEPS POST - ${String(post.lgu || "").toUpperCase()}`,
+        data: {
+          url: String(
+            post.url ||
+              "https://notices.philgeps.gov.ph/"
+          ),
 
-      body:
-        `📌 ${post.title || "N/A"}\n\n` +
-        `Posted: ${formatPHDate(post.postingDate)}\n` +
-        `Closing: ${formatPHDate(post.closingDate)}\n` +
-        `Status: ${notificationType}\n` +
-        `Classification: ${post.classification || "N/A"}\n` +
-        `${post.budgetType || "ABC"}: ${(post.abc || 0).toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}\n` +
-        `Procuring Entity: ${post.procuringEntity || "N/A"}`,
+          postId: String(
+            post.id || ""
+          ),
 
-      lgu: sanitizeData(post.lgu || ""),
-      postTitle: sanitizeData(post.title || ""),
-      postingDate: sanitizeData(formatPHDate(post.postingDate)),
-      closingDate: sanitizeData(formatPHDate(post.closingDate)),
-      status: sanitizeData(notificationType),
-      classification: sanitizeData(post.classification || ""),
-      procuringEntity: sanitizeData(post.procuringEntity || ""),
-    },
+          apiUrl:
+            "https://philgepsnotifalert-production.up.railway.app/add-bidding-doc",
 
-    webpush: {
-      headers: {
-        TTL: "86400",
-        Urgency: "high",
-      },
-    },
-  });
+          notificationType:
+            String(
+              notificationType
+            ),
 
-  console.log("FCM success:", response.successCount);
-  console.log("FCM failed:", response.failureCount);
+          title:
+            notificationType ===
+            "deadline"
+              ? `DEADLINE ALERT - ${String(
+                  post.lgu || ""
+                ).toUpperCase()}`
+              : `NEW PHILGEPS POST - ${String(
+                  post.lgu || ""
+                ).toUpperCase()}`,
 
-  response.responses.forEach((result, index) => {
-    if (!result.success) {
-      console.error(
-        "FCM token failed:",
-        index,
-        result.error?.code,
-        result.error?.message
-      );
+          body:
+            `📌 ${
+              post.title || "N/A"
+            }\n\n` +
+            `Posted: ${formatPHDate(
+              post.postingDate
+            )}\n` +
+            `Closing: ${formatPHDate(
+              post.closingDate
+            )}\n` +
+            `Status: ${notificationType}\n` +
+            `Classification: ${
+              post.classification ||
+              "N/A"
+            }\n` +
+            `${
+              post.budgetType ||
+              "ABC"
+            }: ${(
+              post.abc || 0
+            ).toLocaleString(
+              "en-US",
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }
+            )}\n` +
+            `Procuring Entity: ${
+              post.procuringEntity ||
+              "N/A"
+            }`,
+
+          lgu:
+            sanitizeData(
+              post.lgu || ""
+            ),
+
+          postTitle:
+            sanitizeData(
+              post.title || ""
+            ),
+
+          postingDate:
+            sanitizeData(
+              formatPHDate(
+                post.postingDate
+              )
+            ),
+
+          closingDate:
+            sanitizeData(
+              formatPHDate(
+                post.closingDate
+              )
+            ),
+
+          status:
+            sanitizeData(
+              notificationType
+            ),
+
+          classification:
+            sanitizeData(
+              post.classification ||
+              ""
+            ),
+
+          procuringEntity:
+            sanitizeData(
+              post.procuringEntity ||
+              ""
+            ),
+        },
+
+        webpush: {
+          headers: {
+            TTL: "86400",
+            Urgency: "high",
+          },
+        },
+      });
+
+  console.log(
+    "FCM success:",
+    response.successCount
+  );
+
+  console.log(
+    "FCM failed:",
+    response.failureCount
+  );
+
+  response.responses.forEach(
+    (result, index) => {
+      if (!result.success) {
+        console.error(
+          "FCM token failed:",
+          index,
+          result.error?.code,
+          result.error?.message
+        );
+      }
     }
-  });
+  );
 }
+
+/*
+|--------------------------------------------------------------------------
+| SAVE POST
+|--------------------------------------------------------------------------
+*/
 
 async function savePostAndNotify(post) {
-  const { data: existing } = await supabase
-    .from("philgeps_posts")
-    .select("id")
-    .eq("id", post.id)
-    .maybeSingle();
-
   const row = {
     id: post.id,
     lgu: post.lgu,
     title: post.title,
-    posting_date: post.postingDate,
-    closing_date: post.closingDate,
+    posting_date:
+      post.postingDate,
+    closing_date:
+      post.closingDate,
     url: post.url,
-    status: isPostedRecently(post.postingDate) ? "new" : "old",
-    reference_number: post.referenceNumber,
-    procuring_entity: post.procuringEntity,
-    area_of_delivery: post.areaOfDelivery,
-    classification: post.classification,
+
+    status:
+      isPostedRecently(
+        post.postingDate
+      )
+        ? "new"
+        : "old",
+
+    reference_number:
+      post.referenceNumber,
+
+    procuring_entity:
+      post.procuringEntity,
+
+    area_of_delivery:
+      post.areaOfDelivery,
+
+    classification:
+      post.classification,
+
     abc: post.abc || 0,
-    budget_type: post.budgetType || "ABC",
+
+    budget_type:
+      post.budgetType || "ABC",
   };
 
   const { error } = await supabase
     .from("philgeps_posts")
-    .upsert(row, { onConflict: "id" });
+    .upsert(row, {
+      onConflict: "id",
+    });
 
   if (error) {
-    console.error(error.message);
+    console.error(
+      `Post upsert failed ${post.id}:`,
+      error.message
+    );
+
     return;
   }
 
-if (isPostedRecently(post.postingDate)) {
-  const { data: existingNewLog } = await supabase
+  console.log(
+    `Stored post: ${post.id} - ${post.title}`
+  );
+
+  if (
+    !isPostedRecently(
+      post.postingDate
+    )
+  ) {
+    return;
+  }
+
+  const {
+    data: existingNewLog,
+    error: logCheckError,
+  } = await supabase
     .from("notification_logs")
     .select("id")
     .eq("post_id", post.id)
-    .eq("notification_type", "new")
+    .eq(
+      "notification_type",
+      "new"
+    )
     .maybeSingle();
 
+  if (logCheckError) {
+    console.error(
+      `New notification check failed ${post.id}:`,
+      logCheckError.message
+    );
+
+    return;
+  }
+
   if (!existingNewLog) {
-    await sendNotification(post, "new");
+    await sendNotification(
+      post,
+      "new"
+    );
   } else {
-    console.log(`New alert already sent: ${post.id}`);
+    console.log(
+      `New alert already sent: ${post.id}`
+    );
   }
 }
-}
 
-async function scrapePhilgeps() {
+/*
+|--------------------------------------------------------------------------
+| SCRAPE ALL LGUS
+|--------------------------------------------------------------------------
+*/
+
+async function scrapePhilgeps(
+  existingPostIds,
+  runId
+) {
   const allPosts = [];
-  let browser;
+  let browser = null;
 
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-      ],
-    });
+    browser =
+      await chromium.launch({
+        headless: true,
 
-    const page = await browser.newPage();
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+        ],
+      });
+
+    if (runId !== currentRunId) {
+      await browser
+        .close()
+        .catch(() => {});
+
+      return [];
+    }
+
+    activeBrowser = browser;
+
+    const page =
+      await browser.newPage();
+
+    page.setDefaultNavigationTimeout(
+      60000
+    );
+
+    page.setDefaultTimeout(
+      30000
+    );
 
     for (const lgu of WATCH_LGUS) {
+      if (
+        runId !== currentRunId
+      ) {
+        console.log(
+          `Checker run ${runId} cancelled before ${lgu}.`
+        );
+
+        break;
+      }
+
       try {
-        const posts = await searchPhilgepsByKeyword(page, lgu);
-        console.log(`${lgu}: scraped ${posts.length} active post(s)`);
+        const posts =
+          await searchPhilgepsByKeyword(
+            page,
+            lgu,
+            existingPostIds,
+            runId
+          );
+
+        console.log(
+          `${lgu}: found ${posts.length} new matching post(s)`
+        );
+
         allPosts.push(...posts);
       } catch (error) {
-        console.error(`${lgu} scrape failed: ${error.message}`);
+        console.error(
+          `${lgu} scrape failed:`,
+          error.message
+        );
       }
     }
   } finally {
     if (browser) {
-      await browser.close();
-      console.log("Chromium browser closed.");
+      await browser
+        .close()
+        .catch(() => {});
+
+      console.log(
+        "Chromium browser closed."
+      );
+    }
+
+    if (
+      activeBrowser === browser
+    ) {
+      activeBrowser = null;
     }
   }
 
-  const uniquePosts = Array.from(
-    new Map(allPosts.map((post) => [post.id, post])).values()
-  );
+  const uniquePosts =
+    Array.from(
+      new Map(
+        allPosts.map((post) => [
+          post.id,
+          post,
+        ])
+      ).values()
+    );
 
-  console.log(`Total matching active posts: ${uniquePosts.length}`);
+  console.log(
+    `Total new matching posts: ${uniquePosts.length}`
+  );
 
   return uniquePosts;
 }
 
+/*
+|--------------------------------------------------------------------------
+| DELETE OLD DATA
+|--------------------------------------------------------------------------
+*/
+
 async function deleteOldNotificationLogs() {
-  console.log("Notification logs are kept to prevent duplicate alerts.");
+  console.log(
+    "Notification logs are kept to prevent duplicate alerts."
+  );
 }
 
 async function deleteExpiredPosts() {
-  const now = new Date().toISOString();
+  const now =
+    new Date().toISOString();
 
   const { error } = await supabase
     .from("philgeps_posts")
@@ -507,38 +1198,80 @@ async function deleteExpiredPosts() {
     .lt("closing_date", now);
 
   if (error) {
-    console.error("Delete expired posts failed:", error.message);
+    console.error(
+      "Delete expired posts failed:",
+      error.message
+    );
   }
 }
 
+/*
+|--------------------------------------------------------------------------
+| DEADLINE REMINDERS
+|--------------------------------------------------------------------------
+*/
+
 async function sendDeadlineReminders() {
   const now = new Date();
-  const next24Hours = new Date(now.getTime() + 30 * 60 * 60 * 1000);
 
-    await deleteExpiredPosts();
+  const next30Hours =
+    new Date(
+      now.getTime() +
+        30 * 60 * 60 * 1000
+    );
+
+  await deleteExpiredPosts();
 
   const { data, error } = await supabase
     .from("philgeps_posts")
     .select("*")
-    .gte("closing_date", now.toISOString())
-    .lte("closing_date", next24Hours.toISOString());
+    .gte(
+      "closing_date",
+      now.toISOString()
+    )
+    .lte(
+      "closing_date",
+      next30Hours.toISOString()
+    );
 
   if (error) {
-    console.error("Deadline reminder fetch failed:", error.message);
+    console.error(
+      "Deadline reminder fetch failed:",
+      error.message
+    );
+
     return;
   }
 
   for (const item of data || []) {
-    const { data: existingLog } = await supabase
-    .from("notification_logs")
-    .select("id")
-    .eq("post_id", item.id)
-    .eq("notification_type", "deadline")
-    .maybeSingle();
+    const {
+      data: existingLog,
+      error: existingLogError,
+    } = await supabase
+      .from("notification_logs")
+      .select("id")
+      .eq("post_id", item.id)
+      .eq(
+        "notification_type",
+        "deadline"
+      )
+      .maybeSingle();
+
+    if (existingLogError) {
+      console.error(
+        `Deadline log check failed ${item.id}:`,
+        existingLogError.message
+      );
+
+      continue;
+    }
 
     if (existingLog) {
-    console.log(`Deadline alert already sent: ${item.id}`);
-    continue;
+      console.log(
+        `Deadline alert already sent: ${item.id}`
+      );
+
+      continue;
     }
 
     await sendNotification(
@@ -546,237 +1279,663 @@ async function sendDeadlineReminders() {
         id: item.id,
         lgu: item.lgu,
         title: item.title,
-        postingDate: item.posting_date,
-        closingDate: item.closing_date,
+
+        postingDate:
+          item.posting_date,
+
+        closingDate:
+          item.closing_date,
+
         url: item.url,
-        classification: item.classification,
-        procuringEntity: item.procuring_entity,
+
+        classification:
+          item.classification,
+
+        procuringEntity:
+          item.procuring_entity,
+
         abc: item.abc || 0,
-        budgetType: item.budget_type || "ABC",
+
+        budgetType:
+          item.budget_type ||
+          "ABC",
       },
+
       "deadline"
     );
   }
 }
 
-async function runChecker({ sendAlerts = true } = {}) {
-  if (isRunning) {
-    console.log("Checker already running. Skipping this run.");
-    return [];
+/*
+|--------------------------------------------------------------------------
+| RESET STALE CHECKER
+|--------------------------------------------------------------------------
+*/
+
+async function stopStaleChecker() {
+  const elapsed =
+    Date.now() -
+    checkerStartedAt;
+
+  console.warn(
+    `Stale checker detected after ${Math.ceil(
+      elapsed / 60000
+    )} minute(s). Restarting.`
+  );
+
+  // I-cancel ang lumang run.
+  currentRunId += 1;
+
+  const browserToClose =
+    activeBrowser;
+
+  activeBrowser = null;
+
+  if (browserToClose) {
+    await browserToClose
+      .close()
+      .catch(() => {});
   }
 
+  isRunning = false;
+  checkerStartedAt = 0;
+}
+
+/*
+|--------------------------------------------------------------------------
+| MAIN CHECKER
+|--------------------------------------------------------------------------
+*/
+
+async function runChecker({
+  sendAlerts = true,
+} = {}) {
+  if (isRunning) {
+    const elapsed =
+      Date.now() -
+      checkerStartedAt;
+
+    if (
+      elapsed <
+      CHECKER_STALE_MS
+    ) {
+      console.log(
+        `Checker already running for ${Math.ceil(
+          elapsed / 60000
+        )} minute(s). Skipping this run.`
+      );
+
+      return null;
+    }
+
+    await stopStaleChecker();
+  }
+
+  const runId =
+    ++currentRunId;
+
   isRunning = true;
+  checkerStartedAt =
+    Date.now();
+
+  const forceStopTimer =
+    setTimeout(async () => {
+      if (
+        isRunning &&
+        currentRunId === runId
+      ) {
+        console.error(
+          `Checker run ${runId} exceeded 18 minutes. Closing Chromium.`
+        );
+
+        const browserToClose =
+          activeBrowser;
+
+        activeBrowser = null;
+
+        if (browserToClose) {
+          await browserToClose
+            .close()
+            .catch(() => {});
+        }
+      }
+    }, CHECKER_FORCE_STOP_MS);
 
   try {
     await deleteOldNotificationLogs();
     await deleteExpiredPosts();
 
-    const posts = await scrapePhilgeps();
+    const existingPostIds =
+      await getExistingPostIds();
+
+    console.log(
+      `Starting checker run ${runId}. Existing posts: ${existingPostIds.size}`
+    );
+
+    const posts =
+      await scrapePhilgeps(
+        existingPostIds,
+        runId
+      );
+
+    if (
+      runId !== currentRunId
+    ) {
+      console.log(
+        `Checker run ${runId} stopped because a newer run started.`
+      );
+
+      return null;
+    }
 
     for (const post of posts) {
+      if (
+        runId !== currentRunId
+      ) {
+        return null;
+      }
+
       if (sendAlerts) {
-        await savePostAndNotify(post);
+        await savePostAndNotify(
+          post
+        );
       } else {
         const row = {
           id: post.id,
           lgu: post.lgu,
           title: post.title,
-          posting_date: post.postingDate,
-          closing_date: post.closingDate,
+
+          posting_date:
+            post.postingDate,
+
+          closing_date:
+            post.closingDate,
+
           url: post.url,
-          status: isPostedRecently(post.postingDate) ? "new" : "old",
-          reference_number: post.referenceNumber,
-          procuring_entity: post.procuringEntity,
-          area_of_delivery: post.areaOfDelivery,
-          classification: post.classification,
+
+          status:
+            isPostedRecently(
+              post.postingDate
+            )
+              ? "new"
+              : "old",
+
+          reference_number:
+            post.referenceNumber,
+
+          procuring_entity:
+            post.procuringEntity,
+
+          area_of_delivery:
+            post.areaOfDelivery,
+
+          classification:
+            post.classification,
+
           abc: post.abc || 0,
-          budget_type: post.budgetType || "ABC",
+
+          budget_type:
+            post.budgetType ||
+            "ABC",
         };
 
-        const { error } = await supabase
-          .from("philgeps_posts")
-          .upsert(row, { onConflict: "id" });
+        const { error } =
+          await supabase
+            .from(
+              "philgeps_posts"
+            )
+            .upsert(row, {
+              onConflict: "id",
+            });
 
-        if (error) console.error(error.message);
+        if (error) {
+          console.error(
+            `Post upsert failed ${post.id}:`,
+            error.message
+          );
+        }
       }
     }
 
-    if (sendAlerts) {
+    if (
+      sendAlerts &&
+      runId === currentRunId
+    ) {
       await sendDeadlineReminders();
     }
 
     return posts;
+  } catch (error) {
+    console.error(
+      `Checker run ${runId} failed:`,
+      error.message
+    );
+
+    throw error;
   } finally {
-    isRunning = false;
+    clearTimeout(
+      forceStopTimer
+    );
+
+    /*
+     * Ang latest run lang ang maaaring
+     * mag-release ng checker lock.
+     */
+    if (
+      currentRunId === runId
+    ) {
+      isRunning = false;
+      checkerStartedAt = 0;
+      activeBrowser = null;
+    }
   }
 }
 
-app.get("/", (req, res) => {
-  res.json({
-    message: "PhilGEPS Notif & Alert backend running",
-  });
-});
+/*
+|--------------------------------------------------------------------------
+| GET STORED POSTS
+|--------------------------------------------------------------------------
+*/
 
-app.all("/check", async (req, res) => {
-  try {
-    const posts = await runChecker({ sendAlerts: true });
+async function getStoredPosts() {
+  const uniqueLgus = [
+    ...new Set(
+      WATCH_LGUS.map(
+        canonicalLgu
+      )
+    ),
+  ];
 
-    const { data, error } = await supabase
+  const { data, error } =
+    await supabase
       .from("philgeps_posts")
       .select("*")
-      .in("lgu", WATCH_LGUS.map(canonicalLgu))
-      .order("closing_date", { ascending: true });
+      .in("lgu", uniqueLgus)
+      .order(
+        "closing_date",
+        {
+          ascending: true,
+        }
+      )
+      .limit(5000);
 
-    if (error) {
-      return res.status(500).json({
-        error: error.message,
-      });
-    }
-
-    res.json({
-      checked: posts.length,
-      items: data || [],
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: error.message,
-    });
+  if (error) {
+    throw error;
   }
+
+  return data || [];
+}
+
+/*
+|--------------------------------------------------------------------------
+| ROOT
+|--------------------------------------------------------------------------
+*/
+
+app.get("/", (req, res) => {
+  res.json({
+    message:
+      "PhilGEPS Notif & Alert backend running",
+
+    checkerRunning:
+      isRunning,
+
+    checkerStartedAt:
+      checkerStartedAt
+        ? new Date(
+            checkerStartedAt
+          ).toISOString()
+        : null,
+  });
 });
 
-app.post("/set-bidding-doc", async (req, res) => {
-  try {
-    const { postId, isBiddingDoc } = req.body;
+/*
+|--------------------------------------------------------------------------
+| CHECK ENDPOINT
+|--------------------------------------------------------------------------
+*/
 
-    if (!postId) {
-      return res.status(400).json({
-        error: "postId is required",
+app.all(
+  "/check",
+  async (req, res) => {
+    try {
+      const posts =
+        await runChecker({
+          sendAlerts: true,
+        });
+
+      const checkerBusy =
+        posts === null;
+
+      const items =
+        await getStoredPosts();
+
+      return res.json({
+        busy: checkerBusy,
+
+        checked:
+          checkerBusy
+            ? 0
+            : posts.length,
+
+        totalStored:
+          items.length,
+
+        message:
+          checkerBusy
+            ? "Checker is still running. Existing Supabase posts returned."
+            : "PhilGEPS check completed.",
+
+        items,
       });
-    }
-
-    const { data, error } = await supabase
-      .from("philgeps_posts")
-      .update({
-        is_bidding_doc: isBiddingDoc === true,
-      })
-      .eq("id", postId)
-      .select("id,is_bidding_doc");
-
-    if (error) {
-      return res.status(500).json({
-        error: error.message,
-      });
-    }
-
-    res.json({
-      success: true,
-      postId,
-      data,
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: error.message,
-    });
-  }
-});
-
-app.post("/add-bidding-doc", async (req, res) => {
-  try {
-    console.log("ADD BIDDING DOC BODY:", req.body);
-
-    const { postId } = req.body;
-
-    if (!postId) {
-      return res.status(400).json({
-        error: "postId is required",
-      });
-    }
-
-    const { data, error } = await supabase
-      .from("philgeps_posts")
-      .update({ is_bidding_doc: true })
-      .eq("id", postId)
-      .select("id,is_bidding_doc");
-
-    if (error) {
-      console.error("ADD BIDDING DOC ERROR:", error.message);
-      return res.status(500).json({
-        error: error.message,
-      });
-    }
-
-    console.log("ADD BIDDING DOC UPDATED:", data);
-
-    res.json({
-      success: true,
-      postId,
-      data,
-    });
-  } catch (error) {
-    console.error("ADD BIDDING DOC CATCH:", error.message);
-    res.status(500).json({
-      error: error.message,
-    });
-  }
-});
-
-app.all("/send-test-notification", async (req, res) => {
-  const tokens = await getDeviceTokens();
-
-  if (tokens.length === 0) {
-    return res.json({ message: "No device tokens found" });
-  }
-
-    const response = await admin.messaging().sendEachForMulticast({
-    tokens,
-
-// notification removed
-
-data: {
-    title: "PhilGEPS Notif & Alert",
-    body: "Test notification working. Tap to open PhilGEPS.",
-    url: "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=13038413",
-    postId: "13038413",
-},
-
-webpush: {
-  headers: {
-    TTL: "86400",
-    Urgency: "high",
-  },
-},
-    });
-
-  console.log("TEST FCM success:", response.successCount);
-  console.log("TEST FCM failed:", response.failureCount);
-
-  response.responses.forEach((result, index) => {
-    if (!result.success) {
+    } catch (error) {
       console.error(
-        "TEST FCM token failed:",
-        index,
-        result.error?.code,
-        result.error?.message
+        "/check error:",
+        error.message
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            error.message,
+        });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| SET BIDDING DOC
+|--------------------------------------------------------------------------
+*/
+
+app.post(
+  "/set-bidding-doc",
+  async (req, res) => {
+    try {
+      const {
+        postId,
+        isBiddingDoc,
+      } = req.body;
+
+      if (!postId) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "postId is required",
+          });
+      }
+
+      const { data, error } =
+        await supabase
+          .from(
+            "philgeps_posts"
+          )
+          .update({
+            is_bidding_doc:
+              isBiddingDoc ===
+              true,
+          })
+          .eq("id", postId)
+          .select(
+            "id,is_bidding_doc"
+          );
+
+      if (error) {
+        return res
+          .status(500)
+          .json({
+            error:
+              error.message,
+          });
+      }
+
+      return res.json({
+        success: true,
+        postId,
+        data,
+      });
+    } catch (error) {
+      return res
+        .status(500)
+        .json({
+          error:
+            error.message,
+        });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| ADD BIDDING DOC
+|--------------------------------------------------------------------------
+*/
+
+app.post(
+  "/add-bidding-doc",
+  async (req, res) => {
+    try {
+      console.log(
+        "ADD BIDDING DOC BODY:",
+        req.body
+      );
+
+      const { postId } =
+        req.body;
+
+      if (!postId) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "postId is required",
+          });
+      }
+
+      const { data, error } =
+        await supabase
+          .from(
+            "philgeps_posts"
+          )
+          .update({
+            is_bidding_doc:
+              true,
+          })
+          .eq("id", postId)
+          .select(
+            "id,is_bidding_doc"
+          );
+
+      if (error) {
+        console.error(
+          "ADD BIDDING DOC ERROR:",
+          error.message
+        );
+
+        return res
+          .status(500)
+          .json({
+            error:
+              error.message,
+          });
+      }
+
+      console.log(
+        "ADD BIDDING DOC UPDATED:",
+        data
+      );
+
+      return res.json({
+        success: true,
+        postId,
+        data,
+      });
+    } catch (error) {
+      console.error(
+        "ADD BIDDING DOC CATCH:",
+        error.message
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            error.message,
+        });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| TEST NOTIFICATION
+|--------------------------------------------------------------------------
+*/
+
+app.all(
+  "/send-test-notification",
+  async (req, res) => {
+    try {
+      const tokens =
+        await getDeviceTokens();
+
+      if (
+        tokens.length === 0
+      ) {
+        return res.json({
+          message:
+            "No device tokens found",
+        });
+      }
+
+      const response =
+        await admin
+          .messaging()
+          .sendEachForMulticast({
+            tokens,
+
+            data: {
+              title:
+                "PhilGEPS Notif & Alert",
+
+              body:
+                "Test notification working. Tap to open PhilGEPS.",
+
+              url:
+                "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/PrintableBidNoticeAbstractUI.aspx?refID=13038413",
+
+              postId:
+                "13038413",
+            },
+
+            webpush: {
+              headers: {
+                TTL: "86400",
+                Urgency:
+                  "high",
+              },
+            },
+          });
+
+      console.log(
+        "TEST FCM success:",
+        response.successCount
+      );
+
+      console.log(
+        "TEST FCM failed:",
+        response.failureCount
+      );
+
+      response.responses.forEach(
+        (result, index) => {
+          if (
+            !result.success
+          ) {
+            console.error(
+              "TEST FCM token failed:",
+              index,
+              result.error?.code,
+              result.error
+                ?.message
+            );
+          }
+        }
+      );
+
+      return res.json({
+        message:
+          "Test notification sent",
+
+        success:
+          response.successCount,
+
+        failed:
+          response.failureCount,
+      });
+    } catch (error) {
+      console.error(
+        "Test notification failed:",
+        error.message
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            error.message,
+        });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| CRON — EVERY 30 MINUTES
+|--------------------------------------------------------------------------
+*/
+
+cron.schedule(
+  "*/30 * * * *",
+  async () => {
+    try {
+      const posts =
+        await runChecker({
+          sendAlerts: true,
+        });
+
+      /*
+       * Kapag null, busy pa ang checker.
+       * Huwag mag-print ng fake na
+       * "PhilGEPS checked".
+       */
+      if (posts === null) {
+        return;
+      }
+
+      console.log(
+        `PhilGEPS checked. ${posts.length} new post(s) processed.`
+      );
+    } catch (error) {
+      console.error(
+        "Scheduled PhilGEPS check failed:",
+        error.message
       );
     }
-  });
-
-  res.json({
-    message: "Test notification sent",
-    success: response.successCount,
-    failed: response.failureCount,
-  });
-});
-
-cron.schedule("*/30 * * * *", async () => {
-  try {
-    await runChecker({ sendAlerts: true });
-    console.log("PhilGEPS checked.");
-  } catch (error) {
-    console.error(error.message);
   }
-});
+);
+
+/*
+|--------------------------------------------------------------------------
+| START SERVER
+|--------------------------------------------------------------------------
+*/
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(
+    `Server running on port ${PORT}`
+  );
 });
