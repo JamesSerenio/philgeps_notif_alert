@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -432,84 +433,150 @@ ${post.abc}
     await prefs.setString('keywords', keywordController.text);
   }
 
-  Future<void> loadPostsFromSupabase() async {
-    try {
+  Future<List<Map<String, dynamic>>> fetchAllPhilgepsPosts() async {
+    const int pageSize = 1000;
+
+    int from = 0;
+    final List<Map<String, dynamic>> allRows = [];
+
+    while (true) {
       final response = await SupabaseConfig.client
           .from('philgeps_posts')
           .select()
           .order('closing_date', ascending: true)
-          .limit(1000);
+          .order('id', ascending: true)
+          .range(from, from + pageSize - 1);
 
-      final items = response.map<ProjectPost>((item) {
-        return ProjectPost(
-          id: item['id']?.toString() ?? '',
-          lgu: item['lgu']?.toString() ?? '',
-          title: item['title']?.toString() ?? '',
-          referenceNumber: item['reference_number']?.toString() ?? '',
-          procuringEntity: item['procuring_entity']?.toString() ?? '',
-          areaOfDelivery: item['area_of_delivery']?.toString() ?? '',
-          classification: item['classification']?.toString() ?? '',
-          abc: (item['abc'] ?? 0).toDouble(),
-          budgetType: item['budget_type']?.toString() ?? 'ABC',
-          isBiddingDoc: item['is_bidding_doc'] == true,
-          status: item['status']?.toString() ?? 'old',
-          postingDate: item['posting_date']?.toString() ?? '',
-          closingDate: item['closing_date']?.toString() ?? '',
-          url: item['url']?.toString() ?? '',
-        );
-      }).toList();
+      final List<Map<String, dynamic>> currentPage =
+          List<Map<String, dynamic>>.from(response);
+
+      allRows.addAll(currentPage);
+
+      // Kapag mas mababa na sa 1000 ang nakuha,
+      // ibig sabihin nasa last page na.
+      if (currentPage.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
+    }
+
+    return allRows;
+  }
+
+  Future<void> loadPostsFromSupabase() async {
+    try {
+      final List<Map<String, dynamic>> response = await fetchAllPhilgepsPosts();
+
+      final List<ProjectPost> items =
+          response.map(ProjectPost.fromJson).toList();
+
+      if (!mounted) return;
 
       setState(() {
-        posts = items.toList();
+        posts = items;
         sortByDeadline();
-        statusMessage = 'Loaded ${posts.length} post(s) from Supabase.';
+
+        statusMessage = 'Loaded all ${posts.length} post(s) from Supabase.';
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
-        statusMessage = 'Supabase connected, but no posts yet.';
+        statusMessage = 'Failed to load posts from Supabase: $e';
       });
     }
   }
 
   Future<void> checkPhilgeps() async {
+    if (isLoading) return;
+
     setState(() {
       isLoading = true;
       statusMessage = 'Checking PhilGEPS through Railway...';
     });
 
     try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'lgus': lguList,
-          'keywords': keywordController.text,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(apiUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'lgus': lguList,
+              'keywords': keywordController.text.trim(),
+            }),
+          )
+          .timeout(const Duration(minutes: 22));
+
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final List items = data['items'] ?? [];
+        final Map<String, dynamic> data =
+            jsonDecode(response.body) as Map<String, dynamic>;
+
+        final bool busy = data['busy'] == true;
+        final int checked = (data['checked'] as num?)?.toInt() ?? 0;
+        final int totalStored = (data['totalStored'] as num?)?.toInt() ?? 0;
+
+        final List<dynamic> items =
+            data['items'] is List ? data['items'] as List<dynamic> : [];
+
+        final loadedPosts = items
+            .whereType<Map<String, dynamic>>()
+            .map(ProjectPost.fromJson)
+            .toList();
 
         setState(() {
-          posts = items.map((e) => ProjectPost.fromJson(e)).toList();
+          posts = loadedPosts;
           sortByDeadline();
-          statusMessage = 'Found ${posts.length} matching post(s).';
+
+          if (busy) {
+            statusMessage =
+                'Checker is still running. Showing $totalStored stored post(s).';
+          } else if (checked > 0) {
+            statusMessage = 'Check completed. $checked new post(s) processed. '
+                '${posts.length} total active post(s).';
+          } else {
+            statusMessage = 'Check completed. No new post found. '
+                '${posts.length} active post(s) stored.';
+          }
         });
       } else {
+        String errorMessage = 'Railway error: ${response.statusCode}';
+
+        try {
+          final data = jsonDecode(response.body);
+
+          if (data is Map<String, dynamic> &&
+              data['error']?.toString().isNotEmpty == true) {
+            errorMessage = data['error'].toString();
+          }
+        } catch (_) {}
+
         setState(() {
-          statusMessage = 'Railway error: ${response.statusCode}';
+          statusMessage = errorMessage;
         });
       }
-    } catch (e) {
-      setState(() {
-        statusMessage = 'Cannot connect to Railway backend.';
-      });
-    }
+    } on TimeoutException {
+      if (!mounted) return;
 
-    setState(() {
-      isLoading = false;
-    });
+      setState(() {
+        statusMessage = 'The checker is taking longer than expected. '
+            'It may still be running in Railway.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        statusMessage = 'Cannot connect to Railway backend: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   void sortByDeadline() {
@@ -591,9 +658,12 @@ ${post.abc}
 
   String formatDate(String dateText) {
     final date = DateTime.tryParse(dateText);
+
     if (date == null) return dateText;
 
-    return DateFormat('MMM dd, yyyy - hh:mm a').format(date);
+    return DateFormat('MMM dd, yyyy - hh:mm a').format(
+      date.toLocal(),
+    );
   }
 
   Widget premiumCard({required Widget child}) {
