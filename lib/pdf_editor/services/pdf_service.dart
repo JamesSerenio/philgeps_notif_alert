@@ -588,35 +588,9 @@ class PdfService {
     final municipality = (values['municipality'] ?? '').trim().toUpperCase();
     final procuringEntity =
         (values['procuringEntity'] ?? '').trim().toUpperCase();
-    var contractTitle = (values['projectTitle'] ?? '').trim().toUpperCase();
-
-    // Replace a barangay municipality already present in the project title.
-    // This prevents template locations such as BARANGAY SUMILAO from leaking
-    // into a bid belonging to Villanueva or another municipality.
-    if (municipality.isNotEmpty) {
-      contractTitle = contractTitle.replaceAll(
-        RegExp(r'BARANGAY\s+[A-Z][A-Z .-]*'),
-        'BARANGAY $municipality',
-      );
-    }
-
-    String wrapText(String text) {
-      const maximumCharactersPerLine = 58;
-      final lines = <String>[];
-      var currentLine = '';
-      for (final word in text.split(RegExp(r'\s+'))) {
-        final candidate = currentLine.isEmpty ? word : '$currentLine $word';
-        if (currentLine.isNotEmpty &&
-            candidate.length > maximumCharactersPerLine) {
-          lines.add(currentLine);
-          currentLine = word;
-        } else {
-          currentLine = candidate;
-        }
-      }
-      if (currentLine.isNotEmpty) lines.add(currentLine);
-      return lines.join('\n');
-    }
+    final contractTitle =
+        'REBIDDING FOR THE PROCUREMENT OF VARIOUS CONSTRUCTION\n'
+        'MATERIALS FOR DIFFERENT PROJECTS IN BARANGAY $municipality';
 
     final graphics = page.graphics;
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
@@ -645,7 +619,7 @@ class PdfService {
       format: format,
     );
     graphics.drawString(
-      wrapText(contractTitle),
+      contractTitle,
       valueFont,
       brush: blackBrush,
       bounds: const Rect.fromLTWH(184, 242, 375, 34),
