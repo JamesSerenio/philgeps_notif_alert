@@ -600,6 +600,10 @@ class PdfService {
       9,
       style: PdfFontStyle.bold,
     );
+    final colonFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+    );
     final format = PdfStringFormat(
       alignment: PdfTextAlignment.left,
       lineAlignment: PdfVerticalAlignment.top,
@@ -612,11 +616,23 @@ class PdfService {
       bounds: const Rect.fromLTWH(180, 215, 390, 64),
     );
     graphics.drawString(
+      ':',
+      colonFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(176, 218, 10, 16),
+    );
+    graphics.drawString(
       procuringEntity,
       valueFont,
       brush: blackBrush,
       bounds: const Rect.fromLTWH(184, 218, 375, 16),
       format: format,
+    );
+    graphics.drawString(
+      ':',
+      colonFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(176, 242, 10, 16),
     );
     graphics.drawString(
       contractTitle,
