@@ -58,6 +58,12 @@ class PdfService {
       _drawPurchaseOrderHeader(document.pages[21], values);
     }
 
+    // Page 45 NFCC form must follow the selected bid instead of retaining the
+    // municipality and procuring entity embedded in the PDF template.
+    if (document.pages.count > 44) {
+      _drawNfccHeader(document.pages[44], values);
+    }
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -572,6 +578,78 @@ class PdfService {
       valueFont,
       brush: blackBrush,
       bounds: const Rect.fromLTWH(216, 201, 220, 18),
+    );
+  }
+
+  static void _drawNfccHeader(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
+    final municipality = (values['municipality'] ?? '').trim().toUpperCase();
+    final procuringEntity =
+        (values['procuringEntity'] ?? '').trim().toUpperCase();
+    var contractTitle = (values['projectTitle'] ?? '').trim().toUpperCase();
+
+    // Replace a barangay municipality already present in the project title.
+    // This prevents template locations such as BARANGAY SUMILAO from leaking
+    // into a bid belonging to Villanueva or another municipality.
+    if (municipality.isNotEmpty) {
+      contractTitle = contractTitle.replaceAll(
+        RegExp(r'BARANGAY\s+[A-Z][A-Z .-]*'),
+        'BARANGAY $municipality',
+      );
+    }
+
+    String wrapText(String text) {
+      const maximumCharactersPerLine = 58;
+      final lines = <String>[];
+      var currentLine = '';
+      for (final word in text.split(RegExp(r'\s+'))) {
+        final candidate = currentLine.isEmpty ? word : '$currentLine $word';
+        if (currentLine.isNotEmpty &&
+            candidate.length > maximumCharactersPerLine) {
+          lines.add(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = candidate;
+        }
+      }
+      if (currentLine.isNotEmpty) lines.add(currentLine);
+      return lines.join('\n');
+    }
+
+    final graphics = page.graphics;
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    final format = PdfStringFormat(
+      alignment: PdfTextAlignment.left,
+      lineAlignment: PdfVerticalAlignment.top,
+      wordWrap: PdfWordWrapType.word,
+    );
+
+    // Clear only the old value column, preserving the NFCC labels and colons.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(180, 118, 390, 62),
+    );
+    graphics.drawString(
+      procuringEntity,
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(184, 121, 375, 16),
+      format: format,
+    );
+    graphics.drawString(
+      wrapText(contractTitle),
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(184, 145, 375, 34),
+      format: format,
     );
   }
 }
