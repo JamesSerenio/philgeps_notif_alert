@@ -571,7 +571,7 @@ class PdfService {
     final percent = value('slccPercent');
     const rowTop = 285.0;
     const rowBottom = 410.0;
-    const columns = <double>[37, 148, 283, 369, 480, 575, 691, 821];
+    const columns = <double>[37, 148, 283, 369, 482, 575, 691, 821];
 
     // Preserve the original template grid. Clear only the inside of each
     // PRIVATE data cell, leaving a 2pt inset around every original border.
@@ -589,26 +589,13 @@ class PdfService {
       );
     }
 
-    // Restore only the PRIVATE-row strokes after clearing the old values.
-    // A thin pen keeps the result consistent with the original Word table.
-    final privateGridPen = PdfPen(PdfColor(0, 0, 0), width: 0.35);
+    // The cell clearing overlaps only this original separator. Restore that
+    // one line and leave every other template border untouched.
     graphics.drawLine(
-      privateGridPen,
-      const Offset(37, rowTop),
-      const Offset(821, rowTop),
+      PdfPen(PdfColor(0, 0, 0), width: 0.35),
+      const Offset(480, rowTop),
+      const Offset(480, rowBottom),
     );
-    graphics.drawLine(
-      privateGridPen,
-      const Offset(37, rowBottom),
-      const Offset(821, rowBottom),
-    );
-    for (final x in columns) {
-      graphics.drawLine(
-        privateGridPen,
-        Offset(x, rowTop),
-        Offset(x, rowBottom),
-      );
-    }
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
@@ -628,13 +615,13 @@ class PdfService {
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(373, 290, 103, 115),
+        bounds: const Rect.fromLTWH(373, 290, 105, 115),
         text: value('slccDescription').toUpperCase(),
         bold: false,
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(484, 290, 87, 115),
+        bounds: const Rect.fromLTWH(486, 290, 85, 115),
         text: percent.isEmpty
             ? ''
             : percent.endsWith('%')
