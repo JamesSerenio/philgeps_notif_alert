@@ -569,29 +569,29 @@ class PdfService {
     }
 
     final percent = value('slccPercent');
-    const rowTop = 280.0;
-    const rowBottom = 415.0;
-    const columns = <double>[37, 148, 283, 370, 482, 575, 690, 821];
+    const rowTop = 285.0;
+    const rowBottom = 410.0;
+    const columns = <double>[37, 148, 283, 369, 482, 575, 691, 821];
 
     // Preserve the original template grid. Clear only the inside of each
-    // PRIVATE data cell, leaving a 1pt inset around every original border.
+    // PRIVATE data cell, leaving a 2pt inset around every original border.
     for (var index = 1; index < columns.length - 1; index++) {
       final left = columns[index];
       final right = columns[index + 1];
       graphics.drawRectangle(
         brush: whiteBrush,
         bounds: Rect.fromLTWH(
-          left + 1,
-          rowTop + 1,
-          right - left - 2,
-          rowBottom - rowTop - 2,
+          left + 2,
+          rowTop + 2,
+          right - left - 4,
+          rowBottom - rowTop - 4,
         ),
       );
     }
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
-        bounds: const Rect.fromLTWH(153, 285, 125, 125),
+        bounds: const Rect.fromLTWH(153, 290, 125, 115),
         text: [
           labeledUpper('a.', 'slccOwnerName'),
           labeledUpper('b.', 'slccAddressTelephone'),
@@ -601,19 +601,19 @@ class PdfService {
         centered: false,
       ),
       (
-        bounds: const Rect.fromLTWH(287, 285, 79, 125),
+        bounds: const Rect.fromLTWH(287, 290, 78, 115),
         text: value('slccNatureOfWork').toUpperCase(),
         bold: false,
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(374, 285, 104, 125),
+        bounds: const Rect.fromLTWH(373, 290, 105, 115),
         text: value('slccDescription').toUpperCase(),
         bold: false,
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(486, 285, 85, 125),
+        bounds: const Rect.fromLTWH(486, 290, 85, 115),
         text: percent.isEmpty
             ? ''
             : percent.endsWith('%')
@@ -623,7 +623,7 @@ class PdfService {
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(579, 285, 107, 125),
+        bounds: const Rect.fromLTWH(579, 290, 108, 115),
         text: [
           labeled('a.', 'slccAmountOfAward'),
           labeled('b.', 'slccCompletionDuration'),
@@ -632,7 +632,7 @@ class PdfService {
         centered: false,
       ),
       (
-        bounds: const Rect.fromLTWH(694, 285, 123, 125),
+        bounds: const Rect.fromLTWH(695, 290, 122, 115),
         text: [
           labeled('a.', 'slccDateAwarded'),
           labeled('b.', 'slccContractEffectivity'),
