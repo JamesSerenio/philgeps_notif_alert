@@ -32,7 +32,23 @@ class PdfService {
 
     // Page 20 contains the ongoing contracts form.
     if (document.pages.count > 19) {
-      _drawPageTwenty(document.pages[19], values);
+      _drawContractStatementPage(
+        document.pages[19],
+        values,
+        signatureTop: 428,
+        signatureClearTop: 410,
+      );
+    }
+
+    // Page 21 uses the same editable header and signatory fields. Its table
+    // is taller, so the signature block stays below the supporting notes.
+    if (document.pages.count > 20) {
+      _drawContractStatementPage(
+        document.pages[20],
+        values,
+        signatureTop: 485,
+        signatureClearTop: 478,
+      );
     }
 
     // Other mapped pages, excluding Page 1.
@@ -343,10 +359,12 @@ class PdfService {
     );
   }
 
-  static void _drawPageTwenty(
+  static void _drawContractStatementPage(
     PdfPage page,
-    Map<String, String> values,
-  ) {
+    Map<String, String> values, {
+    required double signatureTop,
+    required double signatureClearTop,
+  }) {
     final procuringEntity = (values['procuringEntity'] ?? '').trim();
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final referenceNumber = (values['referenceNumber'] ?? '').trim();
@@ -455,7 +473,7 @@ class PdfService {
     // table, matching the source document's label / colon / value columns.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(20, 410, 520, 125),
+      bounds: Rect.fromLTWH(20, signatureClearTop, 520, 112),
     );
 
     void drawSignatureRow(String label, String value, double top) {
@@ -479,13 +497,16 @@ class PdfService {
       );
     }
 
-    const submittedTop = 428.0;
-    drawSignatureRow('Submitted by', submittedBy.toUpperCase(), submittedTop);
+    drawSignatureRow(
+      'Submitted by',
+      submittedBy.toUpperCase(),
+      signatureTop,
+    );
     graphics.drawString(
       '(Printed Name & Signature)',
       captionFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(150, 443, 210, 14),
+      bounds: Rect.fromLTWH(150, signatureTop + 15, 210, 14),
     );
     final signatureWidth = signatureFont
         .measureString(submittedBy.toUpperCase())
@@ -494,11 +515,19 @@ class PdfService {
         .toDouble();
     graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      const Offset(150, 442),
-      Offset(150 + signatureWidth, 442),
+      Offset(150, signatureTop + 14),
+      Offset(150 + signatureWidth, signatureTop + 14),
     );
-    drawSignatureRow('Designation', 'Authorized Representative', 459);
-    drawSignatureRow('Name of Firm', bidderName.toUpperCase(), 476);
-    drawSignatureRow('Date', date, 493);
+    drawSignatureRow(
+      'Designation',
+      'Authorized Representative',
+      signatureTop + 31,
+    );
+    drawSignatureRow(
+      'Name of Firm',
+      bidderName.toUpperCase(),
+      signatureTop + 48,
+    );
+    drawSignatureRow('Date', date, signatureTop + 65);
   }
 }
