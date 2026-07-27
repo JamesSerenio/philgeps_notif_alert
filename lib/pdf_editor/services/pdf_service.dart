@@ -589,11 +589,11 @@ class PdfService {
       );
     }
 
-    // The source template does not continue the Description/% separator
-    // through the PRIVATE row. Complete it using the template's thin border.
+    // Redraw the Description/% separator as one continuous stroke from the
+    // subheader through the PRIVATE row so there is no misaligned junction.
     graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.4),
-      const Offset(479.5, rowTop),
+      const Offset(479.5, 235),
       const Offset(479.5, rowBottom),
     );
 
