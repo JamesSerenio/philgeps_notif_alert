@@ -570,7 +570,7 @@ class PdfService {
 
     final percent = value('slccPercent');
     const rowTop = 280.0;
-    const rowBottom = 410.0;
+    const rowBottom = 415.0;
     const columns = <double>[37, 148, 283, 370, 482, 575, 690, 821];
 
     // Clear the complete PRIVATE row, then rebuild its borders. This removes
@@ -608,7 +608,7 @@ class PdfService {
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
-        bounds: const Rect.fromLTWH(153, 285, 125, 120),
+        bounds: const Rect.fromLTWH(153, 285, 125, 125),
         text: [
           labeledUpper('a.', 'slccOwnerName'),
           labeledUpper('b.', 'slccAddressTelephone'),
@@ -618,19 +618,19 @@ class PdfService {
         centered: false,
       ),
       (
-        bounds: const Rect.fromLTWH(287, 285, 79, 120),
+        bounds: const Rect.fromLTWH(287, 285, 79, 125),
         text: value('slccNatureOfWork').toUpperCase(),
         bold: false,
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(374, 285, 104, 120),
+        bounds: const Rect.fromLTWH(374, 285, 104, 125),
         text: value('slccDescription').toUpperCase(),
         bold: false,
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(486, 285, 85, 120),
+        bounds: const Rect.fromLTWH(486, 285, 85, 125),
         text: percent.isEmpty
             ? ''
             : percent.endsWith('%')
@@ -640,7 +640,7 @@ class PdfService {
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(579, 285, 107, 120),
+        bounds: const Rect.fromLTWH(579, 285, 107, 125),
         text: [
           labeled('a.', 'slccAmountOfAward'),
           labeled('b.', 'slccCompletionDuration'),
@@ -649,7 +649,7 @@ class PdfService {
         centered: false,
       ),
       (
-        bounds: const Rect.fromLTWH(694, 285, 123, 120),
+        bounds: const Rect.fromLTWH(694, 285, 123, 125),
         text: [
           labeled('a.', 'slccDateAwarded'),
           labeled('b.', 'slccContractEffectivity'),
