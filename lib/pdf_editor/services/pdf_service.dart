@@ -559,19 +559,19 @@ class PdfService {
     // punctuation remain untouched.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(202, 338, 270, 42),
+      bounds: const Rect.fromLTWH(210, 21, 270, 42),
     );
     graphics.drawString(
       purchaseOrderNumber,
       valueFont,
       brush: redBrush,
-      bounds: const Rect.fromLTWH(209, 342, 100, 18),
+      bounds: const Rect.fromLTWH(216, 25, 100, 18),
     );
     graphics.drawString(
       date,
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(209, 358, 220, 18),
+      bounds: const Rect.fromLTWH(216, 41, 220, 18),
     );
   }
 }
