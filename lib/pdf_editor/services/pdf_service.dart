@@ -569,17 +569,28 @@ class PdfService {
     }
 
     final percent = value('slccPercent');
-    const rowTop = 280.0;
-    const rowBottom = 415.0;
+    const governmentTop = 267.0;
+    const rowTop = 285.0;
+    const rowBottom = 412.0;
     const columns = <double>[37, 148, 283, 370, 482, 575, 690, 821];
 
-    // Clear the complete PRIVATE row, then rebuild its borders. This removes
-    // every trace of the fixed sample contract without touching the NONE row.
+    // Rebuild both lower rows so their heights and borders match the source
+    // Word table exactly: 18pt GOVERNMENT row and 127pt PRIVATE row.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(37, rowTop, 784, rowBottom - rowTop),
+      bounds: const Rect.fromLTWH(
+        37,
+        governmentTop,
+        784,
+        rowBottom - governmentTop,
+      ),
     );
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
+    graphics.drawLine(
+      gridPen,
+      const Offset(37, governmentTop),
+      const Offset(821, governmentTop),
+    );
     graphics.drawLine(
       gridPen,
       const Offset(37, rowTop),
@@ -591,24 +602,51 @@ class PdfService {
       const Offset(821, rowBottom),
     );
     for (final x in columns) {
-      graphics.drawLine(gridPen, Offset(x, rowTop), Offset(x, rowBottom));
+      graphics.drawLine(
+        gridPen,
+        Offset(x, governmentTop),
+        Offset(x, rowBottom),
+      );
     }
 
-    final privateLabelFont = PdfStandardFont(
+    final rowLabelFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       12,
       style: PdfFontStyle.bold,
     );
+    final governmentValues = <({double left, double width, String text})>[
+      (left: 42, width: 102, text: 'GOVERNMENT'),
+      (left: 150, width: 131, text: 'NONE'),
+      (left: 285, width: 83, text: 'NONE'),
+      (left: 372, width: 108, text: 'NONE'),
+      (left: 484, width: 89, text: 'NONE'),
+      (left: 577, width: 111, text: 'NONE'),
+      (left: 692, width: 127, text: 'NONE'),
+    ];
+    for (final item in governmentValues) {
+      graphics.drawString(
+        item.text,
+        rowLabelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(item.left, 267, item.width, 18),
+        format: PdfStringFormat(
+          alignment: item.text == 'GOVERNMENT'
+              ? PdfTextAlignment.left
+              : PdfTextAlignment.center,
+          lineAlignment: PdfVerticalAlignment.middle,
+        ),
+      );
+    }
     graphics.drawString(
       'PRIVATE',
-      privateLabelFont,
+      rowLabelFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(42, 282, 102, 18),
+      bounds: const Rect.fromLTWH(42, 287, 102, 18),
     );
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
-        bounds: const Rect.fromLTWH(153, 285, 125, 125),
+        bounds: const Rect.fromLTWH(153, 290, 125, 117),
         text: [
           labeledUpper('a.', 'slccOwnerName'),
           labeledUpper('b.', 'slccAddressTelephone'),
@@ -618,19 +656,19 @@ class PdfService {
         centered: false,
       ),
       (
-        bounds: const Rect.fromLTWH(287, 285, 79, 125),
+        bounds: const Rect.fromLTWH(287, 290, 79, 117),
         text: value('slccNatureOfWork').toUpperCase(),
         bold: false,
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(374, 285, 104, 125),
+        bounds: const Rect.fromLTWH(374, 290, 104, 117),
         text: value('slccDescription').toUpperCase(),
         bold: false,
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(486, 285, 85, 125),
+        bounds: const Rect.fromLTWH(486, 290, 85, 117),
         text: percent.isEmpty
             ? ''
             : percent.endsWith('%')
@@ -640,7 +678,7 @@ class PdfService {
         centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(579, 285, 107, 125),
+        bounds: const Rect.fromLTWH(579, 290, 107, 117),
         text: [
           labeled('a.', 'slccAmountOfAward'),
           labeled('b.', 'slccCompletionDuration'),
@@ -649,7 +687,7 @@ class PdfService {
         centered: false,
       ),
       (
-        bounds: const Rect.fromLTWH(694, 285, 123, 125),
+        bounds: const Rect.fromLTWH(694, 290, 123, 117),
         text: [
           labeled('a.', 'slccDateAwarded'),
           labeled('b.', 'slccContractEffectivity'),
