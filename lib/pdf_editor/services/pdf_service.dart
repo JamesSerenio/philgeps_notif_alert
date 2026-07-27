@@ -760,36 +760,36 @@ class PdfService {
     // designation and firm rows intact.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(170, 580, 300, 34),
+      bounds: const Rect.fromLTWH(175, 516, 300, 36),
     );
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(170, 646, 220, 18),
+      bounds: const Rect.fromLTWH(175, 582, 220, 22),
     );
     graphics.drawString(
       submittedBy,
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(175, 584, 285, 14),
+      bounds: const Rect.fromLTWH(180, 520, 285, 14),
     );
     final nameWidth =
         valueFont.measureString(submittedBy).width.clamp(0, 285).toDouble();
     graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      const Offset(175, 596),
-      Offset(175 + nameWidth, 596),
+      const Offset(180, 532),
+      Offset(180 + nameWidth, 532),
     );
     graphics.drawString(
       '(Printed Name & Signature)',
       captionFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(175, 598, 180, 12),
+      bounds: const Rect.fromLTWH(180, 534, 180, 12),
     );
     graphics.drawString(
       date,
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(175, 649, 180, 14),
+      bounds: const Rect.fromLTWH(180, 586, 180, 14),
     );
   }
 }
