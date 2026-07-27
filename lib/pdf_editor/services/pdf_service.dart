@@ -408,33 +408,42 @@ class PdfService {
       );
     }
 
-    int lineCount(String text, double width) {
-      if (text.isEmpty) return 1;
-      var count = 1;
-      var line = '';
-      for (final word in text.split(RegExp(r'\s+'))) {
-        final candidate = line.isEmpty ? word : '$line $word';
-        if (line.isNotEmpty &&
-            valueFont.measureString(candidate).width > width) {
-          count++;
-          line = word;
+    String wrapProjectTitle(String text) {
+      const maximumCharactersPerLine = 60;
+      final lines = <String>[];
+      var currentLine = '';
+
+      for (final word in text.trim().split(RegExp(r'\s+'))) {
+        final candidate = currentLine.isEmpty ? word : '$currentLine $word';
+        if (currentLine.isNotEmpty &&
+            candidate.length > maximumCharactersPerLine) {
+          lines.add(currentLine);
+          currentLine = word;
         } else {
-          line = candidate;
+          currentLine = candidate;
         }
       }
-      return count;
+
+      if (currentLine.isNotEmpty) lines.add(currentLine);
+      return lines.isEmpty ? '' : lines.join('\n');
     }
 
     const projectTop = 52.0;
     final lineHeight = valueFont.measureString('Ag').height;
-    // The value is rendered in uppercase, which is wider than the mixed-case
-    // form value. Measure the same uppercase text so no final words are cut.
-    final projectHeight =
-        lineCount(projectTitle.toUpperCase(), 520) * lineHeight;
+    final wrappedProjectTitle = wrapProjectTitle(projectTitle.toUpperCase());
+    final projectLineCount = wrappedProjectTitle.isEmpty
+        ? 1
+        : wrappedProjectTitle.split('\n').length;
+    final projectHeight = projectLineCount * lineHeight;
     final referenceTop = projectTop + projectHeight + 3;
 
     drawHeaderRow('NAME OF THE PROCURING ENTITY', procuringEntity, 38, 18);
-    drawHeaderRow('PROJECT TITLE', projectTitle, projectTop, projectHeight + 1);
+    drawHeaderRow(
+      'PROJECT TITLE',
+      wrappedProjectTitle,
+      projectTop,
+      projectHeight + 1,
+    );
     drawHeaderRow(
       'REFERENCE NUMBER',
       referenceNumber,
