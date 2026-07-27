@@ -135,10 +135,10 @@ class PdfService {
     graphics.drawRectangle(
       brush: whiteBrush,
       bounds: const Rect.fromLTWH(
-        55,
-        120,
-        505,
-        120,
+        30,
+        118,
+        535,
+        112,
       ),
     );
 
@@ -247,126 +247,57 @@ class PdfService {
       format: centerFormat,
     );
 
-    /*
-     * Redraw labels.
-     */
-/*
- * Project information labels.
- */
-    graphics.drawString(
-      'Project',
-      labelFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        65,
-        137,
-        80,
-        18,
-      ),
-    );
+    // Keep every row on the same label / colon / value grid used by the
+    // source bid document. The project value may occupy two lines; the
+    // following rows start below that reserved area.
+    void drawInformationRow({
+      required String label,
+      required String value,
+      required double top,
+      required double valueHeight,
+    }) {
+      graphics.drawString(
+        label,
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(36, top, 100, 18),
+      );
+      graphics.drawString(
+        ':',
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(145, top, 12, 18),
+      );
+      graphics.drawString(
+        value,
+        valueFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(180, top, 360, valueHeight),
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.left,
+          lineAlignment: PdfVerticalAlignment.top,
+          wordWrap: PdfWordWrapType.word,
+        ),
+      );
+    }
 
-    graphics.drawString(
-      ':',
-      labelFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        155,
-        137,
-        12,
-        18,
-      ),
+    drawInformationRow(
+      label: 'Project',
+      value: projectTitle,
+      top: 132,
+      valueHeight: 34,
     );
-
-    graphics.drawString(
-      'Date',
-      labelFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        65,
-        190,
-        80,
-        18,
-      ),
+    drawInformationRow(
+      label: 'Date',
+      value: date,
+      top: 168,
+      valueHeight: 18,
     );
-
-    graphics.drawString(
-      ':',
-      labelFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        155,
-        190,
-        12,
-        18,
-      ),
-    );
-
-    graphics.drawString(
-      'Name of Bidder',
-      labelFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        65,
-        210,
-        90,
-        18,
-      ),
-    );
-
-    graphics.drawString(
-      ':',
-      labelFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        155,
-        210,
-        12,
-        18,
-      ),
-    );
-
-/*
- * Project information values.
- */
-    graphics.drawString(
-      projectTitle,
-      valueFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        175,
-        135,
-        360,
-        50,
-      ),
-      format: PdfStringFormat(
-        alignment: PdfTextAlignment.left,
-        lineAlignment: PdfVerticalAlignment.top,
-        wordWrap: PdfWordWrapType.word,
-      ),
-    );
-
-    graphics.drawString(
-      date,
-      valueFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        175,
-        190,
-        220,
-        18,
-      ),
-    );
-
-    graphics.drawString(
-      bidderName,
-      valueFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(
-        175,
-        210,
-        330,
-        18,
-      ),
+    drawInformationRow(
+      label: 'Name of Bidder',
+      value: bidderName,
+      top: 186,
+      valueHeight: 18,
     );
   }
 }
