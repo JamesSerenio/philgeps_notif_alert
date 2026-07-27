@@ -30,6 +30,11 @@ class PdfService {
       );
     }
 
+    // Page 20 contains the ongoing contracts form.
+    if (document.pages.count > 19) {
+      _drawPageTwenty(document.pages[19], values);
+    }
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -178,12 +183,12 @@ class PdfService {
 
     final PdfFont labelFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      12,
     );
 
     final PdfFont valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      12,
       style: PdfFontStyle.bold,
     );
 
@@ -281,23 +286,196 @@ class PdfService {
       );
     }
 
+    int wrappedLineCount(
+      String text,
+      PdfFont font,
+      double maximumWidth,
+    ) {
+      if (text.isEmpty) return 1;
+
+      var lineCount = 1;
+      var currentLine = '';
+
+      for (final word in text.split(RegExp(r'\s+'))) {
+        final candidate = currentLine.isEmpty ? word : '$currentLine $word';
+
+        if (currentLine.isNotEmpty &&
+            font.measureString(candidate).width > maximumWidth) {
+          lineCount++;
+          currentLine = word;
+        } else {
+          currentLine = candidate;
+        }
+      }
+
+      return lineCount;
+    }
+
+    const double projectTop = 132;
+    const double valueWidth = 360;
+    final double lineHeight = valueFont.measureString('Ag').height;
+    final int projectLineCount = wrappedLineCount(
+      projectTitle,
+      valueFont,
+      valueWidth,
+    );
+    final double projectHeight = projectLineCount * lineHeight;
+    final double dateTop = projectTop + projectHeight + 4;
+    final double bidderTop = dateTop + lineHeight + 3;
+
     drawInformationRow(
       label: 'Project',
       value: projectTitle,
-      top: 132,
-      valueHeight: 34,
+      top: projectTop,
+      valueHeight: projectHeight + 2,
     );
     drawInformationRow(
       label: 'Date',
       value: date,
-      top: 168,
-      valueHeight: 18,
+      top: dateTop,
+      valueHeight: lineHeight + 2,
     );
     drawInformationRow(
       label: 'Name of Bidder',
       value: bidderName,
-      top: 186,
-      valueHeight: 18,
+      top: bidderTop,
+      valueHeight: lineHeight + 2,
+    );
+  }
+
+  static void _drawPageTwenty(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
+    final procuringEntity = (values['procuringEntity'] ?? '').trim();
+    final projectTitle = (values['projectTitle'] ?? '').trim();
+    final referenceNumber = (values['referenceNumber'] ?? '').trim();
+    final submittedBy = (values['submittedBy'] ?? '').trim();
+    final graphics = page.graphics;
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    final signatureFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 8);
+    final valueFormat = PdfStringFormat(
+      alignment: PdfTextAlignment.left,
+      lineAlignment: PdfVerticalAlignment.top,
+      wordWrap: PdfWordWrapType.word,
+    );
+
+    // Remove the old fixed header values and redraw the complete block so
+    // wrapped project titles can move the reference-number row downward.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(20, 22, 555, 52),
+    );
+
+    void drawHeaderRow(
+      String label,
+      String value,
+      double top,
+      double height,
+    ) {
+      graphics.drawString(
+        label,
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(26, top, 145, 14),
+      );
+      graphics.drawString(
+        ':',
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(178, top, 10, 14),
+      );
+      graphics.drawString(
+        value.toUpperCase(),
+        valueFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(204, top, 365, height),
+        format: valueFormat,
+      );
+    }
+
+    int lineCount(String text, double width) {
+      if (text.isEmpty) return 1;
+      var count = 1;
+      var line = '';
+      for (final word in text.split(RegExp(r'\s+'))) {
+        final candidate = line.isEmpty ? word : '$line $word';
+        if (line.isNotEmpty &&
+            valueFont.measureString(candidate).width > width) {
+          count++;
+          line = word;
+        } else {
+          line = candidate;
+        }
+      }
+      return count;
+    }
+
+    const projectTop = 37.0;
+    final lineHeight = valueFont.measureString('Ag').height;
+    final projectHeight = lineCount(projectTitle, 365) * lineHeight;
+    final referenceTop = projectTop + projectHeight + 3;
+
+    drawHeaderRow('NAME OF THE PROCURING ENTITY', procuringEntity, 26, 12);
+    drawHeaderRow('PROJECT TITLE', projectTitle, projectTop, projectHeight + 1);
+    drawHeaderRow(
+      'REFERENCE NUMBER',
+      referenceNumber,
+      referenceTop,
+      12,
+    );
+
+    // Replace the template's fixed signatory while preserving the fields
+    // immediately below it (Designation, Name of Firm and Date).
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(20, 296, 360, 28),
+    );
+    graphics.drawString(
+      'Submitted by',
+      labelFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(26, 299, 50, 13),
+    );
+    graphics.drawString(
+      ':',
+      labelFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(78, 299, 10, 13),
+    );
+    graphics.drawString(
+      submittedBy.toUpperCase(),
+      signatureFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(102, 299, 270, 13),
+    );
+    final signatureWidth = signatureFont
+        .measureString(submittedBy.toUpperCase())
+        .width
+        .clamp(0, 270)
+        .toDouble();
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      const Offset(102, 310),
+      Offset(102 + signatureWidth, 310),
+    );
+    graphics.drawString(
+      '(Printed Name & Signature)',
+      captionFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(102, 312, 160, 11),
     );
   }
 }

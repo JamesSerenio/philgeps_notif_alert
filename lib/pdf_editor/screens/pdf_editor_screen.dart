@@ -31,6 +31,12 @@ class PdfEditorScreen extends StatefulWidget {
 }
 
 class _PdfEditorScreenState extends State<PdfEditorScreen> {
+  static const List<String> submittedByNames = [
+    'JHO ANN Q, CLEOPAS',
+    'CARLOS RAFAEL A. JAMILO',
+    'MARLJONE BLAIRE B. TINGTING',
+  ];
+
   late final TextEditingController provinceController;
   late final TextEditingController municipalityController;
   late final TextEditingController projectTitleController;
@@ -38,6 +44,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController dateController;
   late final TextEditingController bidderNameController;
   late final TextEditingController procuringEntityController;
+  late final TextEditingController submittedByController;
+  late final FocusNode submittedByFocusNode;
 
   Uint8List? generatedPdf;
   bool isGenerating = false;
@@ -77,6 +85,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     procuringEntityController = TextEditingController(
       text: widget.procuringEntity,
     );
+
+    submittedByController = TextEditingController(
+      text: submittedByNames.first,
+    );
+    submittedByFocusNode = FocusNode();
   }
 
   Future<void> generatePdf() async {
@@ -95,6 +108,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'date': dateController.text.trim(),
           'bidderName': bidderNameController.text.trim(),
           'procuringEntity': procuringEntityController.text.trim(),
+          'submittedBy': submittedByController.text.trim(),
         },
       );
 
@@ -163,6 +177,71 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  Widget submittedByField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: RawAutocomplete<String>(
+        textEditingController: submittedByController,
+        focusNode: submittedByFocusNode,
+        optionsBuilder: (textEditingValue) {
+          final query = textEditingValue.text.trim().toLowerCase();
+          if (query.isEmpty) return submittedByNames;
+
+          return submittedByNames.where(
+            (name) => name.toLowerCase().contains(query),
+          );
+        },
+        onSelected: (name) {
+          submittedByController.text = name;
+        },
+        fieldViewBuilder: (
+          context,
+          controller,
+          focusNode,
+          onFieldSubmitted,
+        ) {
+          return TextField(
+            controller: controller,
+            focusNode: focusNode,
+            decoration: const InputDecoration(
+              labelText: 'Submitted by',
+              hintText: 'Type or select a name',
+              border: OutlineInputBorder(),
+              suffixIcon: Icon(Icons.arrow_drop_down),
+            ),
+            onSubmitted: (_) => onFieldSubmitted(),
+          );
+        },
+        optionsViewBuilder: (context, onSelected, options) {
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxHeight: 200,
+                  maxWidth: 328,
+                ),
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final name = options.elementAt(index);
+                    return ListTile(
+                      title: Text(name),
+                      onTap: () => onSelected(name),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   void dispose() {
     if (previewBlobUrl != null) {
@@ -176,6 +255,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     procuringEntityController.dispose();
     dateController.dispose();
     bidderNameController.dispose();
+    submittedByController.dispose();
+    submittedByFocusNode.dispose();
 
     super.dispose();
   }
@@ -225,6 +306,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                   label: 'Bidder Name',
                   controller: bidderNameController,
                 ),
+                submittedByField(),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: isGenerating ? null : generatePdf,

@@ -46,4 +46,11 @@ const List<PdfField> bidDocsFields = [
     fontSize: 9,
     isBold: true,
   ),
+  PdfField(
+    key: 'submittedBy',
+    label: 'Submitted by',
+    positions: [],
+    fontSize: 9,
+    isBold: true,
+  ),
 ];
