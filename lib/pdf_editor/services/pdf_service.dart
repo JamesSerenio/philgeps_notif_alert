@@ -579,10 +579,10 @@ class PdfService {
     graphics.drawRectangle(
       brush: whiteBrush,
       bounds: const Rect.fromLTWH(
-        37,
-        governmentTop,
-        784,
-        rowBottom - governmentTop,
+        36.25,
+        governmentTop - 0.75,
+        785.5,
+        rowBottom - governmentTop + 1.5,
       ),
     );
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
