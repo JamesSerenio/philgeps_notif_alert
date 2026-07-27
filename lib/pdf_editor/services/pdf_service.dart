@@ -592,7 +592,7 @@ class PdfService {
     // Redraw the Description/% separator as one continuous stroke from the
     // subheader through the PRIVATE row so there is no misaligned junction.
     graphics.drawLine(
-      PdfPen(PdfColor(0, 0, 0), width: 0.4),
+      PdfPen(PdfColor(0, 0, 0), width: 0.7),
       const Offset(479.5, 235),
       const Offset(479.5, rowBottom),
     );
