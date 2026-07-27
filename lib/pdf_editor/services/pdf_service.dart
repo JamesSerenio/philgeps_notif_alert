@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -49,6 +50,12 @@ class PdfService {
         signatureTop: 485,
         signatureClearTop: 478,
       );
+    }
+
+    // Page 22 purchase-order header uses the form date and a fresh four-digit
+    // purchase order number for every generated PDF.
+    if (document.pages.count > 21) {
+      _drawPurchaseOrderHeader(document.pages[21], values);
     }
 
     // Other mapped pages, excluding Page 1.
@@ -529,5 +536,42 @@ class PdfService {
       signatureTop + 48,
     );
     drawSignatureRow('Date', date, signatureTop + 65);
+  }
+
+  static void _drawPurchaseOrderHeader(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
+    final date = (values['date'] ?? '').trim();
+    final purchaseOrderNumber =
+        (Random.secure().nextInt(9000) + 1000).toString();
+    final graphics = page.graphics;
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final redBrush = PdfSolidBrush(PdfColor(220, 0, 0));
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      12,
+      style: PdfFontStyle.bold,
+    );
+
+    // Clear only the template's old PO number and date values; labels and
+    // punctuation remain untouched.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(202, 338, 270, 42),
+    );
+    graphics.drawString(
+      purchaseOrderNumber,
+      valueFont,
+      brush: redBrush,
+      bounds: const Rect.fromLTWH(209, 342, 100, 18),
+    );
+    graphics.drawString(
+      date,
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(209, 358, 220, 18),
+    );
   }
 }
