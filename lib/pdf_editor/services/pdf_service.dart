@@ -589,6 +589,14 @@ class PdfService {
       );
     }
 
+    // The source template does not continue the Description/% separator
+    // through the PRIVATE row. Complete it using the template's thin border.
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.4),
+      const Offset(479.5, rowTop),
+      const Offset(479.5, rowBottom),
+    );
+
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
         bounds: const Rect.fromLTWH(153, 290, 125, 115),
