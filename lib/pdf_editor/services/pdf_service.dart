@@ -751,10 +751,10 @@ class PdfService {
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      12,
       style: PdfFontStyle.bold,
     );
-    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 8);
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
 
     // Replace only the old values, keeping the template's labels, colons,
     // designation and firm rows intact.
@@ -770,26 +770,26 @@ class PdfService {
       submittedBy,
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(180, 520, 285, 14),
+      bounds: const Rect.fromLTWH(180, 520, 285, 18),
     );
     final nameWidth =
         valueFont.measureString(submittedBy).width.clamp(0, 285).toDouble();
     graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      const Offset(180, 532),
-      Offset(180 + nameWidth, 532),
+      const Offset(180, 535),
+      Offset(180 + nameWidth, 535),
     );
     graphics.drawString(
       '(Printed Name & Signature)',
       captionFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(180, 534, 180, 12),
+      bounds: const Rect.fromLTWH(180, 537, 210, 14),
     );
     graphics.drawString(
       date,
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(180, 586, 180, 14),
+      bounds: const Rect.fromLTWH(180, 586, 180, 18),
     );
   }
 }
