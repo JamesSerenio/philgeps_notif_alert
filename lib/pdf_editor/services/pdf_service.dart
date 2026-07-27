@@ -591,11 +591,21 @@ class PdfService {
 
     // Redraw the Description/% separator as one continuous stroke from the
     // subheader through the PRIVATE row so there is no misaligned junction.
+    final tableBorderPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
     graphics.drawLine(
-      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      tableBorderPen,
       const Offset(479.5, 235),
       const Offset(479.5, rowBottom),
     );
+    // Place the horizontal borders over the vertical stroke at each joint.
+    // This removes visible caps/kinks when the PDF is viewed at high zoom.
+    for (final y in <double>[235, 266, rowTop, rowBottom]) {
+      graphics.drawLine(
+        tableBorderPen,
+        Offset(476.5, y),
+        Offset(482.5, y),
+      );
+    }
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
