@@ -574,28 +574,20 @@ class PdfService {
     const columns = <double>[37, 148, 283, 369, 482, 575, 691, 821];
 
     // Preserve the original template grid. Clear only the inside of each
-    // PRIVATE data cell, leaving a 2pt inset around every original border.
+    // PRIVATE data cell, leaving enough inset to keep every original border.
     for (var index = 1; index < columns.length - 1; index++) {
       final left = columns[index];
       final right = columns[index + 1];
       graphics.drawRectangle(
         brush: whiteBrush,
         bounds: Rect.fromLTWH(
-          left + 2,
+          left + 3,
           rowTop + 2,
-          right - left - 4,
+          right - left - 6,
           rowBottom - rowTop - 4,
         ),
       );
     }
-
-    // The cell clearing overlaps only this original separator. Restore that
-    // one line and leave every other template border untouched.
-    graphics.drawLine(
-      PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      const Offset(480, rowTop + 0.25),
-      const Offset(480, rowBottom - 0.25),
-    );
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
