@@ -64,6 +64,11 @@ class PdfService {
       _drawNfccHeader(document.pages[44], values);
     }
 
+    // Page 47 technical specifications header follows the current bid data.
+    if (document.pages.count > 46) {
+      _drawTechnicalSpecificationsHeader(document.pages[46], values);
+    }
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -641,5 +646,91 @@ class PdfService {
       bounds: const Rect.fromLTWH(184, 242, 375, 42),
       format: format,
     );
+  }
+
+  static void _drawTechnicalSpecificationsHeader(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
+    final procuringEntity =
+        (values['procuringEntity'] ?? '').trim().toUpperCase();
+    final projectTitle = (values['projectTitle'] ?? '').trim().toUpperCase();
+    final referenceNumber = (values['referenceNumber'] ?? '').trim();
+
+    String wrapText(String text, int maximumCharactersPerLine) {
+      final lines = <String>[];
+      var currentLine = '';
+      for (final word in text.split(RegExp(r'\s+'))) {
+        final candidate = currentLine.isEmpty ? word : '$currentLine $word';
+        if (currentLine.isNotEmpty &&
+            candidate.length > maximumCharactersPerLine) {
+          lines.add(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = candidate;
+        }
+      }
+      if (currentLine.isNotEmpty) lines.add(currentLine);
+      return lines.join('\n');
+    }
+
+    final wrappedTitle = wrapText(projectTitle, 42);
+    final titleLineCount =
+        wrappedTitle.isEmpty ? 1 : wrappedTitle.split('\n').length;
+    final graphics = page.graphics;
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    final lineHeight = valueFont.measureString('Ag').height;
+    final titleHeight = titleLineCount * lineHeight;
+    const projectTop = 88.0;
+    final referenceTop = projectTop + titleHeight + 4;
+    final format = PdfStringFormat(
+      alignment: PdfTextAlignment.left,
+      lineAlignment: PdfVerticalAlignment.top,
+      wordWrap: PdfWordWrapType.word,
+    );
+
+    // Redraw the complete block so old Sumilao values cannot remain visible.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(30, 68, 545, 98),
+    );
+
+    void drawRow(
+      String label,
+      String value,
+      double top,
+      double height,
+    ) {
+      graphics.drawString(
+        label,
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(36, top, 195, 16),
+      );
+      graphics.drawString(
+        ':',
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(245, top, 10, 16),
+      );
+      graphics.drawString(
+        value,
+        valueFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(280, top, 285, height),
+        format: format,
+      );
+    }
+
+    drawRow('NAME OF THE PROCURING ENTITY', procuringEntity, 74, 16);
+    drawRow('PROJECT TITLE', wrappedTitle, projectTop, titleHeight + 1);
+    drawRow('REFERENCE NUMBER', referenceNumber, referenceTop, 16);
   }
 }
