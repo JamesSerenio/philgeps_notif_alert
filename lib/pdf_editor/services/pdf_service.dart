@@ -69,6 +69,12 @@ class PdfService {
       _drawTechnicalSpecificationsHeader(document.pages[46], values);
     }
 
+    // Pages 47-49 form one Technical Specifications section. Its signatory
+    // and date block is located on the final page (page 49).
+    if (document.pages.count > 48) {
+      _drawTechnicalSpecificationsSignature(document.pages[48], values);
+    }
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -732,5 +738,58 @@ class PdfService {
     drawRow('NAME OF THE PROCURING ENTITY', procuringEntity, 74, 16);
     drawRow('PROJECT TITLE', wrappedTitle, projectTop, titleHeight + 1);
     drawRow('REFERENCE NUMBER', referenceNumber, referenceTop, 16);
+  }
+
+  static void _drawTechnicalSpecificationsSignature(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
+    final submittedBy = (values['submittedBy'] ?? '').trim().toUpperCase();
+    final date = (values['date'] ?? '').trim();
+    final graphics = page.graphics;
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 8);
+
+    // Replace only the old values, keeping the template's labels, colons,
+    // designation and firm rows intact.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(170, 580, 300, 34),
+    );
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(170, 646, 220, 18),
+    );
+    graphics.drawString(
+      submittedBy,
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(175, 584, 285, 14),
+    );
+    final nameWidth =
+        valueFont.measureString(submittedBy).width.clamp(0, 285).toDouble();
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      const Offset(175, 596),
+      Offset(175 + nameWidth, 596),
+    );
+    graphics.drawString(
+      '(Printed Name & Signature)',
+      captionFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(175, 598, 180, 12),
+    );
+    graphics.drawString(
+      date,
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(175, 649, 180, 14),
+    );
   }
 }
