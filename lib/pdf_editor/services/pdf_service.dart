@@ -564,61 +564,103 @@ class PdfService {
     }
 
     final percent = value('slccPercent');
-    final cells = <({Rect bounds, String text, bool bold})>[
+    const rowTop = 280.0;
+    const rowBottom = 406.0;
+    const columns = <double>[37, 148, 283, 370, 482, 575, 690, 821];
+
+    // Clear the complete PRIVATE row, then rebuild its borders. This removes
+    // every trace of the fixed sample contract without touching the NONE row.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(37, rowTop, 784, rowBottom - rowTop),
+    );
+    final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
+    graphics.drawLine(
+      gridPen,
+      const Offset(37, rowTop),
+      const Offset(821, rowTop),
+    );
+    graphics.drawLine(
+      gridPen,
+      const Offset(37, rowBottom),
+      const Offset(821, rowBottom),
+    );
+    for (final x in columns) {
+      graphics.drawLine(gridPen, Offset(x, rowTop), Offset(x, rowBottom));
+    }
+
+    final privateLabelFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      12,
+      style: PdfFontStyle.bold,
+    );
+    graphics.drawString(
+      'PRIVATE',
+      privateLabelFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(42, 282, 102, 18),
+    );
+
+    final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
-        bounds: const Rect.fromLTWH(150, 276, 131, 127),
+        bounds: const Rect.fromLTWH(153, 284, 125, 118),
         text: [
           labeled('a.', 'slccOwnerName'),
           labeled('b.', 'slccAddressTelephone'),
           labeled('c.', 'slccNumber'),
         ].join('\n'),
         bold: false,
+        centered: false,
       ),
       (
-        bounds: const Rect.fromLTWH(285, 276, 83, 127),
+        bounds: const Rect.fromLTWH(287, 284, 79, 118),
         text: value('slccNatureOfWork'),
         bold: false,
+        centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(372, 276, 108, 127),
+        bounds: const Rect.fromLTWH(374, 284, 104, 118),
         text: value('slccDescription'),
         bold: false,
+        centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(484, 276, 89, 127),
+        bounds: const Rect.fromLTWH(486, 284, 85, 118),
         text: percent.isEmpty
             ? ''
             : percent.endsWith('%')
                 ? percent
                 : '$percent%',
         bold: false,
+        centered: true,
       ),
       (
-        bounds: const Rect.fromLTWH(577, 276, 111, 127),
+        bounds: const Rect.fromLTWH(579, 284, 107, 118),
         text: [
           labeled('a.', 'slccAmountOfAward'),
           labeled('b.', 'slccCompletionDuration'),
         ].join('\n'),
         bold: false,
+        centered: false,
       ),
       (
-        bounds: const Rect.fromLTWH(692, 276, 127, 127),
+        bounds: const Rect.fromLTWH(694, 284, 123, 118),
         text: [
           labeled('a.', 'slccDateAwarded'),
           labeled('b.', 'slccContractEffectivity'),
           labeled('c.', 'slccDateCompleted'),
         ].join('\n'),
         bold: false,
+        centered: false,
       ),
     ];
 
     for (final cell in cells) {
-      graphics.drawRectangle(brush: whiteBrush, bounds: cell.bounds);
       if (cell.text.isEmpty) continue;
 
       final font = PdfStandardFont(
         PdfFontFamily.timesRoman,
-        9,
+        12,
         style: cell.bold ? PdfFontStyle.bold : PdfFontStyle.regular,
       );
       graphics.drawString(
@@ -627,7 +669,9 @@ class PdfService {
         brush: blackBrush,
         bounds: cell.bounds,
         format: PdfStringFormat(
-          alignment: PdfTextAlignment.left,
+          alignment: cell.centered
+              ? PdfTextAlignment.center
+              : PdfTextAlignment.left,
           lineAlignment: PdfVerticalAlignment.middle,
           wordWrap: PdfWordWrapType.word,
         ),
