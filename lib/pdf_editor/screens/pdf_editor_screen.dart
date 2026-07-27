@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'dart:ui_web' as ui_web;
@@ -5,6 +6,7 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 
 import '../services/pdf_service.dart';
+import '../../utils/supabase_client.dart';
 
 class PdfEditorScreen extends StatefulWidget {
   final String province;
@@ -45,7 +47,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController bidderNameController;
   late final TextEditingController procuringEntityController;
   late final TextEditingController submittedByController;
+  late final Map<String, TextEditingController> slccControllers;
   late final FocusNode submittedByFocusNode;
+  Timer? slccSaveTimer;
+  bool isLoadingSlcc = true;
+  bool isSavingSlcc = false;
 
   Uint8List? generatedPdf;
   bool isGenerating = false;
@@ -90,6 +96,85 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       text: submittedByNames.first,
     );
     submittedByFocusNode = FocusNode();
+
+    slccControllers = {
+      'slccOwnerName': TextEditingController(),
+      'slccAddressTelephone': TextEditingController(),
+      'slccNumber': TextEditingController(),
+      'slccNatureOfWork': TextEditingController(),
+      'slccDescription': TextEditingController(),
+      'slccPercent': TextEditingController(),
+      'slccAmountOfAward': TextEditingController(),
+      'slccCompletionDuration': TextEditingController(),
+      'slccDateAwarded': TextEditingController(),
+      'slccContractEffectivity': TextEditingController(),
+      'slccDateCompleted': TextEditingController(),
+    };
+    for (final controller in slccControllers.values) {
+      controller.addListener(_scheduleSlccSave);
+    }
+    _loadSlcc();
+  }
+
+  Future<void> _loadSlcc() async {
+    try {
+      final row = await SupabaseConfig.client
+          .from('bid_slcc_entries')
+          .select()
+          .eq('reference_number', widget.referenceNumber.trim())
+          .maybeSingle();
+      if (row != null) {
+        for (final entry in slccControllers.entries) {
+          entry.value.text = (row[_slccColumn(entry.key)] ?? '').toString();
+        }
+      }
+    } catch (error) {
+      debugPrint('SLCC load error: $error');
+    } finally {
+      if (mounted) setState(() => isLoadingSlcc = false);
+    }
+  }
+
+  String _slccColumn(String key) => {
+        'slccOwnerName': 'owner_name',
+        'slccAddressTelephone': 'address_telephone',
+        'slccNumber': 'contact_number',
+        'slccNatureOfWork': 'nature_of_work',
+        'slccDescription': 'role_description',
+        'slccPercent': 'role_percent',
+        'slccAmountOfAward': 'amount_of_award',
+        'slccCompletionDuration': 'completion_duration',
+        'slccDateAwarded': 'date_awarded',
+        'slccContractEffectivity': 'contract_effectivity',
+        'slccDateCompleted': 'date_completed',
+      }[key]!;
+
+  void _scheduleSlccSave() {
+    if (isLoadingSlcc) return;
+    slccSaveTimer?.cancel();
+    slccSaveTimer = Timer(const Duration(milliseconds: 700), _saveSlcc);
+  }
+
+  Future<void> _saveSlcc() async {
+    if (widget.referenceNumber.trim().isEmpty) return;
+    if (mounted) setState(() => isSavingSlcc = true);
+    try {
+      final data = <String, dynamic>{
+        'reference_number': widget.referenceNumber.trim(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      };
+      for (final entry in slccControllers.entries) {
+        data[_slccColumn(entry.key)] = entry.value.text.trim();
+      }
+      await SupabaseConfig.client.from('bid_slcc_entries').upsert(
+            data,
+            onConflict: 'reference_number',
+          );
+    } catch (error) {
+      debugPrint('SLCC save error: $error');
+    } finally {
+      if (mounted) setState(() => isSavingSlcc = false);
+    }
   }
 
   Future<void> generatePdf() async {
@@ -99,6 +184,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     });
 
     try {
+      slccSaveTimer?.cancel();
+      await _saveSlcc();
       final bytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
@@ -109,6 +196,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'bidderName': bidderNameController.text.trim(),
           'procuringEntity': procuringEntityController.text.trim(),
           'submittedBy': submittedByController.text.trim(),
+          for (final entry in slccControllers.entries)
+            entry.key: entry.value.text.trim(),
         },
       );
 
@@ -242,6 +331,45 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  Widget slccFields() {
+    const fields = <(String, String, int)>[
+      ('slccOwnerName', "a. Owner's Name", 2),
+      ('slccAddressTelephone', 'b. Address / Telephone', 3),
+      ('slccNumber', 'c. Number', 1),
+      ('slccNatureOfWork', 'Nature of Work', 2),
+      ('slccDescription', "Bidder's Role - Description", 4),
+      ('slccPercent', "Bidder's Role - %", 1),
+      ('slccAmountOfAward', 'a. Amount of Award', 1),
+      ('slccCompletionDuration', 'b. Completion Duration', 1),
+      ('slccDateAwarded', 'a. Date Awarded', 1),
+      ('slccContractEffectivity', 'b. Contract Effectivity', 1),
+      ('slccDateCompleted', 'c. Date Completed', 1),
+    ];
+    return ExpansionTile(
+      initiallyExpanded: true,
+      tilePadding: EdgeInsets.zero,
+      title: const Text(
+        'SLCC (Page 21)',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        isLoadingSlcc
+            ? 'Loading saved values...'
+            : isSavingSlcc
+                ? 'Saving...'
+                : 'Saved automatically',
+      ),
+      children: [
+        for (final field in fields)
+          formField(
+            label: field.$2,
+            controller: slccControllers[field.$1]!,
+            maxLines: field.$3,
+          ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     if (previewBlobUrl != null) {
@@ -257,6 +385,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     bidderNameController.dispose();
     submittedByController.dispose();
     submittedByFocusNode.dispose();
+    slccSaveTimer?.cancel();
+    for (final controller in slccControllers.values) {
+      controller.removeListener(_scheduleSlccSave);
+      controller.dispose();
+    }
 
     super.dispose();
   }
@@ -307,6 +440,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                   controller: bidderNameController,
                 ),
                 submittedByField(),
+                slccFields(),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: isGenerating ? null : generatePdf,

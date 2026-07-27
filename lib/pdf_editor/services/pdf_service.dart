@@ -49,6 +49,7 @@ class PdfService {
         signatureTop: 485,
         signatureClearTop: 478,
       );
+      _drawSlccPrivateRow(document.pages[20], values);
     }
 
     // Page 45 NFCC form must follow the selected bid instead of retaining the
@@ -546,6 +547,92 @@ class PdfService {
       signatureTop + 48,
     );
     drawSignatureRow('Date', date, signatureTop + 65);
+  }
+
+  static void _drawSlccPrivateRow(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
+    final graphics = page.graphics;
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+
+    String value(String key) => (values[key] ?? '').trim();
+    String labeled(String label, String key) {
+      final text = value(key);
+      return text.isEmpty ? '$label NONE' : '$label $text';
+    }
+
+    final percent = value('slccPercent');
+    final cells = <({Rect bounds, String text, bool bold})>[
+      (
+        bounds: const Rect.fromLTWH(150, 276, 131, 127),
+        text: [
+          labeled('a.', 'slccOwnerName'),
+          labeled('b.', 'slccAddressTelephone'),
+          labeled('c.', 'slccNumber'),
+        ].join('\n'),
+        bold: false,
+      ),
+      (
+        bounds: const Rect.fromLTWH(285, 276, 83, 127),
+        text: value('slccNatureOfWork'),
+        bold: false,
+      ),
+      (
+        bounds: const Rect.fromLTWH(372, 276, 108, 127),
+        text: value('slccDescription'),
+        bold: false,
+      ),
+      (
+        bounds: const Rect.fromLTWH(484, 276, 89, 127),
+        text: percent.isEmpty
+            ? ''
+            : percent.endsWith('%')
+                ? percent
+                : '$percent%',
+        bold: false,
+      ),
+      (
+        bounds: const Rect.fromLTWH(577, 276, 111, 127),
+        text: [
+          labeled('a.', 'slccAmountOfAward'),
+          labeled('b.', 'slccCompletionDuration'),
+        ].join('\n'),
+        bold: false,
+      ),
+      (
+        bounds: const Rect.fromLTWH(692, 276, 127, 127),
+        text: [
+          labeled('a.', 'slccDateAwarded'),
+          labeled('b.', 'slccContractEffectivity'),
+          labeled('c.', 'slccDateCompleted'),
+        ].join('\n'),
+        bold: false,
+      ),
+    ];
+
+    for (final cell in cells) {
+      graphics.drawRectangle(brush: whiteBrush, bounds: cell.bounds);
+      if (cell.text.isEmpty) continue;
+
+      final font = PdfStandardFont(
+        PdfFontFamily.timesRoman,
+        9,
+        style: cell.bold ? PdfFontStyle.bold : PdfFontStyle.regular,
+      );
+      graphics.drawString(
+        cell.text,
+        font,
+        brush: blackBrush,
+        bounds: cell.bounds,
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.left,
+          lineAlignment: PdfVerticalAlignment.middle,
+          wordWrap: PdfWordWrapType.word,
+        ),
+      );
+    }
   }
 
   static void _drawNfccHeader(
