@@ -593,8 +593,8 @@ class PdfService {
     // one line and leave every other template border untouched.
     graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      const Offset(480, rowTop + 1),
-      const Offset(480, rowBottom - 1),
+      const Offset(480, rowTop + 0.25),
+      const Offset(480, rowBottom - 0.25),
     );
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
