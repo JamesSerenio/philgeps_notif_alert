@@ -592,9 +592,9 @@ class PdfService {
     // The cell clearing overlaps only this original separator. Restore that
     // one line and leave every other template border untouched.
     graphics.drawLine(
-      PdfPen(PdfColor(0, 0, 0), width: 0.35),
-      const Offset(482, rowTop),
-      const Offset(482, rowBottom),
+      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      const Offset(480, rowTop + 1),
+      const Offset(480, rowBottom - 1),
     );
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
