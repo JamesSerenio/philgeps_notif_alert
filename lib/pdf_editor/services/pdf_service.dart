@@ -597,6 +597,7 @@ class PdfService {
     Map<String, String> values,
   ) {
     final municipality = (values['municipality'] ?? '').trim().toUpperCase();
+    final province = (values['province'] ?? '').trim().toUpperCase();
     final procuringEntity =
         (values['procuringEntity'] ?? '').trim().toUpperCase();
     final contractTitle =
@@ -615,10 +616,27 @@ class PdfService {
       PdfFontFamily.timesRoman,
       10,
     );
+    final notaryFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+    );
     final format = PdfStringFormat(
       alignment: PdfTextAlignment.left,
       lineAlignment: PdfVerticalAlignment.top,
       wordWrap: PdfWordWrapType.word,
+    );
+
+    // Replace the template's fixed CITY OF CAGAYAN DE ORO venue with the
+    // municipality and province selected for the current bid.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(30, 80, 410, 22),
+    );
+    graphics.drawString(
+      'MUNICIPALITY OF $municipality, $province  ) S.S.',
+      notaryFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 84, 395, 18),
     );
 
     // Clear only the old value column, preserving the NFCC labels and colons.
