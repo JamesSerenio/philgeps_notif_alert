@@ -351,21 +351,23 @@ class PdfService {
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final referenceNumber = (values['referenceNumber'] ?? '').trim();
     final submittedBy = (values['submittedBy'] ?? '').trim();
+    final bidderName = (values['bidderName'] ?? '').trim();
+    final date = (values['date'] ?? '').trim();
     final graphics = page.graphics;
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      12,
       style: PdfFontStyle.bold,
     );
     final signatureFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      12,
       style: PdfFontStyle.bold,
     );
-    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 8);
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
     final valueFormat = PdfStringFormat(
       alignment: PdfTextAlignment.left,
       lineAlignment: PdfVerticalAlignment.top,
@@ -376,7 +378,7 @@ class PdfService {
     // wrapped project titles can move the reference-number row downward.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(20, 22, 555, 52),
+      bounds: const Rect.fromLTWH(20, 20, 802, 92),
     );
 
     void drawHeaderRow(
@@ -389,19 +391,19 @@ class PdfService {
         label,
         labelFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(26, top, 145, 14),
+        bounds: Rect.fromLTWH(36, top, 205, 18),
       );
       graphics.drawString(
         ':',
         labelFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(178, top, 10, 14),
+        bounds: Rect.fromLTWH(252, top, 10, 18),
       );
       graphics.drawString(
         value.toUpperCase(),
         valueFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(204, top, 365, height),
+        bounds: Rect.fromLTWH(288, top, 520, height),
         format: valueFormat,
       );
     }
@@ -423,59 +425,68 @@ class PdfService {
       return count;
     }
 
-    const projectTop = 37.0;
+    const projectTop = 67.0;
     final lineHeight = valueFont.measureString('Ag').height;
-    final projectHeight = lineCount(projectTitle, 365) * lineHeight;
+    final projectHeight = lineCount(projectTitle, 520) * lineHeight;
     final referenceTop = projectTop + projectHeight + 3;
 
-    drawHeaderRow('NAME OF THE PROCURING ENTITY', procuringEntity, 26, 12);
+    drawHeaderRow('NAME OF THE PROCURING ENTITY', procuringEntity, 52, 18);
     drawHeaderRow('PROJECT TITLE', projectTitle, projectTop, projectHeight + 1);
     drawHeaderRow(
       'REFERENCE NUMBER',
       referenceNumber,
       referenceTop,
-      12,
+      18,
     );
 
-    // Replace the template's fixed signatory while preserving the fields
-    // immediately below it (Designation, Name of Firm and Date).
+    // Replace the complete old signatory block and position it below the
+    // table, matching the source document's label / colon / value columns.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(20, 296, 360, 28),
+      bounds: const Rect.fromLTWH(20, 410, 520, 150),
     );
-    graphics.drawString(
-      'Submitted by',
-      labelFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(26, 299, 50, 13),
-    );
-    graphics.drawString(
-      ':',
-      labelFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(78, 299, 10, 13),
-    );
-    graphics.drawString(
-      submittedBy.toUpperCase(),
-      signatureFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(102, 299, 270, 13),
-    );
-    final signatureWidth = signatureFont
-        .measureString(submittedBy.toUpperCase())
-        .width
-        .clamp(0, 270)
-        .toDouble();
-    graphics.drawLine(
-      PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      const Offset(102, 310),
-      Offset(102 + signatureWidth, 310),
-    );
+
+    void drawSignatureRow(String label, String value, double top) {
+      graphics.drawString(
+        label,
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(36, top, 100, 18),
+      );
+      graphics.drawString(
+        ':',
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(145, top, 10, 18),
+      );
+      graphics.drawString(
+        value,
+        valueFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(180, top, 345, 18),
+      );
+    }
+
+    const submittedTop = 482.0;
+    drawSignatureRow('Submitted by', submittedBy.toUpperCase(), submittedTop);
     graphics.drawString(
       '(Printed Name & Signature)',
       captionFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(102, 312, 160, 11),
+      bounds: const Rect.fromLTWH(180, 497, 210, 14),
     );
+    final signatureWidth = signatureFont
+        .measureString(submittedBy.toUpperCase())
+        .width
+        .clamp(0, 345)
+        .toDouble();
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      const Offset(180, 496),
+      Offset(180 + signatureWidth, 496),
+    );
+    drawSignatureRow('Designation', 'Authorized Representative', 513);
+    drawSignatureRow('Name of Firm', bidderName.toUpperCase(), 530);
+    drawSignatureRow('Date', date, 547);
   }
 }

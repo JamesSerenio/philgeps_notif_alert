@@ -207,7 +207,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               labelText: 'Submitted by',
               hintText: 'Type or select a name',
               border: OutlineInputBorder(),
-              suffixIcon: Icon(Icons.arrow_drop_down),
+              suffixIcon: _SubmittedByMenuIcon(),
             ),
             onSubmitted: (_) => onFieldSubmitted(),
           );
@@ -383,6 +383,35 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+class _SubmittedByMenuIcon extends StatelessWidget {
+  const _SubmittedByMenuIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.findAncestorStateOfType<_PdfEditorScreenState>();
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.arrow_drop_down),
+      tooltip: 'Select submitted by',
+      onSelected: (name) {
+        state?.submittedByController.text = name;
+        state?.submittedByController.selection = TextSelection.collapsed(
+          offset: name.length,
+        );
+      },
+      itemBuilder: (context) {
+        return _PdfEditorScreenState.submittedByNames
+            .map(
+              (name) => PopupMenuItem<String>(
+                value: name,
+                child: Text(name),
+              ),
+            )
+            .toList();
+      },
     );
   }
 }
