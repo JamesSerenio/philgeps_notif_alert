@@ -635,20 +635,20 @@ class PdfService {
     // Clear only the old value column, preserving the NFCC labels and colons.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(180, 118, 390, 62),
+      bounds: const Rect.fromLTWH(180, 215, 390, 64),
     );
     graphics.drawString(
       procuringEntity,
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(184, 121, 375, 16),
+      bounds: const Rect.fromLTWH(184, 218, 375, 16),
       format: format,
     );
     graphics.drawString(
       wrapText(contractTitle),
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(184, 145, 375, 34),
+      bounds: const Rect.fromLTWH(184, 242, 375, 34),
       format: format,
     );
   }
