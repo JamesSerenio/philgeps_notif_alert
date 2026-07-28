@@ -64,15 +64,10 @@ class PdfService {
       _drawTechnicalSpecificationsHeader(document.pages[46], values);
     }
 
-    // Pages 47-49 form one Technical Specifications section. Its signatory
-    // and date block is located on the final page (page 49).
+    var technicalSpecificationPageCount = 3;
     if (document.pages.count > 48) {
-      _drawTechnicalSpecificationsSignature(document.pages[48], values);
-    }
-
-    // Replace all 72 Statement of Compliance values across pages 47-49.
-    if (document.pages.count > 48) {
-      _drawTechnicalSpecificationsCompliance(document, values);
+      technicalSpecificationPageCount =
+          _drawTechnicalSpecifications(document, values);
     }
 
     // Other mapped pages, excluding Page 1.
@@ -124,6 +119,15 @@ class PdfService {
           ),
         );
       }
+    }
+
+    // Remove unused continuation templates only after all original page-index
+    // mappings have been applied.
+    if (technicalSpecificationPageCount < 3) {
+      document.pages.removeAt(48);
+    }
+    if (technicalSpecificationPageCount < 2) {
+      document.pages.removeAt(47);
     }
 
     final List<int> outputBytes = await document.save();
@@ -899,6 +903,240 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(180, 586, 180, 18),
     );
+  }
+
+  static int _drawTechnicalSpecifications(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    List<dynamic> specifications = const [];
+    final encodedSpecifications = values['technicalSpecifications'] ?? '';
+    if (encodedSpecifications.isNotEmpty) {
+      final decoded = jsonDecode(encodedSpecifications);
+      if (decoded is List) specifications = decoded.take(72).toList();
+    }
+
+    final firstPageLines = PdfTextExtractor(document).extractTextLines(
+      startPageIndex: 46,
+      endPageIndex: 46,
+    );
+    TextLine? itemHeader;
+    for (final line in firstPageLines) {
+      final text = line.text.toLowerCase();
+      if (text.contains('item') && text.contains('no')) {
+        itemHeader = line;
+        break;
+      }
+    }
+    final firstTableTop = itemHeader == null
+        ? 455.0
+        : (itemHeader.bounds.top - 8).clamp(350.0, 520.0).toDouble();
+
+    const columns = <double>[36, 104, 301, 379, 468, 576];
+    const headerHeight = 38.0;
+    const rowHeight = 18.0;
+    const signatureSpace = 125.0;
+    final firstPage = document.pages[46];
+    final firstCapacity = ((firstPage.getClientSize().height -
+                firstTableTop -
+                headerHeight -
+                signatureSpace) /
+            rowHeight)
+        .floor()
+        .clamp(1, 20)
+        .toInt();
+    final continuationCapacity = ((document.pages[47].getClientSize().height -
+                36 -
+                headerHeight -
+                signatureSpace) /
+            rowHeight)
+        .floor()
+        .clamp(1, 36)
+        .toInt();
+    final itemCount = specifications.length;
+    final pageCount = itemCount <= firstCapacity
+        ? 1
+        : itemCount <= firstCapacity + continuationCapacity
+            ? 2
+            : 3;
+
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 8);
+    final boldFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      8,
+      style: PdfFontStyle.bold,
+    );
+    var itemIndex = 0;
+
+    for (var technicalPage = 0; technicalPage < pageCount; technicalPage++) {
+      final page = document.pages[46 + technicalPage];
+      final pageSize = page.getClientSize();
+      final tableTop = technicalPage == 0 ? firstTableTop : 36.0;
+      final capacity =
+          technicalPage == 0 ? firstCapacity : continuationCapacity;
+      final rowsOnPage = (itemCount - itemIndex).clamp(0, capacity).toInt();
+      final tableBottom = tableTop + headerHeight + rowsOnPage * rowHeight;
+
+      // Remove the fixed template rows and its old signature block.
+      page.graphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: Rect.fromLTWH(
+          28,
+          tableTop - 3,
+          pageSize.width - 56,
+          pageSize.height - tableTop + 3,
+        ),
+      );
+
+      for (final x in columns) {
+        page.graphics.drawLine(
+          gridPen,
+          Offset(x, tableTop),
+          Offset(x, tableBottom),
+        );
+      }
+      for (var row = 0; row <= rowsOnPage + 1; row++) {
+        final y = row == 0
+            ? tableTop
+            : tableTop + headerHeight + (row - 1) * rowHeight;
+        page.graphics.drawLine(
+          gridPen,
+          Offset(columns.first, y),
+          Offset(columns.last, y),
+        );
+      }
+
+      const headers = <String>[
+        'Item\nNo.',
+        'Specification/s',
+        'Qty',
+        'Unit',
+        'Statement\nof\nCompliance',
+      ];
+      for (var column = 0; column < headers.length; column++) {
+        page.graphics.drawString(
+          headers[column],
+          boldFont,
+          brush: blackBrush,
+          bounds: Rect.fromLTWH(
+            columns[column] + 3,
+            tableTop + 2,
+            columns[column + 1] - columns[column] - 6,
+            headerHeight - 4,
+          ),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+            wordWrap: PdfWordWrapType.word,
+          ),
+        );
+      }
+
+      for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
+        final specification = specifications[itemIndex] is Map
+            ? specifications[itemIndex] as Map
+            : const {};
+        final texts = <String>[
+          '${itemIndex + 1}',
+          (specification['specification'] ?? '').toString(),
+          (specification['quantity'] ?? '').toString(),
+          (specification['unit'] ?? '').toString(),
+          'COMPLY',
+        ];
+        final rowTop = tableTop + headerHeight + row * rowHeight;
+        for (var column = 0; column < texts.length; column++) {
+          page.graphics.drawString(
+            texts[column],
+            column == 4 ? boldFont : regularFont,
+            brush: blackBrush,
+            bounds: Rect.fromLTWH(
+              columns[column] + 3,
+              rowTop + 1,
+              columns[column + 1] - columns[column] - 6,
+              rowHeight - 2,
+            ),
+            format: PdfStringFormat(
+              alignment:
+                  column == 1 ? PdfTextAlignment.left : PdfTextAlignment.center,
+              lineAlignment: PdfVerticalAlignment.middle,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+        }
+      }
+
+      if (technicalPage == pageCount - 1) {
+        _drawTechnicalSpecificationsSignatureAt(
+          page,
+          values,
+          tableBottom + 22,
+        );
+      }
+    }
+
+    return pageCount;
+  }
+
+  static void _drawTechnicalSpecificationsSignatureAt(
+    PdfPage page,
+    Map<String, String> values,
+    double top,
+  ) {
+    final submittedBy = (values['submittedBy'] ?? '').trim().toUpperCase();
+    final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
+    final date = (values['date'] ?? '').trim();
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    const labelLeft = 48.0;
+    const colonLeft = 145.0;
+    const valueLeft = 180.0;
+
+    void drawRow(String label, String value, double y) {
+      page.graphics.drawString(
+        label,
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(labelLeft, y, 95, 14),
+      );
+      page.graphics.drawString(
+        ':',
+        labelFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(colonLeft, y, 10, 14),
+      );
+      page.graphics.drawString(
+        value,
+        valueFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(valueLeft, y, 300, 14),
+      );
+    }
+
+    drawRow('Submitted by', submittedBy, top);
+    final nameWidth =
+        valueFont.measureString(submittedBy).width.clamp(0, 300).toDouble();
+    page.graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      Offset(valueLeft, top + 12),
+      Offset(valueLeft + nameWidth, top + 12),
+    );
+    page.graphics.drawString(
+      '(Printed Name & Signature)',
+      labelFont,
+      brush: blackBrush,
+      bounds: Rect.fromLTWH(valueLeft, top + 14, 200, 13),
+    );
+    drawRow('Designation', 'Authorized Representative', top + 34);
+    drawRow('Name of Firm', bidderName, top + 51);
+    drawRow('Date', date, top + 68);
   }
 
   static void _drawTechnicalSpecificationsCompliance(
