@@ -134,6 +134,12 @@ class PdfService {
     // been removed, since its final page index can change.
     _drawBidSecuringDeclarationDetails(document, values);
 
+    // The scanned official receipt is only a sample attachment in the source
+    // template and is not required in the generated bid documents.
+    if (document.pages.count > 45) {
+      document.pages.removeAt(45);
+    }
+
     final List<int> outputBytes = await document.save();
     document.dispose();
 
