@@ -916,27 +916,27 @@ class PdfService {
       if (decoded is List) specifications = decoded.take(72).toList();
     }
 
-    final firstPageLines = PdfTextExtractor(document).extractTextLines(
-      startPageIndex: 46,
-      endPageIndex: 46,
-    );
-    TextLine? statementHeader;
-    TextLine? referenceHeader;
-    for (final line in firstPageLines) {
-      final text = line.text.toLowerCase();
-      if (text.trim() == 'statement of compliance') {
-        statementHeader = line;
-      }
-      if (text.trim() == 'reference number') {
-        referenceHeader = line;
+    const columns = <double>[36, 94, 270, 335, 400, 490, 576];
+    final projectTitle = (values['projectTitle'] ?? '').trim().toUpperCase();
+    var currentTitleLine = '';
+    var titleLineCount = 0;
+    for (final word in projectTitle.split(RegExp(r'\s+'))) {
+      final candidate =
+          currentTitleLine.isEmpty ? word : '$currentTitleLine $word';
+      if (currentTitleLine.isNotEmpty && candidate.length > 42) {
+        titleLineCount++;
+        currentTitleLine = word;
+      } else {
+        currentTitleLine = candidate;
       }
     }
-    const columns = <double>[36, 94, 270, 335, 400, 490, 576];
-    final statementTop = referenceHeader != null
-        ? (referenceHeader.bounds.bottom + 18).clamp(105.0, 180.0).toDouble()
-        : statementHeader == null
-            ? 125.0
-            : (statementHeader.bounds.top - 6).clamp(105.0, 180.0).toDouble();
+    if (currentTitleLine.isNotEmpty) titleLineCount++;
+    if (titleLineCount == 0) titleLineCount = 1;
+    final technicalHeaderFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final technicalHeaderLineHeight =
+        technicalHeaderFont.measureString('Ag').height;
+    final referenceTop = 88 + titleLineCount * technicalHeaderLineHeight + 4;
+    final statementTop = (referenceTop + 30).clamp(125.0, 180.0).toDouble();
     const statementTitleHeight = 24.0;
     const statementBodyHeight = 165.0;
     final firstTableTop =
