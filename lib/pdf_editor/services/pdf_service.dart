@@ -589,24 +589,6 @@ class PdfService {
       );
     }
 
-    // Redraw the Description/% separator as one continuous stroke from the
-    // subheader through the PRIVATE row so there is no misaligned junction.
-    final tableBorderPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
-    graphics.drawLine(
-      tableBorderPen,
-      const Offset(479.5, 235),
-      const Offset(479.5, rowBottom),
-    );
-    // Place the horizontal borders over the vertical stroke at each joint.
-    // This removes visible caps/kinks when the PDF is viewed at high zoom.
-    for (final y in <double>[235, 266, rowTop, rowBottom]) {
-      graphics.drawLine(
-        tableBorderPen,
-        Offset(476.5, y),
-        Offset(482.5, y),
-      );
-    }
-
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
         bounds: const Rect.fromLTWH(153, 290, 125, 115),
@@ -683,6 +665,33 @@ class PdfService {
         ),
       );
     }
+
+    // Normalize the complete table grid after replacing the row contents.
+    // The template uses fine gray rules; clearing and redrawing each rule also
+    // prevents one edited separator from looking darker at high zoom levels.
+    const tableLeft = 37.0;
+    const tableRight = 821.0;
+    const tableTop = 209.0;
+    final clearPen = PdfPen(PdfColor(255, 255, 255), width: 1.15);
+    final tableBorderPen = PdfPen(PdfColor(125, 125, 125), width: 0.35);
+
+    void drawRule(Offset start, Offset end) {
+      graphics.drawLine(clearPen, start, end);
+      graphics.drawLine(tableBorderPen, start, end);
+    }
+
+    // Full-height column rules. The Description/% divider begins below the
+    // merged "Bidder's Role" heading.
+    for (final x in <double>[37, 148, 283, 369, 575, 691, 821]) {
+      drawRule(Offset(x, tableTop), Offset(x, rowBottom));
+    }
+    drawRule(const Offset(482, 235), Offset(482, rowBottom));
+
+    // Outer and row rules, plus the short rule under the merged role heading.
+    for (final y in <double>[tableTop, 266, rowTop, rowBottom]) {
+      drawRule(Offset(tableLeft, y), Offset(tableRight, y));
+    }
+    drawRule(const Offset(369, 235), const Offset(575, 235));
   }
 
   static void _drawNfccHeader(
