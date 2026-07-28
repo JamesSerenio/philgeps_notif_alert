@@ -598,13 +598,6 @@ class PdfService {
       const Offset(479.5, 235),
       const Offset(479.5, rowBottom),
     );
-    for (final y in <double>[235, 266, rowTop, rowBottom]) {
-      graphics.drawLine(
-        tableBorderPen,
-        Offset(476.5, y),
-        Offset(482.5, y),
-      );
-    }
 
     final cells = <({Rect bounds, String text, bool bold, bool centered})>[
       (
