@@ -921,17 +921,22 @@ class PdfService {
       endPageIndex: 46,
     );
     TextLine? statementHeader;
+    TextLine? referenceHeader;
     for (final line in firstPageLines) {
       final text = line.text.toLowerCase();
       if (text.trim() == 'statement of compliance') {
         statementHeader = line;
-        break;
+      }
+      if (text.trim() == 'reference number') {
+        referenceHeader = line;
       }
     }
     const columns = <double>[36, 104, 301, 379, 468, 576];
-    final statementTop = statementHeader == null
-        ? 100.0
-        : (statementHeader.bounds.top - 6).clamp(80.0, 180.0).toDouble();
+    final statementTop = referenceHeader != null
+        ? (referenceHeader.bounds.bottom + 18).clamp(105.0, 180.0).toDouble()
+        : statementHeader == null
+            ? 125.0
+            : (statementHeader.bounds.top - 6).clamp(105.0, 180.0).toDouble();
     const statementTitleHeight = 24.0;
     const statementBodyHeight = 165.0;
     final firstTableTop =
@@ -977,7 +982,7 @@ class PdfService {
       10,
       style: PdfFontStyle.bold,
     );
-    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     var itemIndex = 0;
 
     const statementText =
