@@ -9,6 +9,31 @@ create table if not exists public.bid_technical_specifications (
 alter table public.bid_technical_specifications
 add column if not exists specifications jsonb not null default '[]'::jsonb;
 
+-- Add the new Parameter property to previously saved specification rows.
+-- New rows store it automatically inside the specifications JSON array.
+update public.bid_technical_specifications
+set specifications = coalesce(
+  (
+    select jsonb_agg(
+      case
+        when jsonb_typeof(item) = 'object'
+          then item || jsonb_build_object('parameter', coalesce(item->>'parameter', ''))
+        else item
+      end
+      order by item_order
+    )
+    from jsonb_array_elements(specifications) with ordinality
+      as saved_items(item, item_order)
+  ),
+  '[]'::jsonb
+)
+where exists (
+  select 1
+  from jsonb_array_elements(specifications) as existing(item)
+  where jsonb_typeof(existing.item) = 'object'
+    and not (existing.item ? 'parameter')
+);
+
 alter table public.bid_technical_specifications enable row level security;
 
 drop policy if exists "Public can read technical specifications"

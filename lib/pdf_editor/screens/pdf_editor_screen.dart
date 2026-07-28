@@ -126,6 +126,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     String specification = '',
     String quantity = '',
     String unit = '',
+    String parameter = '',
     bool rebuild = true,
   }) {
     if (technicalSpecifications.length >= 72) return;
@@ -133,6 +134,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       specification: specification,
       quantity: quantity,
       unit: unit,
+      parameter: parameter,
     );
     for (final controller in entry.controllers) {
       controller.addListener(_scheduleTechnicalSpecificationsSave);
@@ -166,6 +168,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               specification: (value['specification'] ?? '').toString(),
               quantity: (value['quantity'] ?? '').toString(),
               unit: (value['unit'] ?? '').toString(),
+              parameter: (value['parameter'] ?? '').toString(),
               rebuild: false,
             );
           }
@@ -199,6 +202,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             'specification': entry.specification.text.trim(),
             'quantity': entry.quantity.text.trim(),
             'unit': entry.unit.text.trim(),
+            'parameter': entry.parameter.text.trim(),
           },
       ];
       await SupabaseConfig.client.from('bid_technical_specifications').upsert(
@@ -306,6 +310,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 'specification': entry.specification.text.trim(),
                 'quantity': entry.quantity.text.trim(),
                 'unit': entry.unit.text.trim(),
+                'parameter': entry.parameter.text.trim(),
               },
           ]),
         },
@@ -540,6 +545,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       ),
                     ],
                   ),
+                  formField(
+                    label: 'Parameter',
+                    controller: technicalSpecifications[index].parameter,
+                    maxLines: 2,
+                  ),
                   const Text('Statement of Compliance: COMPLY'),
                 ],
               ),
@@ -753,20 +763,24 @@ class _TechnicalSpecificationEntry {
     String specification = '',
     String quantity = '',
     String unit = '',
+    String parameter = '',
   })  : specification = TextEditingController(text: specification),
         quantity = TextEditingController(text: quantity),
-        unit = TextEditingController(text: unit);
+        unit = TextEditingController(text: unit),
+        parameter = TextEditingController(text: parameter);
 
   final TextEditingController specification;
   final TextEditingController quantity;
   final TextEditingController unit;
+  final TextEditingController parameter;
 
   List<TextEditingController> get controllers =>
-      [specification, quantity, unit];
+      [specification, quantity, unit, parameter];
 
   void dispose() {
     specification.dispose();
     quantity.dispose();
     unit.dispose();
+    parameter.dispose();
   }
 }

@@ -931,7 +931,7 @@ class PdfService {
         referenceHeader = line;
       }
     }
-    const columns = <double>[36, 104, 301, 379, 468, 576];
+    const columns = <double>[36, 94, 270, 335, 400, 490, 576];
     final statementTop = referenceHeader != null
         ? (referenceHeader.bounds.bottom + 18).clamp(105.0, 180.0).toDouble()
         : statementHeader == null
@@ -966,17 +966,29 @@ class PdfService {
       wordWrap: PdfWordWrapType.word,
     );
     final specificationWidth = columns[2] - columns[1] - 6;
+    final parameterWidth = columns[5] - columns[4] - 6;
     final rowHeights = <double>[
       for (final value in specifications)
         (() {
           final specification =
               value is Map ? (value['specification'] ?? '').toString() : '';
-          final measured = regularFont.measureString(
+          final parameter =
+              value is Map ? (value['parameter'] ?? '').toString() : '';
+          final measuredSpecification = regularFont.measureString(
             specification,
             layoutArea: Size(specificationWidth, 500),
             format: specificationFormat,
           );
-          return (measured.height + 6).clamp(minimumRowHeight, 90).toDouble();
+          final measuredParameter = regularFont.measureString(
+            parameter,
+            layoutArea: Size(parameterWidth, 500),
+            format: specificationFormat,
+          );
+          final contentHeight =
+              measuredSpecification.height > measuredParameter.height
+                  ? measuredSpecification.height
+                  : measuredParameter.height;
+          return (contentHeight + 6).clamp(minimumRowHeight, 90).toDouble();
         })(),
     ];
     final pageRowCounts = <int>[];
@@ -1136,6 +1148,7 @@ class PdfService {
         'Specification/s',
         'Qty',
         'Unit',
+        'Parameter',
         'Statement\nof\nCompliance',
       ];
       for (var column = 0; column < headers.length; column++) {
@@ -1167,13 +1180,14 @@ class PdfService {
           (specification['specification'] ?? '').toString(),
           (specification['quantity'] ?? '').toString(),
           (specification['unit'] ?? '').toString(),
+          (specification['parameter'] ?? '').toString(),
           'COMPLY',
         ];
         final rowHeight = rowHeights[itemIndex];
         for (var column = 0; column < texts.length; column++) {
           page.graphics.drawString(
             texts[column],
-            column == 4 ? boldFont : regularFont,
+            column == 5 ? boldFont : regularFont,
             brush: blackBrush,
             bounds: Rect.fromLTWH(
               columns[column] + 3,
