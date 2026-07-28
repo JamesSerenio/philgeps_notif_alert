@@ -144,7 +144,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       'slccNumber': TextEditingController(),
       'slccNatureOfWork': TextEditingController(),
       'slccDescription': TextEditingController(),
-      'slccPercent': TextEditingController(),
+      'slccPercent': TextEditingController(text: '100%'),
       'slccAmountOfAward': TextEditingController(),
       'slccCompletionDuration': TextEditingController(),
       'slccDateAwarded': TextEditingController(),
@@ -284,9 +284,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           .maybeSingle();
       if (row != null) {
         for (final entry in slccControllers.entries) {
+          if (entry.key == 'slccPercent') continue;
           entry.value.text = (row[_slccColumn(entry.key)] ?? '').toString();
         }
       }
+      slccControllers['slccPercent']!.text = '100%';
     } catch (error) {
       debugPrint('SLCC load error: $error');
     } finally {
@@ -422,12 +424,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     required String label,
     required TextEditingController controller,
     int maxLines = 1,
+    bool readOnly = false,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
         maxLines: maxLines,
+        readOnly: readOnly,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
@@ -615,6 +619,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             label: field.$2,
             controller: slccControllers[field.$1]!,
             maxLines: field.$3,
+            readOnly: field.$1 == 'slccPercent',
           ),
       ],
     );
