@@ -920,19 +920,22 @@ class PdfService {
       startPageIndex: 46,
       endPageIndex: 46,
     );
-    TextLine? itemHeader;
+    TextLine? statementHeader;
     for (final line in firstPageLines) {
       final text = line.text.toLowerCase();
-      if (text.contains('item') && text.contains('no')) {
-        itemHeader = line;
+      if (text.trim() == 'statement of compliance') {
+        statementHeader = line;
         break;
       }
     }
-    final firstTableTop = itemHeader == null
-        ? 310.0
-        : (itemHeader.bounds.top - 80).clamp(285.0, 335.0).toDouble();
-
     const columns = <double>[36, 104, 301, 379, 468, 576];
+    final statementTop = statementHeader == null
+        ? 100.0
+        : (statementHeader.bounds.top - 6).clamp(80.0, 180.0).toDouble();
+    const statementTitleHeight = 24.0;
+    const statementBodyHeight = 185.0;
+    final firstTableTop =
+        statementTop + statementTitleHeight + statementBodyHeight;
     const headerHeight = 38.0;
     const rowHeight = 18.0;
     const signatureSpace = 125.0;
@@ -969,7 +972,88 @@ class PdfService {
       8,
       style: PdfFontStyle.bold,
     );
+    final statementTitleFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.bold,
+    );
+    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 8);
     var itemIndex = 0;
+
+    const statementText =
+        'Bidders must state here either “Comply” or “Not Comply” against each '
+        'of the individual parameters of each Specification stating the '
+        'corresponding performance parameter of the equipment offered. '
+        'Statements of “Comply” or “Not Comply” must be supported by evidence '
+        'in a Bidders Bid and cross-referenced to that evidence. Evidence shall '
+        'be in the form of manufacturers’ un-amended sales literature, '
+        'unconditional statements of specification and compliance issued by '
+        'the manufacturer, samples, independent test data etc. as appropriate. '
+        'A statement that is not supported by evidence or is subsequently '
+        'found to be contradicted by the evidence presented will render the Bid '
+        'under evaluation liable for rejection. A statement either in the '
+        'Bidders statement of compliance or the supporting evidence that is '
+        'found to be false either during Bid evaluation, post qualification or '
+        'the execution of the Contract may be regarded as fraudulent and render '
+        'the Bidder or supplier liable for prosecution subject to the '
+        'provisions of ITB Clause Error! Reference source not found and/or GCC '
+        'Clause Error! Reference source not found.';
+
+    // Rebuild the statement and table as one shared bordered structure.
+    firstPage.graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: Rect.fromLTWH(
+        columns.first - 2,
+        statementTop - 2,
+        columns.last - columns.first + 4,
+        firstPage.getClientSize().height - statementTop + 2,
+      ),
+    );
+    firstPage.graphics.drawRectangle(
+      pen: gridPen,
+      bounds: Rect.fromLTWH(
+        columns.first,
+        statementTop,
+        columns.last - columns.first,
+        statementTitleHeight + statementBodyHeight,
+      ),
+    );
+    firstPage.graphics.drawLine(
+      gridPen,
+      Offset(columns.first, statementTop + statementTitleHeight),
+      Offset(columns.last, statementTop + statementTitleHeight),
+    );
+    firstPage.graphics.drawString(
+      'Statement of Compliance',
+      statementTitleFont,
+      brush: blackBrush,
+      bounds: Rect.fromLTWH(
+        columns.first + 6,
+        statementTop + 4,
+        columns.last - columns.first - 12,
+        statementTitleHeight - 8,
+      ),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.left,
+        lineAlignment: PdfVerticalAlignment.middle,
+      ),
+    );
+    firstPage.graphics.drawString(
+      statementText,
+      statementBodyFont,
+      brush: blackBrush,
+      bounds: Rect.fromLTWH(
+        columns.first + 6,
+        statementTop + statementTitleHeight + 7,
+        columns.last - columns.first - 12,
+        statementBodyHeight - 14,
+      ),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.justify,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.word,
+      ),
+    );
 
     for (var technicalPage = 0; technicalPage < pageCount; technicalPage++) {
       final page = document.pages[46 + technicalPage];
@@ -985,9 +1069,9 @@ class PdfService {
         brush: whiteBrush,
         bounds: Rect.fromLTWH(
           28,
-          tableTop - 3,
+          tableTop,
           pageSize.width - 56,
-          pageSize.height - tableTop + 3,
+          pageSize.height - tableTop,
         ),
       );
 
