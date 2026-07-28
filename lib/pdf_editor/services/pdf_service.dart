@@ -1055,7 +1055,12 @@ class PdfService {
       // redrawing the unchanged designation between them.
       signatureGraphics.drawRectangle(
         brush: whiteBrush,
-        bounds: Rect.fromLTWH(33, dulyTop + 25, 330, 108),
+        bounds: Rect.fromLTWH(
+          0,
+          dulyTop + 25,
+          document.pages[signaturePageIndex].getClientSize().width,
+          108,
+        ),
       );
       void drawSignatureValue(String text, double top, {bool heavy = true}) {
         signatureGraphics.drawString(
