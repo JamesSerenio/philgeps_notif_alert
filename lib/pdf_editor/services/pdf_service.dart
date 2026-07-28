@@ -69,6 +69,11 @@ class PdfService {
       _drawTechnicalSpecificationsSignature(document.pages[48], values);
     }
 
+    // Replace all 72 Statement of Compliance values across pages 47-49.
+    if (document.pages.count > 48) {
+      _drawTechnicalSpecificationsCompliance(document, values);
+    }
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -667,15 +672,13 @@ class PdfService {
         brush: blackBrush,
         bounds: cell.bounds,
         format: PdfStringFormat(
-          alignment: cell.centered
-              ? PdfTextAlignment.center
-              : PdfTextAlignment.left,
+          alignment:
+              cell.centered ? PdfTextAlignment.center : PdfTextAlignment.left,
           lineAlignment: PdfVerticalAlignment.middle,
           wordWrap: PdfWordWrapType.word,
         ),
       );
     }
-
   }
 
   static void _drawNfccHeader(
@@ -895,5 +898,70 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(180, 586, 180, 18),
     );
+  }
+
+  static void _drawTechnicalSpecificationsCompliance(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    final extractor = PdfTextExtractor(document);
+    final complianceLines = extractor
+        .extractTextLines(startPageIndex: 46, endPageIndex: 48)
+        .where((line) => line.text.trim().toUpperCase() == 'COMPLY')
+        .toList()
+      ..sort((first, second) {
+        final pageComparison = first.pageIndex.compareTo(second.pageIndex);
+        if (pageComparison != 0) return pageComparison;
+        return first.bounds.top.compareTo(second.bounds.top);
+      });
+
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+
+    for (var index = 0; index < complianceLines.length && index < 72; index++) {
+      final line = complianceLines[index];
+      final page = document.pages[line.pageIndex];
+      final value = (values['technicalCompliance${index + 1}'] ?? 'COMPLY')
+          .trim()
+          .toUpperCase();
+      final bounds = line.bounds;
+      final availableWidth = (page.getClientSize().width - bounds.left - 30)
+          .clamp(1, 120)
+          .toDouble();
+
+      // Clear only the inside of the compliance cell row, preserving its grid.
+      page.graphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: Rect.fromLTWH(
+          bounds.left - 2,
+          bounds.top - 1,
+          availableWidth,
+          bounds.height + 2,
+        ),
+      );
+      if (value.isEmpty) continue;
+
+      final font = PdfStandardFont(
+        PdfFontFamily.timesRoman,
+        line.fontSize,
+        style: PdfFontStyle.bold,
+      );
+      page.graphics.drawString(
+        value,
+        font,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(
+          bounds.left,
+          bounds.top,
+          availableWidth - 2,
+          bounds.height + 1,
+        ),
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.left,
+          lineAlignment: PdfVerticalAlignment.middle,
+          wordWrap: PdfWordWrapType.none,
+        ),
+      );
+    }
   }
 }

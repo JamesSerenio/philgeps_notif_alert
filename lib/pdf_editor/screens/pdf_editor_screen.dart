@@ -48,10 +48,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController procuringEntityController;
   late final TextEditingController submittedByController;
   late final Map<String, TextEditingController> slccControllers;
+  late final List<TextEditingController> technicalSpecificationControllers;
   late final FocusNode submittedByFocusNode;
   Timer? slccSaveTimer;
+  Timer? technicalSpecificationsSaveTimer;
   bool isLoadingSlcc = true;
   bool isSavingSlcc = false;
+  bool isLoadingTechnicalSpecifications = true;
+  bool isSavingTechnicalSpecifications = false;
 
   Uint8List? generatedPdf;
   bool isGenerating = false;
@@ -113,7 +117,77 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     for (final controller in slccControllers.values) {
       controller.addListener(_scheduleSlccSave);
     }
+    technicalSpecificationControllers = List.generate(
+      72,
+      (_) => TextEditingController(text: 'COMPLY'),
+    );
+    for (final controller in technicalSpecificationControllers) {
+      controller.addListener(_scheduleTechnicalSpecificationsSave);
+    }
     _loadSlcc();
+    _loadTechnicalSpecifications();
+  }
+
+  Future<void> _loadTechnicalSpecifications() async {
+    try {
+      final row = await SupabaseConfig.client
+          .from('bid_technical_specifications')
+          .select('compliance_values')
+          .eq('reference_number', widget.referenceNumber.trim())
+          .maybeSingle();
+      final savedValues = row?['compliance_values'];
+      if (savedValues is Map) {
+        for (var index = 0;
+            index < technicalSpecificationControllers.length;
+            index++) {
+          final savedValue = savedValues['${index + 1}'];
+          if (savedValue != null) {
+            technicalSpecificationControllers[index].text =
+                savedValue.toString();
+          }
+        }
+      }
+    } catch (error) {
+      debugPrint('Technical specifications load error: $error');
+    } finally {
+      if (mounted) {
+        setState(() => isLoadingTechnicalSpecifications = false);
+      }
+    }
+  }
+
+  void _scheduleTechnicalSpecificationsSave() {
+    if (isLoadingTechnicalSpecifications) return;
+    technicalSpecificationsSaveTimer?.cancel();
+    technicalSpecificationsSaveTimer = Timer(
+      const Duration(milliseconds: 700),
+      _saveTechnicalSpecifications,
+    );
+  }
+
+  Future<void> _saveTechnicalSpecifications() async {
+    if (widget.referenceNumber.trim().isEmpty) return;
+    if (mounted) setState(() => isSavingTechnicalSpecifications = true);
+    try {
+      final complianceValues = <String, String>{
+        for (var index = 0;
+            index < technicalSpecificationControllers.length;
+            index++)
+          '${index + 1}': technicalSpecificationControllers[index].text.trim(),
+      };
+      await SupabaseConfig.client.from('bid_technical_specifications').upsert(
+        {
+          'reference_number': widget.referenceNumber.trim(),
+          'compliance_values': complianceValues,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        onConflict: 'reference_number',
+      );
+    } catch (error) {
+      debugPrint('Technical specifications save error: $error');
+    } finally {
+      if (mounted) setState(() => isSavingTechnicalSpecifications = false);
+    }
   }
 
   Future<void> _loadSlcc() async {
@@ -185,7 +259,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
     try {
       slccSaveTimer?.cancel();
+      technicalSpecificationsSaveTimer?.cancel();
       await _saveSlcc();
+      await _saveTechnicalSpecifications();
       final bytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
@@ -198,6 +274,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'submittedBy': submittedByController.text.trim(),
           for (final entry in slccControllers.entries)
             entry.key: entry.value.text.trim(),
+          for (var index = 0;
+              index < technicalSpecificationControllers.length;
+              index++)
+            'technicalCompliance${index + 1}':
+                technicalSpecificationControllers[index].text.trim(),
         },
       );
 
@@ -370,6 +451,32 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  Widget technicalSpecificationsFields() {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: const Text(
+        'TECHNICAL SPECIFICATIONS (Pages 47-49)',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        isLoadingTechnicalSpecifications
+            ? 'Loading saved values...'
+            : isSavingTechnicalSpecifications
+                ? 'Saving...'
+                : 'Saved automatically',
+      ),
+      children: [
+        for (var index = 0;
+            index < technicalSpecificationControllers.length;
+            index++)
+          formField(
+            label: 'Item ${index + 1} - Statement of Compliance',
+            controller: technicalSpecificationControllers[index],
+          ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     if (previewBlobUrl != null) {
@@ -386,8 +493,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     submittedByController.dispose();
     submittedByFocusNode.dispose();
     slccSaveTimer?.cancel();
+    technicalSpecificationsSaveTimer?.cancel();
     for (final controller in slccControllers.values) {
       controller.removeListener(_scheduleSlccSave);
+      controller.dispose();
+    }
+    for (final controller in technicalSpecificationControllers) {
+      controller.removeListener(_scheduleTechnicalSpecificationsSave);
       controller.dispose();
     }
 
@@ -441,6 +553,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 ),
                 submittedByField(),
                 slccFields(),
+                technicalSpecificationsFields(),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: isGenerating ? null : generatePdf,
