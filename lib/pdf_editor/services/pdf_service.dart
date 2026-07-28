@@ -882,7 +882,7 @@ class PdfService {
     final recipientFont = PdfStandardFont(
       PdfFontFamily.helvetica,
       10,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.italic,
     );
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
     final municipality = (values['municipality'] ?? '').trim().toUpperCase();
@@ -914,6 +914,19 @@ class PdfService {
       recipientFont,
       brush: blackBrush,
       bounds: Rect.fromLTWH(57, recipientTop - 0.5, 390, 15),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.left,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.none,
+      ),
+    );
+    // Standard PDF fonts expose bold and italic separately. A tiny second
+    // italic pass recreates the heavier bold-italic appearance of the source.
+    graphics.drawString(
+      recipient,
+      recipientFont,
+      brush: blackBrush,
+      bounds: Rect.fromLTWH(57.18, recipientTop - 0.5, 390, 15),
       format: PdfStringFormat(
         alignment: PdfTextAlignment.left,
         lineAlignment: PdfVerticalAlignment.top,
