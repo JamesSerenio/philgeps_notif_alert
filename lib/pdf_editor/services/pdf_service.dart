@@ -929,8 +929,8 @@ class PdfService {
       }
     }
     final firstTableTop = itemHeader == null
-        ? 455.0
-        : (itemHeader.bounds.top - 8).clamp(350.0, 520.0).toDouble();
+        ? 310.0
+        : (itemHeader.bounds.top - 80).clamp(285.0, 335.0).toDouble();
 
     const columns = <double>[36, 104, 301, 379, 468, 576];
     const headerHeight = 38.0;
