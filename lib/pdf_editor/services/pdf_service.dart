@@ -947,9 +947,30 @@ class PdfService {
       bounds: Rect.fromLTWH(33, witnessTop - 2, 545, 42),
     );
 
+    // Move the witness statement to the signature page, directly above the
+    // "Duly authorized" caption.
+    var witnessGraphics = graphics;
+    double? dulyTop;
+    int? signaturePageIndex;
+    for (final line in allLines) {
+      if (line.text.toUpperCase().contains('DULY AUTHORIZED TO SIGN THE BID')) {
+        signaturePageIndex = line.pageIndex;
+        dulyTop = line.bounds.top;
+        break;
+      }
+    }
+    if (signaturePageIndex != null && dulyTop != null) {
+      witnessGraphics = document.pages[signaturePageIndex].graphics;
+      witnessTop = dulyTop - 44;
+      witnessGraphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: Rect.fromLTWH(33, witnessTop - 2, 545, 40),
+      );
+    }
+
     const firstLine =
         'IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s this';
-    graphics.drawString(
+    witnessGraphics.drawString(
       firstLine,
       textFont,
       brush: blackBrush,
@@ -961,13 +982,13 @@ class PdfService {
     final firstLineWidth = textFont.measureString(firstLine).width;
     final dayLineLeft = 36 + firstLineWidth + 3;
     const dayLineWidth = 28.0;
-    graphics.drawLine(
+    witnessGraphics.drawLine(
       linePen,
       Offset(dayLineLeft, witnessTop + 12),
       Offset(dayLineLeft + dayLineWidth, witnessTop + 12),
     );
     final dayOfLeft = dayLineLeft + dayLineWidth + 4;
-    graphics.drawString(
+    witnessGraphics.drawString(
       'day of',
       textFont,
       brush: blackBrush,
@@ -976,13 +997,13 @@ class PdfService {
     final dayOfWidth = textFont.measureString('day of').width;
     final monthLineLeft = dayOfLeft + dayOfWidth + 4;
     const monthLineWidth = 44.0;
-    graphics.drawLine(
+    witnessGraphics.drawLine(
       linePen,
       Offset(monthLineLeft, witnessTop + 12),
       Offset(monthLineLeft + monthLineWidth, witnessTop + 12),
     );
     final yearLeft = monthLineLeft + monthLineWidth + 4;
-    graphics.drawString(
+    witnessGraphics.drawString(
       '2026 at Municipality',
       textFont,
       brush: blackBrush,
@@ -990,34 +1011,78 @@ class PdfService {
     );
 
     // Venue: Municipality of [municipality], [province].
-    graphics.drawString(
+    witnessGraphics.drawString(
       'of',
       textFont,
       brush: blackBrush,
       bounds: Rect.fromLTWH(36, witnessTop + 20, 12, 15),
     );
-    graphics.drawLine(
+    witnessGraphics.drawLine(
       linePen,
       Offset(50, witnessTop + 32),
       Offset(153, witnessTop + 32),
     );
-    graphics.drawString(
+    witnessGraphics.drawString(
       ',',
       textFont,
       brush: blackBrush,
       bounds: Rect.fromLTWH(155, witnessTop + 20, 5, 15),
     );
-    graphics.drawLine(
+    witnessGraphics.drawLine(
       linePen,
       Offset(164, witnessTop + 32),
       Offset(267, witnessTop + 32),
     );
-    graphics.drawString(
+    witnessGraphics.drawString(
       '.',
       textFont,
       brush: blackBrush,
       bounds: Rect.fromLTWH(269, witnessTop + 20, 5, 15),
     );
+
+    if (signaturePageIndex != null && dulyTop != null) {
+      final signatureGraphics = document.pages[signaturePageIndex].graphics;
+      final bidderName = (values['bidderName'] ?? '').trim();
+      final submittedBy = (values['submittedBy'] ?? '').trim();
+      final date = (values['date'] ?? '').trim();
+      final signatureFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        10,
+        style: PdfFontStyle.italic,
+      );
+
+      // Replace the template's fixed company, representative and date while
+      // redrawing the unchanged designation between them.
+      signatureGraphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: Rect.fromLTWH(33, dulyTop + 25, 330, 108),
+      );
+      void drawSignatureValue(String text, double top, {bool heavy = true}) {
+        signatureGraphics.drawString(
+          text,
+          signatureFont,
+          brush: blackBrush,
+          bounds: Rect.fromLTWH(36, top, 300, 15),
+        );
+        if (heavy) {
+          signatureGraphics.drawString(
+            text,
+            signatureFont,
+            brush: blackBrush,
+            bounds: Rect.fromLTWH(36.18, top, 300, 15),
+          );
+        }
+      }
+
+      drawSignatureValue(bidderName, dulyTop + 31);
+      drawSignatureValue(submittedBy, dulyTop + 79);
+      drawSignatureValue(
+        'Authorized Representative',
+        dulyTop + 96,
+        heavy: false,
+      );
+      drawSignatureValue(date, dulyTop + 113);
+    }
   }
 
   static void _drawTechnicalSpecificationsSignature(
