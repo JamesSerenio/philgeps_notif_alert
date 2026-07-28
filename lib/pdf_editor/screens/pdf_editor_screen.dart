@@ -599,7 +599,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       initiallyExpanded: true,
       tilePadding: EdgeInsets.zero,
       title: const Text(
-        'SLCC (Page 21)',
+        'SLCC',
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(
@@ -624,7 +624,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
       title: const Text(
-        'TECHNICAL SPECIFICATIONS (Pages 47-49)',
+        'TECHNICAL SPECIFICATIONS',
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(
