@@ -592,7 +592,7 @@ class PdfService {
     // Only this separator needs to be restored after clearing the editable
     // cells. Keep the template's other rules untouched so no doubled grid is
     // introduced by tiny coordinate differences in the source PDF.
-    final tableBorderPen = PdfPen(PdfColor(125, 125, 125), width: 0.35);
+    final tableBorderPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
     graphics.drawLine(
       tableBorderPen,
       const Offset(479.5, 235),
