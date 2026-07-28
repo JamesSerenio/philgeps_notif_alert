@@ -881,7 +881,7 @@ class PdfService {
     final textFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
     final recipientFont = PdfStandardFont(
       PdfFontFamily.helvetica,
-      10,
+      11,
       style: PdfFontStyle.italic,
     );
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
@@ -913,7 +913,7 @@ class PdfService {
       recipient,
       recipientFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(57, recipientTop - 0.5, 390, 15),
+      bounds: Rect.fromLTWH(57, recipientTop - 1.5, 390, 16),
       format: PdfStringFormat(
         alignment: PdfTextAlignment.left,
         lineAlignment: PdfVerticalAlignment.top,
@@ -926,7 +926,7 @@ class PdfService {
       recipient,
       recipientFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(57.18, recipientTop - 0.5, 390, 15),
+      bounds: Rect.fromLTWH(57.18, recipientTop - 1.5, 390, 16),
       format: PdfStringFormat(
         alignment: PdfTextAlignment.left,
         lineAlignment: PdfVerticalAlignment.top,
