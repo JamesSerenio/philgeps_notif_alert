@@ -39,6 +39,41 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     'CARLOS RAFAEL A. JAMILO',
     'MARLJONE BLAIRE B. TINGTING',
   ];
+  static const List<String> defaultUnitSuggestions = [
+    'pcs',
+    'pc',
+    'pack',
+    'box',
+    'box/pack',
+    'set',
+    'lot',
+    'unit',
+    'bag',
+    'bags',
+    'kg',
+    'g',
+    'mg',
+    'ton',
+    'lb',
+    'mm',
+    'cm',
+    'm',
+    'km',
+    'm2',
+    'm²',
+    'sq.m',
+    'm3',
+    'm³',
+    'cu.m',
+    'lm',
+    'l',
+    'ml',
+    'gal',
+    'sheet',
+    'roll',
+    'pair',
+    'bd.ft',
+  ];
 
   late final TextEditingController provinceController;
   late final TextEditingController municipalityController;
@@ -57,6 +92,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isSavingSlcc = false;
   bool isLoadingTechnicalSpecifications = true;
   bool isSavingTechnicalSpecifications = false;
+  List<String> unitSuggestions = List.of(defaultUnitSuggestions);
 
   Uint8List? generatedPdf;
   bool isGenerating = false;
@@ -120,6 +156,25 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
     _loadSlcc();
     _loadTechnicalSpecifications();
+    _loadUnitSuggestions();
+  }
+
+  Future<void> _loadUnitSuggestions() async {
+    try {
+      final rows = await SupabaseConfig.client
+          .from('technical_specification_units')
+          .select('code')
+          .order('sort_order');
+      final loaded = rows
+          .map((row) => (row['code'] ?? '').toString().trim())
+          .where((unit) => unit.isNotEmpty)
+          .toList();
+      if (loaded.isNotEmpty && mounted) {
+        setState(() => unitSuggestions = loaded);
+      }
+    } catch (error) {
+      debugPrint('Unit suggestions load error: $error');
+    }
   }
 
   void _addTechnicalSpecification({
@@ -381,6 +436,86 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  Widget unitField(_TechnicalSpecificationEntry entry) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: RawAutocomplete<String>(
+        textEditingController: entry.unit,
+        focusNode: entry.unitFocusNode,
+        optionsBuilder: (textEditingValue) {
+          final query = textEditingValue.text.trim().toLowerCase();
+          final matches = unitSuggestions.where(
+            (unit) => query.isEmpty || unit.toLowerCase().contains(query),
+          );
+          final sorted = matches.toList()
+            ..sort((first, second) {
+              final firstStarts = first.toLowerCase().startsWith(query);
+              final secondStarts = second.toLowerCase().startsWith(query);
+              if (firstStarts != secondStarts) return firstStarts ? -1 : 1;
+              return first.compareTo(second);
+            });
+          return sorted;
+        },
+        onSelected: (unit) {
+          entry.unit.text = unit;
+          entry.unit.selection = TextSelection.collapsed(offset: unit.length);
+        },
+        fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+          return TextField(
+            controller: controller,
+            focusNode: focusNode,
+            decoration: InputDecoration(
+              labelText: 'Unit',
+              border: const OutlineInputBorder(),
+              suffixIcon: PopupMenuButton<String>(
+                tooltip: 'Select unit',
+                icon: const Icon(Icons.arrow_drop_down),
+                onSelected: (unit) {
+                  controller.text = unit;
+                  controller.selection = TextSelection.collapsed(
+                    offset: unit.length,
+                  );
+                },
+                itemBuilder: (context) => [
+                  for (final unit in unitSuggestions)
+                    PopupMenuItem(value: unit, child: Text(unit)),
+                ],
+              ),
+            ),
+            onSubmitted: (_) => onSubmitted(),
+          );
+        },
+        optionsViewBuilder: (context, onSelected, options) {
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxHeight: 240,
+                  maxWidth: 260,
+                ),
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final unit = options.elementAt(index);
+                    return ListTile(
+                      dense: true,
+                      title: Text(unit),
+                      onTap: () => onSelected(unit),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget submittedByField() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -538,10 +673,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: formField(
-                          label: 'Unit',
-                          controller: technicalSpecifications[index].unit,
-                        ),
+                        child: unitField(technicalSpecifications[index]),
                       ),
                     ],
                   ),
@@ -773,6 +905,7 @@ class _TechnicalSpecificationEntry {
   final TextEditingController quantity;
   final TextEditingController unit;
   final TextEditingController parameter;
+  final FocusNode unitFocusNode = FocusNode();
 
   List<TextEditingController> get controllers =>
       [specification, quantity, unit, parameter];
@@ -782,5 +915,6 @@ class _TechnicalSpecificationEntry {
     quantity.dispose();
     unit.dispose();
     parameter.dispose();
+    unitFocusNode.dispose();
   }
 }

@@ -65,3 +65,33 @@ grant select, insert, update on public.bid_technical_specifications
 to anon, authenticated;
 grant usage, select on sequence public.bid_technical_specifications_id_seq
 to anon, authenticated;
+
+create table if not exists public.technical_specification_units (
+  code text primary key,
+  sort_order integer not null default 0
+);
+
+insert into public.technical_specification_units (code, sort_order) values
+  ('pcs', 10), ('pc', 20), ('pack', 30), ('box', 40),
+  ('box/pack', 50), ('set', 60), ('lot', 70), ('unit', 80),
+  ('bag', 90), ('bags', 100), ('kg', 110), ('g', 120),
+  ('mg', 130), ('ton', 140), ('lb', 150), ('mm', 160),
+  ('cm', 170), ('m', 180), ('km', 190), ('m2', 200),
+  ('m²', 210), ('sq.m', 220), ('m3', 230), ('m³', 240),
+  ('cu.m', 250), ('lm', 260), ('l', 270), ('ml', 280),
+  ('gal', 290), ('sheet', 300), ('roll', 310), ('pair', 320),
+  ('bd.ft', 330)
+on conflict (code) do update
+set sort_order = excluded.sort_order;
+
+alter table public.technical_specification_units enable row level security;
+
+drop policy if exists "Public can read technical specification units"
+on public.technical_specification_units;
+create policy "Public can read technical specification units"
+on public.technical_specification_units
+for select
+to anon, authenticated
+using (true);
+
+grant select on public.technical_specification_units to anon, authenticated;
