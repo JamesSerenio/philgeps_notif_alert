@@ -64,12 +64,6 @@ class PdfService {
       _drawTechnicalSpecificationsHeader(document.pages[46], values);
     }
 
-    // Page 48 has template-specific date and venue values. Replace them with
-    // writing lines so the final signing details can be supplied manually.
-    if (document.pages.count > 47) {
-      _drawBidSecuringDeclarationDetails(document.pages[47], values);
-    }
-
     var technicalSpecificationPageCount = 3;
     if (document.pages.count > 48) {
       technicalSpecificationPageCount =
@@ -135,6 +129,10 @@ class PdfService {
     if (technicalSpecificationPageCount < 2) {
       document.pages.removeAt(47);
     }
+
+    // Locate this form by its actual text after optional technical pages have
+    // been removed, since its final page index can change.
+    _drawBidSecuringDeclarationDetails(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -859,9 +857,24 @@ class PdfService {
   }
 
   static void _drawBidSecuringDeclarationDetails(
-    PdfPage page,
+    PdfDocument document,
     Map<String, String> values,
   ) {
+    final extractor = PdfTextExtractor(document);
+    final allLines = extractor.extractTextLines();
+    int? declarationPageIndex;
+    for (final line in allLines) {
+      if (line.text.toUpperCase().contains('BID SECURING DECLARATION')) {
+        declarationPageIndex = line.pageIndex;
+        break;
+      }
+    }
+    if (declarationPageIndex == null) return;
+
+    final page = document.pages[declarationPageIndex];
+    final pageLines = allLines
+        .where((line) => line.pageIndex == declarationPageIndex)
+        .toList();
     final graphics = page.graphics;
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
@@ -876,23 +889,36 @@ class PdfService {
     final province = (values['province'] ?? '').trim().toUpperCase();
     final recipient = 'MUNICIPALITY OF $municipality, $province';
 
+    var recipientTop = 181.0;
+    var witnessTop = 936.0;
+    for (final line in pageLines) {
+      final text = line.text.toUpperCase();
+      if (text.contains('MUNICIPALITY OF SUMILAO') && text.contains('TO:')) {
+        recipientTop = line.bounds.top;
+      }
+      if (text.contains('IN WITNESS WHEREOF')) {
+        witnessTop = line.bounds.top;
+      }
+    }
+
     // Replace the fixed SUMILAO, BUKIDNON recipient with the municipality and
-    // province selected in the editor.
+    // province selected in the editor. The extracted Y position keeps this
+    // correct even if the form moves to a different page index.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(32, 181, 420, 18),
+      bounds: Rect.fromLTWH(32, recipientTop - 2, 420, 18),
     );
     graphics.drawString(
       'To:',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 184, 18, 13),
+      bounds: Rect.fromLTWH(36, recipientTop, 18, 13),
     );
     graphics.drawString(
       recipient,
       recipientFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(57, 184, 390, 13),
+      bounds: Rect.fromLTWH(57, recipientTop, 390, 13),
       format: PdfStringFormat(
         alignment: PdfTextAlignment.left,
         lineAlignment: PdfVerticalAlignment.top,
@@ -904,7 +930,7 @@ class PdfService {
     // "Sumilao" and "Bukidnon" values in the source template.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(33, 936, 545, 42),
+      bounds: Rect.fromLTWH(33, witnessTop - 2, 545, 42),
     );
 
     const firstLine =
@@ -913,23 +939,31 @@ class PdfService {
       firstLine,
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 939, 340, 15),
+      bounds: Rect.fromLTWH(36, witnessTop, 340, 15),
     );
 
     // Date: [day] day of [month] 2026.
-    graphics.drawLine(linePen, const Offset(377, 951), const Offset(405, 951));
+    graphics.drawLine(
+      linePen,
+      Offset(377, witnessTop + 12),
+      Offset(405, witnessTop + 12),
+    );
     graphics.drawString(
       'day of',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(409, 939, 34, 15),
+      bounds: Rect.fromLTWH(409, witnessTop, 34, 15),
     );
-    graphics.drawLine(linePen, const Offset(445, 951), const Offset(489, 951));
+    graphics.drawLine(
+      linePen,
+      Offset(445, witnessTop + 12),
+      Offset(489, witnessTop + 12),
+    );
     graphics.drawString(
       '2026 at Municipality',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(493, 939, 105, 15),
+      bounds: Rect.fromLTWH(493, witnessTop, 105, 15),
     );
 
     // Venue: Municipality of [municipality], [province].
@@ -937,21 +971,29 @@ class PdfService {
       'of',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 959, 12, 15),
+      bounds: Rect.fromLTWH(36, witnessTop + 20, 12, 15),
     );
-    graphics.drawLine(linePen, const Offset(50, 971), const Offset(153, 971));
+    graphics.drawLine(
+      linePen,
+      Offset(50, witnessTop + 32),
+      Offset(153, witnessTop + 32),
+    );
     graphics.drawString(
       ',',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(155, 959, 5, 15),
+      bounds: Rect.fromLTWH(155, witnessTop + 20, 5, 15),
     );
-    graphics.drawLine(linePen, const Offset(164, 971), const Offset(267, 971));
+    graphics.drawLine(
+      linePen,
+      Offset(164, witnessTop + 32),
+      Offset(267, witnessTop + 32),
+    );
     graphics.drawString(
       '.',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(269, 959, 5, 15),
+      bounds: Rect.fromLTWH(269, witnessTop + 20, 5, 15),
     );
   }
 
