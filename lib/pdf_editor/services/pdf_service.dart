@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -905,63 +906,124 @@ class PdfService {
     Map<String, String> values,
   ) {
     final extractor = PdfTextExtractor(document);
-    final complianceLines = extractor
-        .extractTextLines(startPageIndex: 46, endPageIndex: 48)
-        .where((line) => line.text.trim().toUpperCase() == 'COMPLY')
-        .toList()
+    final lines = extractor.extractTextLines(
+      startPageIndex: 46,
+      endPageIndex: 48,
+    );
+    final itemLines = lines.where((line) {
+      final itemNumber = int.tryParse(line.text.trim());
+      return itemNumber != null &&
+          itemNumber >= 1 &&
+          itemNumber <= 72 &&
+          line.bounds.left < 90;
+    }).toList()
       ..sort((first, second) {
-        final pageComparison = first.pageIndex.compareTo(second.pageIndex);
-        if (pageComparison != 0) return pageComparison;
-        return first.bounds.top.compareTo(second.bounds.top);
+        final firstNumber = int.parse(first.text.trim());
+        final secondNumber = int.parse(second.text.trim());
+        return firstNumber.compareTo(secondNumber);
       });
+
+    List<dynamic> specifications = const [];
+    final encodedSpecifications = values['technicalSpecifications'] ?? '';
+    if (encodedSpecifications.isNotEmpty) {
+      final decoded = jsonDecode(encodedSpecifications);
+      if (decoded is List) specifications = decoded;
+    }
 
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final boldFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    const columns = <double>[36, 104, 301, 379, 468, 576];
 
-    for (var index = 0; index < complianceLines.length && index < 72; index++) {
-      final line = complianceLines[index];
-      final page = document.pages[line.pageIndex];
-      final value = (values['technicalCompliance${index + 1}'] ?? 'COMPLY')
-          .trim()
-          .toUpperCase();
-      final bounds = line.bounds;
-      final availableWidth = (page.getClientSize().width - bounds.left - 30)
-          .clamp(1, 120)
-          .toDouble();
+    for (var index = 0; index < itemLines.length && index < 72; index++) {
+      final itemLine = itemLines[index];
+      final pageItems = itemLines
+          .where((candidate) => candidate.pageIndex == itemLine.pageIndex)
+          .toList()
+        ..sort(
+            (first, second) => first.bounds.top.compareTo(second.bounds.top));
+      final pageItemIndex = pageItems.indexOf(itemLine);
+      final center = itemLine.bounds.center.dy;
+      final previousCenter = pageItemIndex > 0
+          ? pageItems[pageItemIndex - 1].bounds.center.dy
+          : null;
+      final nextCenter = pageItemIndex + 1 < pageItems.length
+          ? pageItems[pageItemIndex + 1].bounds.center.dy
+          : null;
+      final fallbackHeight = itemLine.bounds.height + 4;
+      final rowTop = previousCenter == null
+          ? center - ((nextCenter ?? center + fallbackHeight) - center) / 2
+          : (previousCenter + center) / 2;
+      final rowBottom = nextCenter == null
+          ? center + (center - (previousCenter ?? center - fallbackHeight)) / 2
+          : (center + nextCenter) / 2;
+      final rowHeight = rowBottom - rowTop;
+      final page = document.pages[itemLine.pageIndex];
 
-      // Clear only the inside of the compliance cell row, preserving its grid.
-      page.graphics.drawRectangle(
-        brush: whiteBrush,
-        bounds: Rect.fromLTWH(
-          bounds.left - 2,
-          bounds.top - 1,
-          availableWidth,
-          bounds.height + 2,
-        ),
-      );
-      if (value.isEmpty) continue;
+      // Remove all original cell text in this row without covering grid lines.
+      for (final line in lines.where(
+        (candidate) => candidate.pageIndex == itemLine.pageIndex,
+      )) {
+        final lineCenter = line.bounds.center.dy;
+        if (lineCenter < rowTop || lineCenter >= rowBottom) continue;
+        if (line.bounds.left < columns.first ||
+            line.bounds.right > columns.last + 2) {
+          continue;
+        }
+        page.graphics.drawRectangle(
+          brush: whiteBrush,
+          bounds: Rect.fromLTWH(
+            line.bounds.left - 1,
+            line.bounds.top - 0.5,
+            line.bounds.width + 2,
+            line.bounds.height + 1,
+          ),
+        );
+      }
 
-      final font = PdfStandardFont(
-        PdfFontFamily.timesRoman,
-        line.fontSize,
-        style: PdfFontStyle.bold,
-      );
-      page.graphics.drawString(
-        value,
-        font,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(
-          bounds.left,
-          bounds.top,
-          availableWidth - 2,
-          bounds.height + 1,
-        ),
-        format: PdfStringFormat(
-          alignment: PdfTextAlignment.left,
-          lineAlignment: PdfVerticalAlignment.middle,
-          wordWrap: PdfWordWrapType.none,
-        ),
-      );
+      if (index >= specifications.length || specifications[index] is! Map) {
+        continue;
+      }
+      final specification = specifications[index] as Map;
+      final description = (specification['specification'] ?? '').toString();
+      final quantity = (specification['quantity'] ?? '').toString();
+      final unit = (specification['unit'] ?? '').toString();
+
+      void drawCell(
+        String text,
+        int column, {
+        bool bold = false,
+        PdfTextAlignment alignment = PdfTextAlignment.left,
+      }) {
+        if (text.trim().isEmpty) return;
+        page.graphics.drawString(
+          text,
+          bold ? boldFont : regularFont,
+          brush: blackBrush,
+          bounds: Rect.fromLTWH(
+            columns[column] + 4,
+            rowTop + 1,
+            columns[column + 1] - columns[column] - 8,
+            rowHeight - 2,
+          ),
+          format: PdfStringFormat(
+            alignment: alignment,
+            lineAlignment: PdfVerticalAlignment.middle,
+            wordWrap: PdfWordWrapType.word,
+          ),
+        );
+      }
+
+      drawCell('${index + 1}', 0, alignment: PdfTextAlignment.center);
+      drawCell(description, 1);
+      drawCell(quantity, 2, alignment: PdfTextAlignment.center);
+      drawCell(unit, 3, alignment: PdfTextAlignment.center);
+      drawCell('COMPLY', 4, bold: true, alignment: PdfTextAlignment.center);
     }
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'dart:ui_web' as ui_web;
@@ -48,7 +49,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController procuringEntityController;
   late final TextEditingController submittedByController;
   late final Map<String, TextEditingController> slccControllers;
-  late final List<TextEditingController> technicalSpecificationControllers;
+  final List<_TechnicalSpecificationEntry> technicalSpecifications = [];
   late final FocusNode submittedByFocusNode;
   Timer? slccSaveTimer;
   Timer? technicalSpecificationsSaveTimer;
@@ -117,33 +118,56 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     for (final controller in slccControllers.values) {
       controller.addListener(_scheduleSlccSave);
     }
-    technicalSpecificationControllers = List.generate(
-      72,
-      (_) => TextEditingController(text: 'COMPLY'),
-    );
-    for (final controller in technicalSpecificationControllers) {
-      controller.addListener(_scheduleTechnicalSpecificationsSave);
-    }
     _loadSlcc();
     _loadTechnicalSpecifications();
+  }
+
+  void _addTechnicalSpecification({
+    String specification = '',
+    String quantity = '',
+    String unit = '',
+    bool rebuild = true,
+  }) {
+    if (technicalSpecifications.length >= 72) return;
+    final entry = _TechnicalSpecificationEntry(
+      specification: specification,
+      quantity: quantity,
+      unit: unit,
+    );
+    for (final controller in entry.controllers) {
+      controller.addListener(_scheduleTechnicalSpecificationsSave);
+    }
+    technicalSpecifications.add(entry);
+    if (rebuild && mounted) setState(() {});
+  }
+
+  void _removeTechnicalSpecification(int index) {
+    final entry = technicalSpecifications.removeAt(index);
+    for (final controller in entry.controllers) {
+      controller.removeListener(_scheduleTechnicalSpecificationsSave);
+    }
+    entry.dispose();
+    setState(() {});
+    _scheduleTechnicalSpecificationsSave();
   }
 
   Future<void> _loadTechnicalSpecifications() async {
     try {
       final row = await SupabaseConfig.client
           .from('bid_technical_specifications')
-          .select('compliance_values')
+          .select('specifications')
           .eq('reference_number', widget.referenceNumber.trim())
           .maybeSingle();
-      final savedValues = row?['compliance_values'];
-      if (savedValues is Map) {
-        for (var index = 0;
-            index < technicalSpecificationControllers.length;
-            index++) {
-          final savedValue = savedValues['${index + 1}'];
-          if (savedValue != null) {
-            technicalSpecificationControllers[index].text =
-                savedValue.toString();
+      final savedSpecifications = row?['specifications'];
+      if (savedSpecifications is List) {
+        for (final value in savedSpecifications.take(72)) {
+          if (value is Map) {
+            _addTechnicalSpecification(
+              specification: (value['specification'] ?? '').toString(),
+              quantity: (value['quantity'] ?? '').toString(),
+              unit: (value['unit'] ?? '').toString(),
+              rebuild: false,
+            );
           }
         }
       }
@@ -169,16 +193,18 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     if (widget.referenceNumber.trim().isEmpty) return;
     if (mounted) setState(() => isSavingTechnicalSpecifications = true);
     try {
-      final complianceValues = <String, String>{
-        for (var index = 0;
-            index < technicalSpecificationControllers.length;
-            index++)
-          '${index + 1}': technicalSpecificationControllers[index].text.trim(),
-      };
+      final specifications = [
+        for (final entry in technicalSpecifications)
+          {
+            'specification': entry.specification.text.trim(),
+            'quantity': entry.quantity.text.trim(),
+            'unit': entry.unit.text.trim(),
+          },
+      ];
       await SupabaseConfig.client.from('bid_technical_specifications').upsert(
         {
           'reference_number': widget.referenceNumber.trim(),
-          'compliance_values': complianceValues,
+          'specifications': specifications,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
         onConflict: 'reference_number',
@@ -274,11 +300,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'submittedBy': submittedByController.text.trim(),
           for (final entry in slccControllers.entries)
             entry.key: entry.value.text.trim(),
-          for (var index = 0;
-              index < technicalSpecificationControllers.length;
-              index++)
-            'technicalCompliance${index + 1}':
-                technicalSpecificationControllers[index].text.trim(),
+          'technicalSpecifications': jsonEncode([
+            for (final entry in technicalSpecifications)
+              {
+                'specification': entry.specification.text.trim(),
+                'quantity': entry.quantity.text.trim(),
+                'unit': entry.unit.text.trim(),
+              },
+          ]),
         },
       );
 
@@ -466,13 +495,67 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 : 'Saved automatically',
       ),
       children: [
-        for (var index = 0;
-            index < technicalSpecificationControllers.length;
-            index++)
-          formField(
-            label: 'Item ${index + 1} - Statement of Compliance',
-            controller: technicalSpecificationControllers[index],
+        for (var index = 0; index < technicalSpecifications.length; index++)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Item ${index + 1}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove specification',
+                        onPressed: () => _removeTechnicalSpecification(index),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
+                  formField(
+                    label: 'Specification',
+                    controller: technicalSpecifications[index].specification,
+                    maxLines: 2,
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: formField(
+                          label: 'Qty',
+                          controller: technicalSpecifications[index].quantity,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: formField(
+                          label: 'Unit',
+                          controller: technicalSpecifications[index].unit,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Text('Statement of Compliance: COMPLY'),
+                ],
+              ),
+            ),
           ),
+        OutlinedButton.icon(
+          onPressed: technicalSpecifications.length >= 72
+              ? null
+              : _addTechnicalSpecification,
+          icon: const Icon(Icons.add),
+          label: Text(
+            technicalSpecifications.length >= 72
+                ? 'Maximum of 72 specifications'
+                : 'Add Specification',
+          ),
+        ),
       ],
     );
   }
@@ -498,9 +581,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       controller.removeListener(_scheduleSlccSave);
       controller.dispose();
     }
-    for (final controller in technicalSpecificationControllers) {
-      controller.removeListener(_scheduleTechnicalSpecificationsSave);
-      controller.dispose();
+    for (final entry in technicalSpecifications) {
+      for (final controller in entry.controllers) {
+        controller.removeListener(_scheduleTechnicalSpecificationsSave);
+      }
+      entry.dispose();
     }
 
     super.dispose();
@@ -660,5 +745,28 @@ class _SubmittedByMenuIcon extends StatelessWidget {
             .toList();
       },
     );
+  }
+}
+
+class _TechnicalSpecificationEntry {
+  _TechnicalSpecificationEntry({
+    String specification = '',
+    String quantity = '',
+    String unit = '',
+  })  : specification = TextEditingController(text: specification),
+        quantity = TextEditingController(text: quantity),
+        unit = TextEditingController(text: unit);
+
+  final TextEditingController specification;
+  final TextEditingController quantity;
+  final TextEditingController unit;
+
+  List<TextEditingController> get controllers =>
+      [specification, quantity, unit];
+
+  void dispose() {
+    specification.dispose();
+    quantity.dispose();
+    unit.dispose();
   }
 }
