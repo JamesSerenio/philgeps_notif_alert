@@ -880,7 +880,7 @@ class PdfService {
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final textFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
     final recipientFont = PdfStandardFont(
-      PdfFontFamily.timesRoman,
+      PdfFontFamily.helvetica,
       9,
       style: PdfFontStyle.bold,
     );
@@ -906,19 +906,14 @@ class PdfService {
     // correct even if the form moves to a different page index.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: Rect.fromLTWH(32, recipientTop - 2, 420, 18),
-    );
-    graphics.drawString(
-      'To:',
-      textFont,
-      brush: blackBrush,
-      bounds: Rect.fromLTWH(36, recipientTop, 18, 13),
+      // Keep the original "To:" so its font and spacing remain untouched.
+      bounds: Rect.fromLTWH(55, recipientTop - 2, 397, 18),
     );
     graphics.drawString(
       recipient,
       recipientFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(57, recipientTop, 390, 13),
+      bounds: Rect.fromLTWH(57, recipientTop + 0.5, 390, 13),
       format: PdfStringFormat(
         alignment: PdfTextAlignment.left,
         lineAlignment: PdfVerticalAlignment.top,
@@ -939,31 +934,40 @@ class PdfService {
       firstLine,
       textFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(36, witnessTop, 340, 15),
+      bounds: Rect.fromLTWH(36, witnessTop, 400, 15),
     );
 
-    // Date: [day] day of [month] 2026.
+    // Place the first writing line immediately after "this" instead of using
+    // a fixed X coordinate that can leave a conspicuous gap.
+    final firstLineWidth = textFont.measureString(firstLine).width;
+    final dayLineLeft = 36 + firstLineWidth + 3;
+    const dayLineWidth = 28.0;
     graphics.drawLine(
       linePen,
-      Offset(377, witnessTop + 12),
-      Offset(405, witnessTop + 12),
+      Offset(dayLineLeft, witnessTop + 12),
+      Offset(dayLineLeft + dayLineWidth, witnessTop + 12),
     );
+    final dayOfLeft = dayLineLeft + dayLineWidth + 4;
     graphics.drawString(
       'day of',
       textFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(409, witnessTop, 34, 15),
+      bounds: Rect.fromLTWH(dayOfLeft, witnessTop, 34, 15),
     );
+    final dayOfWidth = textFont.measureString('day of').width;
+    final monthLineLeft = dayOfLeft + dayOfWidth + 4;
+    const monthLineWidth = 44.0;
     graphics.drawLine(
       linePen,
-      Offset(445, witnessTop + 12),
-      Offset(489, witnessTop + 12),
+      Offset(monthLineLeft, witnessTop + 12),
+      Offset(monthLineLeft + monthLineWidth, witnessTop + 12),
     );
+    final yearLeft = monthLineLeft + monthLineWidth + 4;
     graphics.drawString(
       '2026 at Municipality',
       textFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(493, witnessTop, 105, 15),
+      bounds: Rect.fromLTWH(yearLeft, witnessTop, 120, 15),
     );
 
     // Venue: Municipality of [municipality], [province].
