@@ -942,32 +942,9 @@ class PdfService {
     final firstTableTop =
         statementTop + statementTitleHeight + statementBodyHeight;
     const headerHeight = 38.0;
-    const rowHeight = 18.0;
+    const minimumRowHeight = 18.0;
     const signatureSpace = 125.0;
     final firstPage = document.pages[46];
-    final firstCapacity = ((firstPage.getClientSize().height -
-                firstTableTop -
-                headerHeight -
-                signatureSpace) /
-            rowHeight)
-        .floor()
-        .clamp(1, 20)
-        .toInt();
-    final continuationCapacity = ((document.pages[47].getClientSize().height -
-                36 -
-                headerHeight -
-                signatureSpace) /
-            rowHeight)
-        .floor()
-        .clamp(1, 36)
-        .toInt();
-    final itemCount = specifications.length;
-    final pageCount = itemCount <= firstCapacity
-        ? 1
-        : itemCount <= firstCapacity + continuationCapacity
-            ? 2
-            : 3;
-
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
@@ -983,6 +960,49 @@ class PdfService {
       style: PdfFontStyle.bold,
     );
     final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final specificationFormat = PdfStringFormat(
+      alignment: PdfTextAlignment.left,
+      lineAlignment: PdfVerticalAlignment.middle,
+      wordWrap: PdfWordWrapType.word,
+    );
+    final specificationWidth = columns[2] - columns[1] - 6;
+    final rowHeights = <double>[
+      for (final value in specifications)
+        (() {
+          final specification =
+              value is Map ? (value['specification'] ?? '').toString() : '';
+          final measured = regularFont.measureString(
+            specification,
+            layoutArea: Size(specificationWidth, 500),
+            format: specificationFormat,
+          );
+          return (measured.height + 6).clamp(minimumRowHeight, 90).toDouble();
+        })(),
+    ];
+    final pageRowCounts = <int>[];
+    var rowsOnCurrentPage = 0;
+    var usedHeight = 0.0;
+    var technicalPageForLayout = 0;
+    for (final height in rowHeights) {
+      final page = document.pages[46 + technicalPageForLayout];
+      final tableTop = technicalPageForLayout == 0 ? firstTableTop : 36.0;
+      final availableHeight = page.getClientSize().height -
+          tableTop -
+          headerHeight -
+          signatureSpace;
+      if (rowsOnCurrentPage > 0 &&
+          usedHeight + height > availableHeight &&
+          technicalPageForLayout < 2) {
+        pageRowCounts.add(rowsOnCurrentPage);
+        technicalPageForLayout++;
+        rowsOnCurrentPage = 0;
+        usedHeight = 0;
+      }
+      rowsOnCurrentPage++;
+      usedHeight += height;
+    }
+    pageRowCounts.add(rowsOnCurrentPage);
+    final pageCount = pageRowCounts.length;
     var itemIndex = 0;
 
     const statementText =
@@ -1064,10 +1084,13 @@ class PdfService {
       final page = document.pages[46 + technicalPage];
       final pageSize = page.getClientSize();
       final tableTop = technicalPage == 0 ? firstTableTop : 36.0;
-      final capacity =
-          technicalPage == 0 ? firstCapacity : continuationCapacity;
-      final rowsOnPage = (itemCount - itemIndex).clamp(0, capacity).toInt();
-      final tableBottom = tableTop + headerHeight + rowsOnPage * rowHeight;
+      final rowsOnPage = pageRowCounts[technicalPage];
+      final pageStartItemIndex = itemIndex;
+      final tableRowsHeight = rowHeights
+          .skip(pageStartItemIndex)
+          .take(rowsOnPage)
+          .fold<double>(0, (total, height) => total + height);
+      final tableBottom = tableTop + headerHeight + tableRowsHeight;
 
       // Remove the fixed template rows and its old signature block.
       page.graphics.drawRectangle(
@@ -1087,14 +1110,24 @@ class PdfService {
           Offset(x, tableBottom),
         );
       }
-      for (var row = 0; row <= rowsOnPage + 1; row++) {
-        final y = row == 0
-            ? tableTop
-            : tableTop + headerHeight + (row - 1) * rowHeight;
+      var horizontalY = tableTop;
+      page.graphics.drawLine(
+        gridPen,
+        Offset(columns.first, horizontalY),
+        Offset(columns.last, horizontalY),
+      );
+      horizontalY += headerHeight;
+      page.graphics.drawLine(
+        gridPen,
+        Offset(columns.first, horizontalY),
+        Offset(columns.last, horizontalY),
+      );
+      for (var row = 0; row < rowsOnPage; row++) {
+        horizontalY += rowHeights[pageStartItemIndex + row];
         page.graphics.drawLine(
           gridPen,
-          Offset(columns.first, y),
-          Offset(columns.last, y),
+          Offset(columns.first, horizontalY),
+          Offset(columns.last, horizontalY),
         );
       }
 
@@ -1124,6 +1157,7 @@ class PdfService {
         );
       }
 
+      var rowTop = tableTop + headerHeight;
       for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
         final specification = specifications[itemIndex] is Map
             ? specifications[itemIndex] as Map
@@ -1135,7 +1169,7 @@ class PdfService {
           (specification['unit'] ?? '').toString(),
           'COMPLY',
         ];
-        final rowTop = tableTop + headerHeight + row * rowHeight;
+        final rowHeight = rowHeights[itemIndex];
         for (var column = 0; column < texts.length; column++) {
           page.graphics.drawString(
             texts[column],
@@ -1155,6 +1189,7 @@ class PdfService {
             ),
           );
         }
+        rowTop += rowHeight;
       }
 
       if (technicalPage == pageCount - 1) {
