@@ -67,7 +67,7 @@ class PdfService {
     // Page 48 has template-specific date and venue values. Replace them with
     // writing lines so the final signing details can be supplied manually.
     if (document.pages.count > 47) {
-      _drawBidSecuringDeclarationWitness(document.pages[47]);
+      _drawBidSecuringDeclarationDetails(document.pages[47], values);
     }
 
     var technicalSpecificationPageCount = 3;
@@ -858,18 +858,53 @@ class PdfService {
     drawRow('REFERENCE NUMBER', referenceNumber, referenceTop, 16);
   }
 
-  static void _drawBidSecuringDeclarationWitness(PdfPage page) {
+  static void _drawBidSecuringDeclarationDetails(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
     final graphics = page.graphics;
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final textFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final recipientFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
+    final municipality = (values['municipality'] ?? '').trim().toUpperCase();
+    final province = (values['province'] ?? '').trim().toUpperCase();
+    final recipient = 'MUNICIPALITY OF $municipality, $province';
+
+    // Replace the fixed SUMILAO, BUKIDNON recipient with the municipality and
+    // province selected in the editor.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(32, 181, 420, 18),
+    );
+    graphics.drawString(
+      'To:',
+      textFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 184, 18, 13),
+    );
+    graphics.drawString(
+      recipient,
+      recipientFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(57, 184, 390, 13),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.left,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.none,
+      ),
+    );
 
     // Cover the complete original sentence, including the fixed "May",
     // "Sumilao" and "Bukidnon" values in the source template.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(33, 680, 545, 42),
+      bounds: const Rect.fromLTWH(33, 936, 545, 42),
     );
 
     const firstLine =
@@ -878,23 +913,23 @@ class PdfService {
       firstLine,
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 683, 340, 15),
+      bounds: const Rect.fromLTWH(36, 939, 340, 15),
     );
 
     // Date: [day] day of [month] 2026.
-    graphics.drawLine(linePen, const Offset(377, 695), const Offset(405, 695));
+    graphics.drawLine(linePen, const Offset(377, 951), const Offset(405, 951));
     graphics.drawString(
       'day of',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(409, 683, 34, 15),
+      bounds: const Rect.fromLTWH(409, 939, 34, 15),
     );
-    graphics.drawLine(linePen, const Offset(445, 695), const Offset(489, 695));
+    graphics.drawLine(linePen, const Offset(445, 951), const Offset(489, 951));
     graphics.drawString(
       '2026 at Municipality',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(493, 683, 105, 15),
+      bounds: const Rect.fromLTWH(493, 939, 105, 15),
     );
 
     // Venue: Municipality of [municipality], [province].
@@ -902,21 +937,21 @@ class PdfService {
       'of',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 703, 12, 15),
+      bounds: const Rect.fromLTWH(36, 959, 12, 15),
     );
-    graphics.drawLine(linePen, const Offset(50, 715), const Offset(153, 715));
+    graphics.drawLine(linePen, const Offset(50, 971), const Offset(153, 971));
     graphics.drawString(
       ',',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(155, 703, 5, 15),
+      bounds: const Rect.fromLTWH(155, 959, 5, 15),
     );
-    graphics.drawLine(linePen, const Offset(164, 715), const Offset(267, 715));
+    graphics.drawLine(linePen, const Offset(164, 971), const Offset(267, 971));
     graphics.drawString(
       '.',
       textFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(269, 703, 5, 15),
+      bounds: const Rect.fromLTWH(269, 959, 5, 15),
     );
   }
 
