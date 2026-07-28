@@ -933,7 +933,7 @@ class PdfService {
         ? 100.0
         : (statementHeader.bounds.top - 6).clamp(80.0, 180.0).toDouble();
     const statementTitleHeight = 24.0;
-    const statementBodyHeight = 185.0;
+    const statementBodyHeight = 165.0;
     final firstTableTop =
         statementTop + statementTitleHeight + statementBodyHeight;
     const headerHeight = 38.0;
@@ -966,10 +966,10 @@ class PdfService {
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
-    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 8);
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
     final boldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      8,
+      9,
       style: PdfFontStyle.bold,
     );
     final statementTitleFont = PdfStandardFont(
@@ -977,7 +977,7 @@ class PdfService {
       10,
       style: PdfFontStyle.bold,
     );
-    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 8);
+    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     var itemIndex = 0;
 
     const statementText =
