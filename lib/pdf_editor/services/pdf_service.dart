@@ -64,6 +64,12 @@ class PdfService {
       _drawTechnicalSpecificationsHeader(document.pages[46], values);
     }
 
+    // Page 48 has template-specific date and venue values. Replace them with
+    // writing lines so the final signing details can be supplied manually.
+    if (document.pages.count > 47) {
+      _drawBidSecuringDeclarationWitness(document.pages[47]);
+    }
+
     var technicalSpecificationPageCount = 3;
     if (document.pages.count > 48) {
       technicalSpecificationPageCount =
@@ -850,6 +856,68 @@ class PdfService {
     drawRow('NAME OF THE PROCURING ENTITY', procuringEntity, 74, 16);
     drawRow('PROJECT TITLE', wrappedTitle, projectTop, titleHeight + 1);
     drawRow('REFERENCE NUMBER', referenceNumber, referenceTop, 16);
+  }
+
+  static void _drawBidSecuringDeclarationWitness(PdfPage page) {
+    final graphics = page.graphics;
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final textFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
+
+    // Cover the complete original sentence, including the fixed "May",
+    // "Sumilao" and "Bukidnon" values in the source template.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(33, 680, 545, 42),
+    );
+
+    const firstLine =
+        'IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s this';
+    graphics.drawString(
+      firstLine,
+      textFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 683, 340, 15),
+    );
+
+    // Date: [day] day of [month] 2026.
+    graphics.drawLine(linePen, const Offset(377, 695), const Offset(405, 695));
+    graphics.drawString(
+      'day of',
+      textFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(409, 683, 34, 15),
+    );
+    graphics.drawLine(linePen, const Offset(445, 695), const Offset(489, 695));
+    graphics.drawString(
+      '2026 at Municipality',
+      textFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(493, 683, 105, 15),
+    );
+
+    // Venue: Municipality of [municipality], [province].
+    graphics.drawString(
+      'of',
+      textFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 703, 12, 15),
+    );
+    graphics.drawLine(linePen, const Offset(50, 715), const Offset(153, 715));
+    graphics.drawString(
+      ',',
+      textFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(155, 703, 5, 15),
+    );
+    graphics.drawLine(linePen, const Offset(164, 715), const Offset(267, 715));
+    graphics.drawString(
+      '.',
+      textFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(269, 703, 5, 15),
+    );
   }
 
   static void _drawTechnicalSpecificationsSignature(
