@@ -44,20 +44,11 @@ Future<void> main() async {
   });
 
   FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
-    final prefs = await SharedPreferences.getInstance();
-    final deviceKey = prefs.getString('device_key') ??
-        '${DateTime.now().millisecondsSinceEpoch}-${defaultTargetPlatform.name}';
-
-    await prefs.setString('device_key', deviceKey);
-
-    await SupabaseConfig.client.from('device_tokens').upsert(
-      {
-        'token': token,
-        'platform': 'web',
-        'device_key': deviceKey,
-      },
-      onConflict: 'device_key',
-    );
+    try {
+      await NotificationService.saveDeviceToken(token);
+    } catch (error) {
+      debugPrint('Notification token refresh save skipped: $error');
+    }
   });
 
 // Removed from startup para mas paspas mo-open ang app.
@@ -66,6 +57,22 @@ Future<void> main() async {
 }
 
 class NotificationService {
+  static Future<void> saveDeviceToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    final deviceKey = prefs.getString('device_key') ??
+        '${DateTime.now().millisecondsSinceEpoch}-${DateTime.now().microsecondsSinceEpoch}-${defaultTargetPlatform.name}';
+    await prefs.setString('device_key', deviceKey);
+
+    await SupabaseConfig.client.rpc(
+      'register_device_token',
+      params: {
+        'p_token': token,
+        'p_platform': defaultTargetPlatform.name,
+        'p_device_key': deviceKey,
+      },
+    );
+  }
+
   static Future<void> initialize() async {
     final messaging = FirebaseMessaging.instance;
 
@@ -85,23 +92,9 @@ class NotificationService {
 
     if (token != null) {
       try {
-        final prefs = await SharedPreferences.getInstance();
+        await saveDeviceToken(token);
 
-        final deviceKey = prefs.getString('device_key') ??
-            '${DateTime.now().millisecondsSinceEpoch}-${DateTime.now().microsecondsSinceEpoch}-${defaultTargetPlatform.name}';
-
-        await prefs.setString('device_key', deviceKey);
-
-        await SupabaseConfig.client.from('device_tokens').upsert(
-          {
-            'token': token,
-            'platform': defaultTargetPlatform.name,
-            'device_key': deviceKey,
-          },
-          onConflict: 'device_key',
-        );
-
-        debugPrint('FCM TOKEN SAVED: $token');
+        debugPrint('FCM token registered successfully.');
       } catch (e) {
         debugPrint('Supabase token save error: $e');
       }
