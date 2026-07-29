@@ -2049,28 +2049,30 @@ class PdfService {
         final submittedBy = (values['submittedBy'] ?? '').trim().toUpperCase();
         final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
         final signatureTop = totalBottom + 18;
-        final signatureRight = left + (right - left) * .62;
-        final nameValueLeft = left + 52;
+        final nameValueLeft = left + 44;
+        final submittedWidth = signatureBold.measureString(submittedBy).width;
+        final nameLineRight = nameValueLeft +
+            (submittedWidth + 32).clamp(150.0, 230.0).toDouble();
         page.graphics.drawString('Name:', signatureBold, brush: black,
             bounds: Rect.fromLTWH(left, signatureTop, 48, 14));
         page.graphics.drawString(submittedBy, signatureBold, brush: black,
             bounds: Rect.fromLTWH(
               nameValueLeft,
               signatureTop,
-              signatureRight - nameValueLeft,
+              nameLineRight - nameValueLeft,
               14,
             ));
         page.graphics.drawLine(
           gridPen,
           Offset(nameValueLeft, signatureTop + 12),
-          Offset(signatureRight, signatureTop + 12),
+          Offset(nameLineRight, signatureTop + 12),
         );
         page.graphics.drawString('Signature:', signatureBold, brush: black,
             bounds: Rect.fromLTWH(left, signatureTop + 13, 60, 14));
         page.graphics.drawLine(
           gridPen,
-          Offset(left + 62, signatureTop + 25),
-          Offset(signatureRight, signatureTop + 25),
+          Offset(left + 48, signatureTop + 25),
+          Offset(left + 278, signatureTop + 25),
         );
         const authorizationText =
             'Duly authorized to sign the Bid for and behalf of:';
@@ -2083,6 +2085,9 @@ class PdfService {
         final authorizationWidth =
             signatureBold.measureString(authorizationText).width;
         final bidderLeft = left + authorizationWidth + 4;
+        final bidderWidth = signatureBold.measureString(bidderName).width;
+        final bidderLineRight = bidderLeft +
+            (bidderWidth + 32).clamp(170.0, 260.0).toDouble();
         page.graphics.drawString(
           bidderName,
           signatureBold,
@@ -2090,14 +2095,14 @@ class PdfService {
           bounds: Rect.fromLTWH(
             bidderLeft,
             signatureTop + 26,
-            signatureRight - bidderLeft,
+            bidderLineRight - bidderLeft,
             14,
           ),
         );
         page.graphics.drawLine(
           gridPen,
           Offset(bidderLeft, signatureTop + 38),
-          Offset(signatureRight, signatureTop + 38),
+          Offset(bidderLineRight, signatureTop + 38),
         );
       }
     }
