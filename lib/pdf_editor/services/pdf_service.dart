@@ -2049,7 +2049,7 @@ class PdfService {
         final submittedBy = (values['submittedBy'] ?? '').trim().toUpperCase();
         final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
         final signatureTop = totalBottom + 22;
-        final signatureRight = left + (right - left) * .80;
+        final signatureRight = left + (right - left) * .74;
         final nameValueLeft = left + 52;
         page.graphics.drawString('Name:', signatureBold, brush: black,
             bounds: Rect.fromLTWH(left, signatureTop, 48, 14));
