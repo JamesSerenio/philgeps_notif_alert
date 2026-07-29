@@ -1853,12 +1853,11 @@ class PdfService {
       return '$grouped.${parts.last}';
     }
 
-    const rowsPerPage = 28;
-    final pageCount = specifications.isEmpty
+    final pageCount = specifications.length <= 31
         ? 1
-        : ((specifications.length + rowsPerPage - 1) ~/ rowsPerPage)
-            .clamp(1, 3)
-            .toInt();
+        : specifications.length <= 68
+            ? 2
+            : 3;
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
@@ -1874,6 +1873,11 @@ class PdfService {
       style: PdfFontStyle.bold,
     );
     final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 8.5);
+    final instructionFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      8.5,
+      style: PdfFontStyle.italic,
+    );
     final signatureFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
     final signatureBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
@@ -1893,7 +1897,7 @@ class PdfService {
       const left = 42.0;
       final right = size.width - 42;
       final itemRight = left + 48;
-      final descriptionRight = left + (right - left) * .72;
+      final descriptionRight = left + (right - left) * .67;
       var tableTop = 38.0;
       if (pageNumber == 0) {
         page.graphics.drawString(
@@ -1904,28 +1908,41 @@ class PdfService {
           format: PdfStringFormat(alignment: PdfTextAlignment.center),
         );
         page.graphics.drawString(
-          'Summary based on the Price Schedule for Goods',
-          rowFont,
+          'The Procuring Entity may modify the table below as necessary to comply with the requirements of the Procurement Project',
+          instructionFont,
           brush: black,
           bounds: Rect.fromLTWH(left, 52, right - left, 15),
           format: PdfStringFormat(alignment: PdfTextAlignment.center),
         );
         tableTop = 76;
       }
-      page.graphics.drawString(
-        'Page ${pageNumber + 1} of $pageCount',
-        rowFont,
-        brush: black,
-        bounds: Rect.fromLTWH(right - 90, pageNumber == 0 ? 52 : 18, 90, 14),
-        format: PdfStringFormat(alignment: PdfTextAlignment.right),
-      );
-      const headerHeight = 34.0;
-      const rowHeight = 19.0;
+      const headerHeight = 28.0;
+      const sectionHeight = 14.0;
+      const rowHeight = 14.0;
       final remaining = specifications.length - itemIndex;
-      final rowsOnPage = remaining.clamp(0, rowsPerPage).toInt();
-      final dataBottom = tableTop + headerHeight + rowsOnPage * rowHeight;
-      for (final x in <double>[left, itemRight, descriptionRight, right]) {
+      final pageCapacity = pageNumber == 0 ? 31 : 37;
+      final rowsOnPage = remaining.clamp(0, pageCapacity).toInt();
+      final dataBottom = tableTop +
+          headerHeight +
+          sectionHeight +
+          rowsOnPage * rowHeight;
+      // Outer borders span the whole table. Internal column dividers skip the
+      // merged "Specifications:" row, matching the source template.
+      for (final x in <double>[left, right]) {
         page.graphics.drawLine(gridPen, Offset(x, tableTop), Offset(x, dataBottom));
+      }
+      final sectionBottom = tableTop + headerHeight + sectionHeight;
+      for (final x in <double>[itemRight, descriptionRight]) {
+        page.graphics.drawLine(
+          gridPen,
+          Offset(x, tableTop),
+          Offset(x, tableTop + headerHeight),
+        );
+        page.graphics.drawLine(
+          gridPen,
+          Offset(x, sectionBottom),
+          Offset(x, dataBottom),
+        );
       }
       page.graphics.drawLine(gridPen, Offset(left, tableTop), Offset(right, tableTop));
       page.graphics.drawLine(
@@ -1933,7 +1950,7 @@ class PdfService {
         Offset(left, tableTop + headerHeight),
         Offset(right, tableTop + headerHeight),
       );
-      const headers = <String>['Item\nNo.', 'Description/s', 'Bid Price'];
+      const headers = <String>['Item\nNo.', 'Description/s', ''];
       final bounds = <Rect>[
         Rect.fromLTWH(left, tableTop, itemRight - left, headerHeight),
         Rect.fromLTWH(itemRight, tableTop, descriptionRight - itemRight, headerHeight),
@@ -1952,6 +1969,15 @@ class PdfService {
         );
       }
       var y = tableTop + headerHeight;
+      page.graphics.drawString(
+        'Specifications:',
+        headerFont,
+        brush: black,
+        bounds: Rect.fromLTWH(left + 4, y, descriptionRight - left - 8, sectionHeight),
+        format: PdfStringFormat(lineAlignment: PdfVerticalAlignment.middle),
+      );
+      y += sectionHeight;
+      page.graphics.drawLine(gridPen, Offset(left, y), Offset(right, y));
       for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
         final specification = specifications[itemIndex] is Map
             ? specifications[itemIndex] as Map
@@ -2022,30 +2048,57 @@ class PdfService {
 
         final submittedBy = (values['submittedBy'] ?? '').trim().toUpperCase();
         final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
-        final date = (values['date'] ?? '').trim();
-        final signatureTop = totalBottom + 26;
-        void signatureRow(String label, String value, double top) {
-          page.graphics.drawString(label, signatureFont, brush: black,
-              bounds: Rect.fromLTWH(left, top, 105, 14));
-          page.graphics.drawString(':', signatureFont, brush: black,
-              bounds: Rect.fromLTWH(left + 108, top, 10, 14));
-          page.graphics.drawString(value, signatureBold, brush: black,
-              bounds: Rect.fromLTWH(left + 128, top, right - left - 128, 14));
-        }
-        signatureRow('Submitted by', submittedBy, signatureTop);
+        final signatureTop = totalBottom + 22;
+        final signatureRight = left + (right - left) * .80;
+        final nameValueLeft = left + 52;
+        page.graphics.drawString('Name:', signatureBold, brush: black,
+            bounds: Rect.fromLTWH(left, signatureTop, 48, 14));
+        page.graphics.drawString(submittedBy, signatureBold, brush: black,
+            bounds: Rect.fromLTWH(
+              nameValueLeft,
+              signatureTop,
+              signatureRight - nameValueLeft,
+              14,
+            ));
         page.graphics.drawLine(
           gridPen,
-          Offset(left + 128, signatureTop + 13),
-          Offset(right - 40, signatureTop + 13),
+          Offset(nameValueLeft, signatureTop + 12),
+          Offset(signatureRight, signatureTop + 12),
         );
-        signatureRow('Signature', '', signatureTop + 22);
+        page.graphics.drawString('Signature:', signatureBold, brush: black,
+            bounds: Rect.fromLTWH(left, signatureTop + 16, 60, 14));
         page.graphics.drawLine(
           gridPen,
-          Offset(left + 128, signatureTop + 35),
-          Offset(right - 40, signatureTop + 35),
+          Offset(left + 62, signatureTop + 28),
+          Offset(signatureRight, signatureTop + 28),
         );
-        signatureRow('Name of Bidder', bidderName, signatureTop + 44);
-        signatureRow('Date', date, signatureTop + 66);
+        const authorizationText =
+            'Duly authorized to sign the Bid for and behalf of:';
+        page.graphics.drawString(
+          authorizationText,
+          signatureBold,
+          brush: black,
+          bounds: Rect.fromLTWH(left, signatureTop + 32, 300, 14),
+        );
+        final authorizationWidth =
+            signatureBold.measureString(authorizationText).width;
+        final bidderLeft = left + authorizationWidth + 4;
+        page.graphics.drawString(
+          bidderName,
+          signatureBold,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            bidderLeft,
+            signatureTop + 32,
+            signatureRight - bidderLeft,
+            14,
+          ),
+        );
+        page.graphics.drawLine(
+          gridPen,
+          Offset(bidderLeft, signatureTop + 44),
+          Offset(signatureRight, signatureTop + 44),
+        );
       }
     }
     return pageCount;
