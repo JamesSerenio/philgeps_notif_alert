@@ -522,8 +522,74 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         keyboardType: keyboardType,
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: readOnly
+              ? const Color(0xFFF1F5F2)
+              : Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 13,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFD8E1DB)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFD8E1DB)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(
+              color: Color(0xFF0B5D3B),
+              width: 1.6,
+            ),
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget sectionHeading(IconData icon, String title, {String? subtitle}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE4F1E9),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 19, color: const Color(0xFF0B5D3B)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xFF153D2C),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: .35,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xFF6B7770),
+                      fontSize: 11.5,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -558,7 +624,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             focusNode: focusNode,
             decoration: InputDecoration(
               labelText: 'Unit',
-              border: const OutlineInputBorder(),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               suffixIcon: PopupMenuButton<String>(
                 tooltip: 'Select unit',
                 icon: const Icon(Icons.arrow_drop_down),
@@ -634,11 +704,31 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           return TextField(
             controller: controller,
             focusNode: focusNode,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Submitted by',
               hintText: 'Type or select a name',
-              border: OutlineInputBorder(),
-              suffixIcon: _SubmittedByMenuIcon(),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 13,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFD8E1DB)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFD8E1DB)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF0B5D3B),
+                  width: 1.6,
+                ),
+              ),
+              suffixIcon: const _SubmittedByMenuIcon(),
             ),
             onSubmitted: (_) => onFieldSubmitted(),
           );
@@ -688,8 +778,20 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       ('slccDateCompleted', 'c. Date Completed', 1),
     ];
     return ExpansionTile(
-      initiallyExpanded: true,
-      tilePadding: EdgeInsets.zero,
+      initiallyExpanded: false,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      backgroundColor: Colors.white,
+      collapsedBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      leading: const Icon(Icons.assignment_outlined, color: Color(0xFF0B5D3B)),
       title: const Text(
         'SLCC',
         style: TextStyle(fontWeight: FontWeight.bold),
@@ -715,7 +817,19 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   Widget technicalSpecificationsFields() {
     return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      backgroundColor: Colors.white,
+      collapsedBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      leading: const Icon(Icons.fact_check_outlined, color: Color(0xFF0B5D3B)),
       title: const Text(
         'TECHNICAL SPECIFICATIONS',
         style: TextStyle(fontWeight: FontWeight.bold),
@@ -730,6 +844,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       children: [
         for (var index = 0; index < technicalSpecifications.length; index++)
           Card(
+            elevation: 0,
+            color: const Color(0xFFF7FAF8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFFDCE5DF)),
+            ),
             margin: const EdgeInsets.only(bottom: 12),
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -739,9 +859,22 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          'Item ${index + 1}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 17,
+                              color: Color(0xFF0B5D3B),
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              'Item ${index + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF234B38),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       IconButton(
@@ -775,7 +908,27 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                     controller: technicalSpecifications[index].parameter,
                     maxLines: 2,
                   ),
-                  const Text('Statement of Compliance: COMPLY'),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2F2E8),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        '✓  COMPLY',
+                        style: TextStyle(
+                          color: Color(0xFF0B5D3B),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -789,6 +942,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             technicalSpecifications.length >= 72
                 ? 'Maximum of 72 specifications'
                 : 'Add Specification',
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF0B5D3B),
+            side: const BorderSide(color: Color(0xFF0B5D3B)),
+            minimumSize: const Size.fromHeight(44),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         ),
       ],
@@ -809,7 +970,19 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   Widget priceScheduleFields() {
     return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      backgroundColor: Colors.white,
+      collapsedBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      leading: const Icon(Icons.payments_outlined, color: Color(0xFF0B5D3B)),
       title: const Text(
         'PRICE SCHEDULE FOR GOODS',
         style: TextStyle(fontWeight: FontWeight.bold),
@@ -1039,10 +1212,16 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           final isWide = constraints.maxWidth >= 900;
 
           final formPanel = Container(
-            width: isWide ? 360 : double.infinity,
-            padding: const EdgeInsets.all(16),
+            width: isWide ? 380 : double.infinity,
+            color: const Color(0xFFF4F7F5),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
             child: ListView(
               children: [
+                sectionHeading(
+                  Icons.business_center_outlined,
+                  'PROJECT INFORMATION',
+                  subtitle: 'Bid and procuring entity details',
+                ),
                 formField(
                   label: 'Province',
                   controller: provinceController,
@@ -1074,10 +1253,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                   controller: bidderNameController,
                 ),
                 submittedByField(),
+                const SizedBox(height: 4),
                 slccFields(),
+                const SizedBox(height: 12),
                 technicalSpecificationsFields(),
+                const SizedBox(height: 12),
                 priceScheduleFields(),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: isGenerating ? null : generatePdf,
                   icon: isGenerating
@@ -1091,6 +1273,19 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       : const Icon(Icons.picture_as_pdf),
                   label: Text(
                     isGenerating ? 'Generating...' : 'Generate PDF',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0B5D3B),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
                 if (errorMessage != null) ...[
