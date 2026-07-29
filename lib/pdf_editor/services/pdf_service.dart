@@ -70,6 +70,13 @@ class PdfService {
           _drawTechnicalSpecifications(document, values);
     }
 
+    // Replace the eight fixed Price Schedule template pages (original pages
+    // 50-57) with rows linked to the Technical Specifications.
+    var priceSchedulePageCount = 1;
+    if (document.pages.count > 49) {
+      priceSchedulePageCount = _drawPriceSchedule(document, values);
+    }
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -123,6 +130,11 @@ class PdfService {
 
     // Remove unused continuation templates only after all original page-index
     // mappings have been applied.
+    for (var pageIndex = 56;
+        pageIndex >= 49 + priceSchedulePageCount;
+        pageIndex--) {
+      document.pages.removeAt(pageIndex);
+    }
     if (technicalSpecificationPageCount < 3) {
       document.pages.removeAt(48);
     }
@@ -1513,6 +1525,132 @@ class PdfService {
     drawRow('Designation', 'Authorized Representative', top + 34);
     drawRow('Name of Firm', bidderName, top + 51);
     drawRow('Date', date, top + 68);
+  }
+
+  static int _drawPriceSchedule(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    List<dynamic> specifications = const [];
+    List<dynamic> savedPrices = const [];
+    final encodedSpecifications = values['technicalSpecifications'] ?? '';
+    final encodedPrices = values['priceSchedule'] ?? '';
+    if (encodedSpecifications.isNotEmpty) {
+      final decoded = jsonDecode(encodedSpecifications);
+      if (decoded is List) specifications = decoded.take(72).toList();
+    }
+    if (encodedPrices.isNotEmpty) {
+      final decoded = jsonDecode(encodedPrices);
+      if (decoded is List) savedPrices = decoded.take(72).toList();
+    }
+
+    double number(dynamic value) =>
+        double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ?? 0;
+    String money(double value) => value.toStringAsFixed(2);
+
+    // Eight rows on the first page leave room for the title/details; ten fit
+    // on each continuation page. This supports all 72 specification items.
+    final pageRowCounts = <int>[];
+    var remaining = specifications.length;
+    pageRowCounts.add(remaining.clamp(0, 8).toInt());
+    remaining -= pageRowCounts.first;
+    while (remaining > 0) {
+      final count = remaining.clamp(0, 10).toInt();
+      pageRowCounts.add(count);
+      remaining -= count;
+    }
+    final pageCount = pageRowCounts.length.clamp(1, 8).toInt();
+    const columns = <double>[24, 52, 168, 207, 241, 292, 347, 411, 475, 531, 582];
+    final gridPen = PdfPen(PdfColor(0, 0, 0), width: .55);
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final red = PdfSolidBrush(PdfColor(220, 0, 0));
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 7.5);
+    final bold = PdfStandardFont(PdfFontFamily.timesRoman, 7.2, style: PdfFontStyle.bold);
+    final titleFont = PdfStandardFont(PdfFontFamily.timesRoman, 13, style: PdfFontStyle.bold);
+    var itemIndex = 0;
+    var grandTotal = 0.0;
+
+    for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
+      final page = document.pages[49 + pageNumber];
+      final size = page.getClientSize();
+      page.graphics.drawRectangle(brush: white, bounds: Rect.fromLTWH(0, 0, size.width, size.height));
+      var tableTop = 35.0;
+      if (pageNumber == 0) {
+        page.graphics.drawString('PRICE SCHEDULE FOR GOODS', titleFont,
+            brush: black,
+            bounds: Rect.fromLTWH(24, 25, size.width - 48, 22),
+            format: PdfStringFormat(alignment: PdfTextAlignment.center));
+        final bidder = (values['bidderName'] ?? '').trim().toUpperCase();
+        final reference = (values['referenceNumber'] ?? '').trim();
+        page.graphics.drawString('Name of Bidder: $bidder', regular,
+            brush: black, bounds: const Rect.fromLTWH(24, 58, 330, 14));
+        page.graphics.drawString('Project ID No.: $reference', regular,
+            brush: black, bounds: const Rect.fromLTWH(390, 58, 190, 14));
+        page.graphics.drawString('Pricing Details for Goods Offered from Within the Philippines', regular,
+            brush: black, bounds: const Rect.fromLTWH(24, 77, 500, 14));
+        tableTop = 96;
+      }
+      const headerHeight = 92.0;
+      final rowCount = pageRowCounts[pageNumber];
+      final available = size.height - tableTop - headerHeight - (pageNumber == pageCount - 1 ? 112 : 25);
+      final rowHeight = rowCount == 0 ? 30.0 : (available / rowCount).clamp(30.0, 48.0);
+      final tableBottom = tableTop + headerHeight + rowHeight * rowCount;
+      for (final x in columns) {
+        page.graphics.drawLine(gridPen, Offset(x, tableTop), Offset(x, tableBottom));
+      }
+      page.graphics.drawLine(gridPen, Offset(columns.first, tableTop), Offset(columns.last, tableTop));
+      page.graphics.drawLine(gridPen, Offset(columns.first, tableTop + headerHeight), Offset(columns.last, tableTop + headerHeight));
+      const headers = <String>[
+        'Item\nNo.', 'Specification/s', 'Qty', 'Unit', 'Unit\nPrice/Item\n(50%)',
+        'Transportation &\nInsurance and All\nOther Costs (20%)',
+        'Sales & Other\nTaxes Payable\nper Item (30%)',
+        'Cost of Incidental\nServices, if\napplicable',
+        'Total Price\nper Unit\n(100%)', 'Total Price\nDelivered Final\nDestination'
+      ];
+      for (var column = 0; column < headers.length; column++) {
+        page.graphics.drawString(headers[column], bold, brush: black,
+            bounds: Rect.fromLTWH(columns[column] + 2, tableTop + 2,
+                columns[column + 1] - columns[column] - 4, headerHeight - 4),
+            format: PdfStringFormat(alignment: PdfTextAlignment.center,
+                lineAlignment: PdfVerticalAlignment.middle,
+                wordWrap: PdfWordWrapType.word));
+      }
+      var y = tableTop + headerHeight;
+      for (var row = 0; row < rowCount; row++, itemIndex++) {
+        final specification = specifications[itemIndex] is Map ? specifications[itemIndex] as Map : const {};
+        final saved = itemIndex < savedPrices.length && savedPrices[itemIndex] is Map
+            ? savedPrices[itemIndex] as Map : const {};
+        final total = number(saved['totalPricePerUnit']);
+        final quantity = number(specification['quantity']);
+        final delivered = (quantity * total).roundToDouble();
+        grandTotal += delivered;
+        final texts = <String>[
+          '${itemIndex + 1}', (specification['specification'] ?? '').toString(),
+          (specification['quantity'] ?? '').toString(), (specification['unit'] ?? '').toString(),
+          money(total * .50), money(total * .20), money(total * .30), '', money(total), money(delivered),
+        ];
+        for (var column = 0; column < texts.length; column++) {
+          page.graphics.drawString(texts[column], regular,
+              brush: column == 9 ? red : black,
+              bounds: Rect.fromLTWH(columns[column] + 2, y + 1,
+                  columns[column + 1] - columns[column] - 4, rowHeight - 2),
+              format: PdfStringFormat(
+                  alignment: column == 1 ? PdfTextAlignment.left : PdfTextAlignment.center,
+                  lineAlignment: PdfVerticalAlignment.middle,
+                  wordWrap: PdfWordWrapType.word));
+        }
+        y += rowHeight;
+        page.graphics.drawLine(gridPen, Offset(columns.first, y), Offset(columns.last, y));
+      }
+      if (pageNumber == pageCount - 1) {
+        page.graphics.drawString('TOTAL   ${money(grandTotal)}', bold, brush: red,
+            bounds: Rect.fromLTWH(410, y + 5, 172, 15),
+            format: PdfStringFormat(alignment: PdfTextAlignment.right));
+        _drawTechnicalSpecificationsSignatureAt(page, values, y + 28);
+      }
+    }
+    return pageCount;
   }
 
   static void _drawTechnicalSpecificationsCompliance(

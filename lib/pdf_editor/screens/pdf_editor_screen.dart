@@ -85,13 +85,17 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController submittedByController;
   late final Map<String, TextEditingController> slccControllers;
   final List<_TechnicalSpecificationEntry> technicalSpecifications = [];
+  final List<_PriceScheduleEntry> priceScheduleEntries = [];
   late final FocusNode submittedByFocusNode;
   Timer? slccSaveTimer;
   Timer? technicalSpecificationsSaveTimer;
+  Timer? priceScheduleSaveTimer;
   bool isLoadingSlcc = true;
   bool isSavingSlcc = false;
   bool isLoadingTechnicalSpecifications = true;
   bool isSavingTechnicalSpecifications = false;
+  bool isLoadingPriceSchedule = true;
+  bool isSavingPriceSchedule = false;
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
 
   Uint8List? generatedPdf;
@@ -195,6 +199,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       controller.addListener(_scheduleTechnicalSpecificationsSave);
     }
     technicalSpecifications.add(entry);
+    final priceEntry = _PriceScheduleEntry();
+    priceEntry.totalPricePerUnit.addListener(_schedulePriceScheduleSave);
+    priceScheduleEntries.add(priceEntry);
     if (rebuild && mounted) setState(() {});
   }
 
@@ -204,6 +211,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       controller.removeListener(_scheduleTechnicalSpecificationsSave);
     }
     entry.dispose();
+    final priceEntry = priceScheduleEntries.removeAt(index);
+    priceEntry.totalPricePerUnit.removeListener(_schedulePriceScheduleSave);
+    priceEntry.dispose();
     setState(() {});
     _scheduleTechnicalSpecificationsSave();
   }
@@ -235,6 +245,63 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       if (mounted) {
         setState(() => isLoadingTechnicalSpecifications = false);
       }
+      await _loadPriceSchedule();
+    }
+  }
+
+  Future<void> _loadPriceSchedule() async {
+    try {
+      final row = await SupabaseConfig.client
+          .from('bid_price_schedules')
+          .select('total_prices_per_unit')
+          .eq('reference_number', widget.referenceNumber.trim())
+          .maybeSingle();
+      final savedPrices = row?['total_prices_per_unit'];
+      if (savedPrices is List) {
+        for (var index = 0;
+            index < savedPrices.length && index < priceScheduleEntries.length;
+            index++) {
+          final value = savedPrices[index];
+          priceScheduleEntries[index].totalPricePerUnit.text =
+              value is Map ? (value['totalPricePerUnit'] ?? '').toString() : value.toString();
+        }
+      }
+    } catch (error) {
+      debugPrint('Price schedule load error: $error');
+    } finally {
+      if (mounted) setState(() => isLoadingPriceSchedule = false);
+    }
+  }
+
+  void _schedulePriceScheduleSave() {
+    if (isLoadingPriceSchedule) return;
+    priceScheduleSaveTimer?.cancel();
+    priceScheduleSaveTimer = Timer(
+      const Duration(milliseconds: 700),
+      _savePriceSchedule,
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _savePriceSchedule() async {
+    if (widget.referenceNumber.trim().isEmpty) return;
+    if (mounted) setState(() => isSavingPriceSchedule = true);
+    try {
+      await SupabaseConfig.client.from('bid_price_schedules').upsert(
+        {
+          'reference_number': widget.referenceNumber.trim(),
+          'total_prices_per_unit': [
+            for (final entry in priceScheduleEntries)
+              {'totalPricePerUnit': entry.totalPricePerUnit.text.trim()},
+          ],
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        onConflict: 'reference_number',
+      );
+    } catch (error) {
+      debugPrint('Price schedule save error: $error');
+    } finally {
+      if (mounted) setState(() => isSavingPriceSchedule = false);
     }
   }
 
@@ -245,6 +312,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       const Duration(milliseconds: 700),
       _saveTechnicalSpecifications,
     );
+    if (mounted) setState(() {});
   }
 
   Future<void> _saveTechnicalSpecifications() async {
@@ -347,8 +415,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     try {
       slccSaveTimer?.cancel();
       technicalSpecificationsSaveTimer?.cancel();
+      priceScheduleSaveTimer?.cancel();
       await _saveSlcc();
       await _saveTechnicalSpecifications();
+      await _savePriceSchedule();
       final bytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
@@ -369,6 +439,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 'unit': entry.unit.text.trim(),
                 'parameter': entry.parameter.text.trim(),
               },
+          ]),
+          'priceSchedule': jsonEncode([
+            for (final entry in priceScheduleEntries)
+              {'totalPricePerUnit': entry.totalPricePerUnit.text.trim()},
           ]),
         },
       );
@@ -707,6 +781,71 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  double _number(String value) =>
+      double.tryParse(value.replaceAll(',', '').trim()) ?? 0;
+
+  String _money(double value) => value.toStringAsFixed(2);
+
+  Widget priceScheduleFields() {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: const Text(
+        'PRICE SCHEDULE FOR GOODS',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        isLoadingPriceSchedule
+            ? 'Loading saved values...'
+            : isSavingPriceSchedule
+                ? 'Saving...'
+                : 'Saved automatically',
+      ),
+      children: [
+        if (technicalSpecifications.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: Text('Add items under TECHNICAL SPECIFICATIONS first.'),
+          ),
+        for (var index = 0; index < technicalSpecifications.length; index++)
+          Builder(builder: (context) {
+            final specification = technicalSpecifications[index];
+            final price = priceScheduleEntries[index];
+            final total = _number(price.totalPricePerUnit.text);
+            final quantity = _number(specification.quantity.text);
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Item ${index + 1}',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text('Specification/s: ${specification.specification.text}'),
+                    Text('Qty: ${specification.quantity.text}'),
+                    Text('Unit: ${specification.unit.text}'),
+                    const SizedBox(height: 10),
+                    formField(
+                      label: 'Total Price per Unit (100%)',
+                      controller: price.totalPricePerUnit,
+                    ),
+                    Text('Unit Price/Item (50%): ${_money(total * .50)}'),
+                    Text('Transportation & Insurance (20%): ${_money(total * .20)}'),
+                    Text('Sales & Other Taxes (30%): ${_money(total * .30)}'),
+                    Text(
+                      'Total Price Delivered Final Destination: ${_money((quantity * total).roundToDouble())}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     if (previewBlobUrl != null) {
@@ -724,6 +863,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     submittedByFocusNode.dispose();
     slccSaveTimer?.cancel();
     technicalSpecificationsSaveTimer?.cancel();
+    priceScheduleSaveTimer?.cancel();
     for (final controller in slccControllers.values) {
       controller.removeListener(_scheduleSlccSave);
       controller.dispose();
@@ -732,6 +872,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       for (final controller in entry.controllers) {
         controller.removeListener(_scheduleTechnicalSpecificationsSave);
       }
+      entry.dispose();
+    }
+    for (final entry in priceScheduleEntries) {
+      entry.totalPricePerUnit.removeListener(_schedulePriceScheduleSave);
       entry.dispose();
     }
 
@@ -786,6 +930,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 submittedByField(),
                 slccFields(),
                 technicalSpecificationsFields(),
+                priceScheduleFields(),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: isGenerating ? null : generatePdf,
@@ -922,4 +1067,13 @@ class _TechnicalSpecificationEntry {
     parameter.dispose();
     unitFocusNode.dispose();
   }
+}
+
+class _PriceScheduleEntry {
+  _PriceScheduleEntry({String totalPricePerUnit = ''})
+      : totalPricePerUnit = TextEditingController(text: totalPricePerUnit);
+
+  final TextEditingController totalPricePerUnit;
+
+  void dispose() => totalPricePerUnit.dispose();
 }
