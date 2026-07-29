@@ -86,18 +86,22 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController procuringEntityController;
   late final TextEditingController submittedByController;
   late final Map<String, TextEditingController> slccControllers;
+  late final TextEditingController deliveredWeeksMonthsController;
   final List<_TechnicalSpecificationEntry> technicalSpecifications = [];
   final List<_PriceScheduleEntry> priceScheduleEntries = [];
   late final FocusNode submittedByFocusNode;
   Timer? slccSaveTimer;
   Timer? technicalSpecificationsSaveTimer;
   Timer? priceScheduleSaveTimer;
+  Timer? scheduleRequirementsSaveTimer;
   bool isLoadingSlcc = true;
   bool isSavingSlcc = false;
   bool isLoadingTechnicalSpecifications = true;
   bool isSavingTechnicalSpecifications = false;
   bool isLoadingPriceSchedule = true;
   bool isSavingPriceSchedule = false;
+  bool isLoadingScheduleRequirements = true;
+  bool isSavingScheduleRequirements = false;
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
 
   Uint8List? generatedPdf;
@@ -157,12 +161,59 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       'slccContractEffectivity': TextEditingController(),
       'slccDateCompleted': TextEditingController(),
     };
+    deliveredWeeksMonthsController = TextEditingController();
+    deliveredWeeksMonthsController.addListener(_scheduleRequirementsSave);
     for (final controller in slccControllers.values) {
       controller.addListener(_scheduleSlccSave);
     }
     _loadSlcc();
     _loadTechnicalSpecifications();
     _loadUnitSuggestions();
+    _loadScheduleRequirements();
+  }
+
+  Future<void> _loadScheduleRequirements() async {
+    try {
+      final row = await SupabaseConfig.client
+          .from('bid_schedule_requirements')
+          .select('delivery_weeks_months')
+          .eq('reference_number', widget.referenceNumber.trim())
+          .maybeSingle();
+      deliveredWeeksMonthsController.text =
+          (row?['delivery_weeks_months'] ?? '').toString();
+    } catch (error) {
+      debugPrint('Schedule requirements load error: $error');
+    } finally {
+      if (mounted) setState(() => isLoadingScheduleRequirements = false);
+    }
+  }
+
+  void _scheduleRequirementsSave() {
+    if (isLoadingScheduleRequirements) return;
+    scheduleRequirementsSaveTimer?.cancel();
+    scheduleRequirementsSaveTimer = Timer(
+      const Duration(milliseconds: 700),
+      _saveScheduleRequirements,
+    );
+  }
+
+  Future<void> _saveScheduleRequirements() async {
+    if (widget.referenceNumber.trim().isEmpty) return;
+    if (mounted) setState(() => isSavingScheduleRequirements = true);
+    try {
+      await SupabaseConfig.client.from('bid_schedule_requirements').upsert(
+        {
+          'reference_number': widget.referenceNumber.trim(),
+          'delivery_weeks_months': deliveredWeeksMonthsController.text.trim(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        onConflict: 'reference_number',
+      );
+    } catch (error) {
+      debugPrint('Schedule requirements save error: $error');
+    } finally {
+      if (mounted) setState(() => isSavingScheduleRequirements = false);
+    }
   }
 
   Future<void> _loadUnitSuggestions() async {
@@ -429,9 +480,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       slccSaveTimer?.cancel();
       technicalSpecificationsSaveTimer?.cancel();
       priceScheduleSaveTimer?.cancel();
+      scheduleRequirementsSaveTimer?.cancel();
       await _saveSlcc();
       await _saveTechnicalSpecifications();
       await _savePriceSchedule();
+      await _saveScheduleRequirements();
       final bytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
@@ -457,6 +510,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             for (final entry in priceScheduleEntries)
               {'totalPricePerUnit': entry.totalPricePerUnit.text.trim()},
           ]),
+          'deliveredWeeksMonths': deliveredWeeksMonthsController.text.trim(),
         },
       );
 
@@ -1168,6 +1222,49 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  Widget scheduleRequirementsFields() {
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      backgroundColor: Colors.white,
+      collapsedBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      leading: const Icon(
+        Icons.local_shipping_outlined,
+        color: Color(0xFF0B5D3B),
+      ),
+      title: const Text(
+        'Schedule of Requirements',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        isLoadingScheduleRequirements
+            ? 'Loading saved value...'
+            : isSavingScheduleRequirements
+                ? 'Saving...'
+                : 'Saved automatically',
+      ),
+      children: [
+        formField(
+          label: 'Delivered Weeks/Months',
+          controller: deliveredWeeksMonthsController,
+          maxLines: 2,
+        ),
+        const Text(
+          'This delivery schedule applies to all Technical Specification items.',
+          style: TextStyle(fontSize: 11.5, color: Color(0xFF68736D)),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     if (previewBlobUrl != null) {
@@ -1186,6 +1283,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     slccSaveTimer?.cancel();
     technicalSpecificationsSaveTimer?.cancel();
     priceScheduleSaveTimer?.cancel();
+    scheduleRequirementsSaveTimer?.cancel();
+    deliveredWeeksMonthsController.removeListener(_scheduleRequirementsSave);
+    deliveredWeeksMonthsController.dispose();
     for (final controller in slccControllers.values) {
       controller.removeListener(_scheduleSlccSave);
       controller.dispose();
@@ -1265,6 +1365,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 technicalSpecificationsFields(),
                 const SizedBox(height: 12),
                 priceScheduleFields(),
+                const SizedBox(height: 12),
+                scheduleRequirementsFields(),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: isGenerating ? null : generatePdf,

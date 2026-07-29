@@ -100,6 +100,18 @@ class PdfService {
     }
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
+    final scheduleRequirementsStartPage =
+        _findScheduleRequirementsStartPage(document);
+    var scheduleRequirementsPageCount = 1;
+    if (scheduleRequirementsStartPage >= 0) {
+      scheduleRequirementsPageCount = _drawScheduleRequirements(
+        document,
+        values,
+        scheduleRequirementsStartPage,
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -153,6 +165,16 @@ class PdfService {
 
     // Remove unused continuation templates only after all original page-index
     // mappings have been applied.
+    if (scheduleRequirementsStartPage >= 0) {
+      for (var pageIndex = (scheduleRequirementsStartPage + 2)
+              .clamp(0, document.pages.count - 1)
+              .toInt();
+          pageIndex >=
+              scheduleRequirementsStartPage + scheduleRequirementsPageCount;
+          pageIndex--) {
+        document.pages.removeAt(pageIndex);
+      }
+    }
     if (bidPriceSummaryStartPage >= 0) {
       for (var pageIndex = (bidPriceSummaryStartPage + 2)
               .clamp(0, document.pages.count - 1)
@@ -1823,6 +1845,192 @@ class PdfService {
       if (text.contains('SUMMARY OF BID PRICES')) return line.pageIndex;
     }
     return -1;
+  }
+
+  static int _findScheduleRequirementsStartPage(PdfDocument document) {
+    final lines = PdfTextExtractor(document).extractTextLines(
+      startPageIndex: 60,
+      endPageIndex: 72.clamp(0, document.pages.count - 1).toInt(),
+    );
+    for (final line in lines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('SCHEDULE OF REQUIREMENTS')) return line.pageIndex;
+    }
+    return -1;
+  }
+
+  static int _drawScheduleRequirements(
+    PdfDocument document,
+    Map<String, String> values,
+    int startPageIndex,
+  ) {
+    List<dynamic> specifications = const [];
+    final encoded = values['technicalSpecifications'] ?? '';
+    if (encoded.isNotEmpty) {
+      final decoded = jsonDecode(encoded);
+      if (decoded is List) specifications = decoded.take(72).toList();
+    }
+    final delivery = (values['deliveredWeeksMonths'] ?? '').trim();
+    final pageCount = specifications.length <= 24
+        ? 1
+        : specifications.length <= 56
+            ? 2
+            : 3;
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final gridPen = PdfPen(PdfColor(0, 0, 0), width: .55);
+    final titleFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      13,
+      style: PdfFontStyle.bold,
+    );
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 8.5);
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      8.5,
+      style: PdfFontStyle.bold,
+    );
+    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 8.2);
+    var itemIndex = 0;
+
+    for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
+      final page = document.pages[startPageIndex + pageNumber];
+      final size = page.getClientSize();
+      page.graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(0, 0, size.width, size.height),
+      );
+      const left = 42.0;
+      final right = size.width - 42;
+      final width = right - left;
+      final columns = <double>[
+        left,
+        left + width * .11,
+        left + width * .48,
+        left + width * .62,
+        left + width * .78,
+        right,
+      ];
+      var tableTop = 35.0;
+      if (pageNumber == 0) {
+        page.graphics.drawString(
+          'Schedule of Requirements',
+          titleFont,
+          brush: black,
+          bounds: Rect.fromLTWH(left, 26, width, 20),
+          format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        );
+        final procuringEntity =
+            (values['procuringEntity'] ?? '').trim().toUpperCase();
+        final projectTitle = (values['projectTitle'] ?? '').trim().toUpperCase();
+        final reference = (values['referenceNumber'] ?? '').trim();
+        const labelLeft = 54.0;
+        const colonLeft = 250.0;
+        const valueLeft = 280.0;
+        void headerRow(String label, String value, double y, double height) {
+          page.graphics.drawString(label, labelFont, brush: black,
+              bounds: Rect.fromLTWH(labelLeft, y, 190, 14));
+          page.graphics.drawString(':', labelFont, brush: black,
+              bounds: Rect.fromLTWH(colonLeft, y, 10, 14));
+          page.graphics.drawString(
+            value,
+            valueFont,
+            brush: black,
+            bounds: Rect.fromLTWH(valueLeft, y, size.width - valueLeft - 45, height),
+            format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+          );
+        }
+        headerRow('NAME OF THE PROCURING ENTITY', procuringEntity, 58, 15);
+        headerRow('PROJECT TITLE', projectTitle, 76, 34);
+        headerRow('REFERENCE NUMBER', reference, 112, 15);
+        page.graphics.drawString(
+          'The delivery schedule is expressed as weeks/months stipulated after the date of delivery to the project site.',
+          labelFont,
+          brush: black,
+          bounds: Rect.fromLTWH(left, 135, width, 28),
+          format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+        );
+        tableTop = 168;
+      }
+      const headerHeight = 38.0;
+      const rowHeight = 21.0;
+      final remaining = specifications.length - itemIndex;
+      final capacity = pageNumber == 0 ? 24 : 32;
+      final rowsOnPage = remaining.clamp(0, capacity).toInt();
+      final tableBottom = tableTop + headerHeight + rowsOnPage * rowHeight;
+      for (final x in columns) {
+        page.graphics.drawLine(gridPen, Offset(x, tableTop), Offset(x, tableBottom));
+      }
+      page.graphics.drawLine(gridPen, Offset(left, tableTop), Offset(right, tableTop));
+      page.graphics.drawLine(
+        gridPen,
+        Offset(left, tableTop + headerHeight),
+        Offset(right, tableTop + headerHeight),
+      );
+      const headers = <String>[
+        'Item\nNo.',
+        'Specification/s',
+        'Qty',
+        'Unit',
+        'Delivered\nWeeks/Months',
+      ];
+      for (var column = 0; column < headers.length; column++) {
+        page.graphics.drawString(
+          headers[column],
+          valueFont,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            columns[column] + 2,
+            tableTop + 2,
+            columns[column + 1] - columns[column] - 4,
+            headerHeight - 4,
+          ),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+      }
+      var y = tableTop + headerHeight;
+      for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
+        final specification = specifications[itemIndex] is Map
+            ? specifications[itemIndex] as Map
+            : const {};
+        final texts = <String>[
+          '${itemIndex + 1}',
+          (specification['specification'] ?? '').toString(),
+          (specification['quantity'] ?? '').toString(),
+          (specification['unit'] ?? '').toString(),
+          delivery,
+        ];
+        for (var column = 0; column < texts.length; column++) {
+          page.graphics.drawString(
+            texts[column],
+            column == 4 ? valueFont : rowFont,
+            brush: black,
+            bounds: Rect.fromLTWH(
+              columns[column] + 3,
+              y + 1,
+              columns[column + 1] - columns[column] - 6,
+              rowHeight - 2,
+            ),
+            format: PdfStringFormat(
+              alignment: column == 1
+                  ? PdfTextAlignment.left
+                  : PdfTextAlignment.center,
+              lineAlignment: PdfVerticalAlignment.middle,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+        }
+        y += rowHeight;
+        page.graphics.drawLine(gridPen, Offset(left, y), Offset(right, y));
+      }
+      if (pageNumber == pageCount - 1) {
+        _drawTechnicalSpecificationsSignatureAt(page, values, y + 25);
+      }
+    }
+    return pageCount;
   }
 
   static int _drawBidPriceSummary(
