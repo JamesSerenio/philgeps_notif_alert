@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
+import 'dart:ui' show FontFeature;
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
@@ -832,22 +833,91 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             final price = priceScheduleEntries[index];
             final total = _number(price.totalPricePerUnit.text);
             final quantity = _number(specification.quantity.text);
+            Widget priceRow(String label, String value) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: Color(0xFF4B5563),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
             return Card(
-              margin: const EdgeInsets.only(bottom: 12),
+              elevation: 0,
+              color: Colors.white,
+              margin: const EdgeInsets.only(bottom: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFD7E3DC)),
+              ),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Item ${index + 1}',
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text('Specification/s: ${specification.specification.text}'),
-                    Text('Qty: ${specification.quantity.text}'),
-                    Text('Unit: ${specification.unit.text}'),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0B5D3B),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'ITEM ${index + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${specification.quantity.text} ${specification.unit.text}',
+                          style: const TextStyle(
+                            color: Color(0xFF526159),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 10),
-                    formField(
-                      label: 'Total Price per Unit (100%)',
+                    Text(
+                      specification.specification.text.isEmpty
+                          ? 'No specification entered'
+                          : specification.specification.text,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.25,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
                       controller: price.totalPricePerUnit,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
@@ -855,13 +925,63 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       inputFormatters: const [
                         _ThousandsSeparatorInputFormatter(),
                       ],
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Total Price per Unit',
+                        prefixText: '₱ ',
+                        helperText: 'Enter the 100% unit price',
+                        filled: true,
+                        fillColor: const Color(0xFFF5FAF7),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                     ),
-                    Text('Unit Price/Item (50%): ${_money(total * .50)}'),
-                    Text('Transportation & Insurance (20%): ${_money(total * .20)}'),
-                    Text('Sales & Other Taxes (30%): ${_money(total * .30)}'),
-                    Text(
-                      'Total Price Delivered Final Destination: ${_money((quantity * total).roundToDouble())}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    const SizedBox(height: 10),
+                    priceRow('Unit Price/Item (50%)', _money(total * .50)),
+                    priceRow(
+                      'Transportation & Insurance (20%)',
+                      _money(total * .20),
+                    ),
+                    priceRow(
+                      'Sales & Other Taxes (30%)',
+                      _money(total * .30),
+                    ),
+                    const Divider(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F4ED),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'TOTAL DELIVERED PRICE',
+                            style: TextStyle(
+                              color: Color(0xFF38634D),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: .4,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '₱ ${_money((quantity * total).roundToDouble())}',
+                            style: const TextStyle(
+                              color: Color(0xFF0B5D3B),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
