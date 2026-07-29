@@ -2048,8 +2048,8 @@ class PdfService {
 
         final submittedBy = (values['submittedBy'] ?? '').trim().toUpperCase();
         final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
-        final signatureTop = totalBottom + 22;
-        final signatureRight = left + (right - left) * .74;
+        final signatureTop = totalBottom + 18;
+        final signatureRight = left + (right - left) * .62;
         final nameValueLeft = left + 52;
         page.graphics.drawString('Name:', signatureBold, brush: black,
             bounds: Rect.fromLTWH(left, signatureTop, 48, 14));
@@ -2066,11 +2066,11 @@ class PdfService {
           Offset(signatureRight, signatureTop + 12),
         );
         page.graphics.drawString('Signature:', signatureBold, brush: black,
-            bounds: Rect.fromLTWH(left, signatureTop + 16, 60, 14));
+            bounds: Rect.fromLTWH(left, signatureTop + 13, 60, 14));
         page.graphics.drawLine(
           gridPen,
-          Offset(left + 62, signatureTop + 28),
-          Offset(signatureRight, signatureTop + 28),
+          Offset(left + 62, signatureTop + 25),
+          Offset(signatureRight, signatureTop + 25),
         );
         const authorizationText =
             'Duly authorized to sign the Bid for and behalf of:';
@@ -2078,7 +2078,7 @@ class PdfService {
           authorizationText,
           signatureBold,
           brush: black,
-          bounds: Rect.fromLTWH(left, signatureTop + 32, 300, 14),
+          bounds: Rect.fromLTWH(left, signatureTop + 26, 300, 14),
         );
         final authorizationWidth =
             signatureBold.measureString(authorizationText).width;
@@ -2089,15 +2089,15 @@ class PdfService {
           brush: black,
           bounds: Rect.fromLTWH(
             bidderLeft,
-            signatureTop + 32,
+            signatureTop + 26,
             signatureRight - bidderLeft,
             14,
           ),
         );
         page.graphics.drawLine(
           gridPen,
-          Offset(bidderLeft, signatureTop + 44),
-          Offset(signatureRight, signatureTop + 44),
+          Offset(bidderLeft, signatureTop + 38),
+          Offset(signatureRight, signatureTop + 38),
         );
       }
     }
