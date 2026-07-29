@@ -89,6 +89,17 @@ class PdfService {
     }
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
+    final bidPriceSummaryStartPage = _findBidPriceSummaryStartPage(document);
+    var bidPriceSummaryPageCount = 1;
+    if (bidPriceSummaryStartPage >= 0) {
+      bidPriceSummaryPageCount = _drawBidPriceSummary(
+        document,
+        values,
+        bidPriceSummaryStartPage,
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -142,6 +153,15 @@ class PdfService {
 
     // Remove unused continuation templates only after all original page-index
     // mappings have been applied.
+    if (bidPriceSummaryStartPage >= 0) {
+      for (var pageIndex = (bidPriceSummaryStartPage + 2)
+              .clamp(0, document.pages.count - 1)
+              .toInt();
+          pageIndex >= bidPriceSummaryStartPage + bidPriceSummaryPageCount;
+          pageIndex--) {
+        document.pages.removeAt(pageIndex);
+      }
+    }
     if (priceScheduleStartPage >= 0) {
       for (var pageIndex = (priceScheduleStartPage + 7)
               .clamp(0, document.pages.count - 1)
@@ -1790,6 +1810,245 @@ class PdfService {
       }
     }
     return document.pages.count > 49 ? 49 : -1;
+  }
+
+  static int _findBidPriceSummaryStartPage(PdfDocument document) {
+    final lines = PdfTextExtractor(document).extractTextLines(
+      startPageIndex: 55,
+      endPageIndex: 66.clamp(0, document.pages.count - 1).toInt(),
+    );
+    for (final line in lines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('SUMMARY OF BID PRICES')) return line.pageIndex;
+    }
+    return -1;
+  }
+
+  static int _drawBidPriceSummary(
+    PdfDocument document,
+    Map<String, String> values,
+    int startPageIndex,
+  ) {
+    List<dynamic> specifications = const [];
+    List<dynamic> savedPrices = const [];
+    final encodedSpecifications = values['technicalSpecifications'] ?? '';
+    final encodedPrices = values['priceSchedule'] ?? '';
+    if (encodedSpecifications.isNotEmpty) {
+      final decoded = jsonDecode(encodedSpecifications);
+      if (decoded is List) specifications = decoded.take(72).toList();
+    }
+    if (encodedPrices.isNotEmpty) {
+      final decoded = jsonDecode(encodedPrices);
+      if (decoded is List) savedPrices = decoded.take(72).toList();
+    }
+
+    double number(dynamic value) =>
+        double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ?? 0;
+    String money(double value) {
+      final parts = value.toStringAsFixed(2).split('.');
+      final grouped = parts.first.replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (_) => ',',
+      );
+      return '$grouped.${parts.last}';
+    }
+
+    const rowsPerPage = 28;
+    final pageCount = specifications.isEmpty
+        ? 1
+        : ((specifications.length + rowsPerPage - 1) ~/ rowsPerPage)
+            .clamp(1, 3)
+            .toInt();
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final red = PdfSolidBrush(PdfColor(220, 0, 0));
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final gridPen = PdfPen(PdfColor(0, 0, 0), width: .55);
+    final titleFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      14,
+      style: PdfFontStyle.bold,
+    );
+    final headerFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      8.5,
+      style: PdfFontStyle.bold,
+    );
+    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 8.5);
+    final signatureFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final signatureBold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    var itemIndex = 0;
+    var grandTotal = 0.0;
+
+    for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
+      final page = document.pages[startPageIndex + pageNumber];
+      final size = page.getClientSize();
+      page.graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(0, 0, size.width, size.height),
+      );
+      const left = 42.0;
+      final right = size.width - 42;
+      final itemRight = left + 48;
+      final descriptionRight = left + (right - left) * .72;
+      var tableTop = 38.0;
+      if (pageNumber == 0) {
+        page.graphics.drawString(
+          'SUMMARY OF BID PRICES',
+          titleFont,
+          brush: black,
+          bounds: Rect.fromLTWH(left, 28, right - left, 22),
+          format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        );
+        page.graphics.drawString(
+          'Summary based on the Price Schedule for Goods',
+          rowFont,
+          brush: black,
+          bounds: Rect.fromLTWH(left, 52, right - left, 15),
+          format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        );
+        tableTop = 76;
+      }
+      page.graphics.drawString(
+        'Page ${pageNumber + 1} of $pageCount',
+        rowFont,
+        brush: black,
+        bounds: Rect.fromLTWH(right - 90, pageNumber == 0 ? 52 : 18, 90, 14),
+        format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      );
+      const headerHeight = 34.0;
+      const rowHeight = 19.0;
+      final remaining = specifications.length - itemIndex;
+      final rowsOnPage = remaining.clamp(0, rowsPerPage).toInt();
+      final dataBottom = tableTop + headerHeight + rowsOnPage * rowHeight;
+      for (final x in <double>[left, itemRight, descriptionRight, right]) {
+        page.graphics.drawLine(gridPen, Offset(x, tableTop), Offset(x, dataBottom));
+      }
+      page.graphics.drawLine(gridPen, Offset(left, tableTop), Offset(right, tableTop));
+      page.graphics.drawLine(
+        gridPen,
+        Offset(left, tableTop + headerHeight),
+        Offset(right, tableTop + headerHeight),
+      );
+      const headers = <String>['Item\nNo.', 'Description/s', 'Bid Price'];
+      final bounds = <Rect>[
+        Rect.fromLTWH(left, tableTop, itemRight - left, headerHeight),
+        Rect.fromLTWH(itemRight, tableTop, descriptionRight - itemRight, headerHeight),
+        Rect.fromLTWH(descriptionRight, tableTop, right - descriptionRight, headerHeight),
+      ];
+      for (var column = 0; column < headers.length; column++) {
+        page.graphics.drawString(
+          headers[column],
+          headerFont,
+          brush: black,
+          bounds: bounds[column],
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+      }
+      var y = tableTop + headerHeight;
+      for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
+        final specification = specifications[itemIndex] is Map
+            ? specifications[itemIndex] as Map
+            : const {};
+        final saved = itemIndex < savedPrices.length && savedPrices[itemIndex] is Map
+            ? savedPrices[itemIndex] as Map
+            : const {};
+        final delivered = (number(specification['quantity']) *
+                number(saved['totalPricePerUnit']))
+            .roundToDouble();
+        grandTotal += delivered;
+        final valuesForRow = <String>[
+          '${itemIndex + 1}',
+          (specification['specification'] ?? '').toString(),
+          money(delivered),
+        ];
+        final rowBounds = <Rect>[
+          Rect.fromLTWH(left + 2, y + 1, itemRight - left - 4, rowHeight - 2),
+          Rect.fromLTWH(itemRight + 4, y + 1, descriptionRight - itemRight - 8, rowHeight - 2),
+          Rect.fromLTWH(descriptionRight + 4, y + 1, right - descriptionRight - 8, rowHeight - 2),
+        ];
+        for (var column = 0; column < valuesForRow.length; column++) {
+          page.graphics.drawString(
+            valuesForRow[column],
+            rowFont,
+            brush: column == 2 ? red : black,
+            bounds: rowBounds[column],
+            format: PdfStringFormat(
+              alignment: column == 1
+                  ? PdfTextAlignment.left
+                  : PdfTextAlignment.center,
+              lineAlignment: PdfVerticalAlignment.middle,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+        }
+        y += rowHeight;
+        page.graphics.drawLine(gridPen, Offset(left, y), Offset(right, y));
+      }
+
+      if (pageNumber == pageCount - 1) {
+        const totalHeight = 20.0;
+        final totalBottom = y + totalHeight;
+        page.graphics.drawLine(gridPen, Offset(left, totalBottom), Offset(right, totalBottom));
+        for (final x in <double>[left, descriptionRight, right]) {
+          page.graphics.drawLine(gridPen, Offset(x, y), Offset(x, totalBottom));
+        }
+        page.graphics.drawString(
+          'TOTAL',
+          headerFont,
+          brush: black,
+          bounds: Rect.fromLTWH(left, y, descriptionRight - left, totalHeight),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+        page.graphics.drawString(
+          money(grandTotal),
+          headerFont,
+          brush: red,
+          bounds: Rect.fromLTWH(descriptionRight, y, right - descriptionRight, totalHeight),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+
+        final submittedBy = (values['submittedBy'] ?? '').trim().toUpperCase();
+        final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
+        final date = (values['date'] ?? '').trim();
+        final signatureTop = totalBottom + 26;
+        void signatureRow(String label, String value, double top) {
+          page.graphics.drawString(label, signatureFont, brush: black,
+              bounds: Rect.fromLTWH(left, top, 105, 14));
+          page.graphics.drawString(':', signatureFont, brush: black,
+              bounds: Rect.fromLTWH(left + 108, top, 10, 14));
+          page.graphics.drawString(value, signatureBold, brush: black,
+              bounds: Rect.fromLTWH(left + 128, top, right - left - 128, 14));
+        }
+        signatureRow('Submitted by', submittedBy, signatureTop);
+        page.graphics.drawLine(
+          gridPen,
+          Offset(left + 128, signatureTop + 13),
+          Offset(right - 40, signatureTop + 13),
+        );
+        signatureRow('Signature', '', signatureTop + 22);
+        page.graphics.drawLine(
+          gridPen,
+          Offset(left + 128, signatureTop + 35),
+          Offset(right - 40, signatureTop + 35),
+        );
+        signatureRow('Name of Bidder', bidderName, signatureTop + 44);
+        signatureRow('Date', date, signatureTop + 66);
+      }
+    }
+    return pageCount;
   }
 
   static void _drawTechnicalSpecificationsCompliance(
