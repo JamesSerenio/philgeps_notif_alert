@@ -1745,7 +1745,7 @@ class PdfService {
             totalRowHeight - 2,
           ),
           format: PdfStringFormat(
-            alignment: PdfTextAlignment.right,
+            alignment: PdfTextAlignment.center,
             lineAlignment: PdfVerticalAlignment.middle,
           ),
         );
@@ -1760,7 +1760,7 @@ class PdfService {
             totalRowHeight - 2,
           ),
           format: PdfStringFormat(
-            alignment: PdfTextAlignment.right,
+            alignment: PdfTextAlignment.center,
             lineAlignment: PdfVerticalAlignment.middle,
           ),
         );
