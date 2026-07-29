@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/pdf_service.dart';
 import '../../utils/supabase_client.dart';
@@ -262,8 +263,16 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             index < savedPrices.length && index < priceScheduleEntries.length;
             index++) {
           final value = savedPrices[index];
+          final savedValue = value is Map
+              ? (value['totalPricePerUnit'] ?? '').toString()
+              : value.toString();
           priceScheduleEntries[index].totalPricePerUnit.text =
-              value is Map ? (value['totalPricePerUnit'] ?? '').toString() : value.toString();
+              const _ThousandsSeparatorInputFormatter()
+                  .formatEditUpdate(
+                    const TextEditingValue(),
+                    TextEditingValue(text: savedValue),
+                  )
+                  .text;
         }
       }
     } catch (error) {
@@ -499,6 +508,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     required TextEditingController controller,
     int maxLines = 1,
     bool readOnly = false,
+    List<TextInputFormatter>? inputFormatters,
+    TextInputType? keyboardType,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -506,6 +517,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         controller: controller,
         maxLines: maxLines,
         readOnly: readOnly,
+        inputFormatters: inputFormatters,
+        keyboardType: keyboardType,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
@@ -784,7 +797,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   double _number(String value) =>
       double.tryParse(value.replaceAll(',', '').trim()) ?? 0;
 
-  String _money(double value) => value.toStringAsFixed(2);
+  String _money(double value) {
+    final parts = value.toStringAsFixed(2).split('.');
+    final grouped = parts.first.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return '$grouped.${parts.last}';
+  }
 
   Widget priceScheduleFields() {
     return ExpansionTile(
@@ -829,6 +849,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                     formField(
                       label: 'Total Price per Unit (100%)',
                       controller: price.totalPricePerUnit,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: const [
+                        _ThousandsSeparatorInputFormatter(),
+                      ],
                     ),
                     Text('Unit Price/Item (50%): ${_money(total * .50)}'),
                     Text('Transportation & Insurance (20%): ${_money(total * .20)}'),
@@ -1076,4 +1102,29 @@ class _PriceScheduleEntry {
   final TextEditingController totalPricePerUnit;
 
   void dispose() => totalPricePerUnit.dispose();
+}
+
+class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  const _ThousandsSeparatorInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final raw = newValue.text.replaceAll(',', '');
+    if (raw.isEmpty) return newValue;
+    if (!RegExp(r'^\d*\.?\d*$').hasMatch(raw)) return oldValue;
+
+    final parts = raw.split('.');
+    final grouped = parts.first.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    final formatted = parts.length == 2 ? '$grouped.${parts[1]}' : grouped;
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
 }

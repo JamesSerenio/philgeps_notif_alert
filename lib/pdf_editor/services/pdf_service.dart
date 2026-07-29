@@ -1546,7 +1546,14 @@ class PdfService {
 
     double number(dynamic value) =>
         double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ?? 0;
-    String money(double value) => value.toStringAsFixed(2);
+    String money(double value) {
+      final parts = value.toStringAsFixed(2).split('.');
+      final grouped = parts.first.replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (_) => ',',
+      );
+      return '$grouped.${parts.last}';
+    }
 
     // Eight rows on the first page leave room for the title/details; ten fit
     // on each continuation page. This supports all 72 specification items.
