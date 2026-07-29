@@ -70,11 +70,17 @@ class PdfService {
           _drawTechnicalSpecifications(document, values);
     }
 
-    // Replace the eight fixed Price Schedule template pages (original pages
-    // 50-57) with rows linked to the Technical Specifications.
+    // Find the actual Price Schedule section in the source instead of relying
+    // on a fixed page number. Some template revisions have blank/form pages
+    // immediately before it.
+    final priceScheduleStartPage = _findPriceScheduleStartPage(document);
     var priceSchedulePageCount = 1;
-    if (document.pages.count > 49) {
-      priceSchedulePageCount = _drawPriceSchedule(document, values);
+    if (priceScheduleStartPage >= 0) {
+      priceSchedulePageCount = _drawPriceSchedule(
+        document,
+        values,
+        priceScheduleStartPage,
+      );
     }
 
     // Other mapped pages, excluding Page 1.
@@ -130,10 +136,22 @@ class PdfService {
 
     // Remove unused continuation templates only after all original page-index
     // mappings have been applied.
-    for (var pageIndex = 56;
-        pageIndex >= 49 + priceSchedulePageCount;
-        pageIndex--) {
-      document.pages.removeAt(pageIndex);
+    if (priceScheduleStartPage >= 0) {
+      for (var pageIndex = (priceScheduleStartPage + 7)
+              .clamp(0, document.pages.count - 1)
+              .toInt();
+          pageIndex >= priceScheduleStartPage + priceSchedulePageCount;
+          pageIndex--) {
+        document.pages.removeAt(pageIndex);
+      }
+      // The source template has extra Technical Specification continuation
+      // sheets between its three working TS pages and the Price Schedule.
+      // They must not remain beside the newly generated schedule.
+      for (var pageIndex = priceScheduleStartPage - 1;
+          pageIndex >= 49;
+          pageIndex--) {
+        document.pages.removeAt(pageIndex);
+      }
     }
     if (technicalSpecificationPageCount < 3) {
       document.pages.removeAt(48);
@@ -1530,6 +1548,7 @@ class PdfService {
   static int _drawPriceSchedule(
     PdfDocument document,
     Map<String, String> values,
+    int startPageIndex,
   ) {
     List<dynamic> specifications = const [];
     List<dynamic> savedPrices = const [];
@@ -1555,11 +1574,11 @@ class PdfService {
       return '$grouped.${parts.last}';
     }
 
-    // Eight rows on the first page leave room for the title/details; ten fit
+    // Seven rows on the first page match the original clean layout; ten fit
     // on each continuation page. This supports all 72 specification items.
     final pageRowCounts = <int>[];
     var remaining = specifications.length;
-    pageRowCounts.add(remaining.clamp(0, 8).toInt());
+    pageRowCounts.add(remaining.clamp(0, 7).toInt());
     remaining -= pageRowCounts.first;
     while (remaining > 0) {
       final count = remaining.clamp(0, 10).toInt();
@@ -1567,7 +1586,9 @@ class PdfService {
       remaining -= count;
     }
     final pageCount = pageRowCounts.length.clamp(1, 8).toInt();
-    const columns = <double>[24, 52, 168, 207, 241, 292, 347, 411, 475, 531, 582];
+    const columns = <double>[
+      24, 52, 158, 195, 226, 258, 306, 365, 422, 470, 526, 582
+    ];
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: .55);
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
@@ -1579,7 +1600,7 @@ class PdfService {
     var grandTotal = 0.0;
 
     for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
-      final page = document.pages[49 + pageNumber];
+      final page = document.pages[startPageIndex + pageNumber];
       final size = page.getClientSize();
       page.graphics.drawRectangle(brush: white, bounds: Rect.fromLTWH(0, 0, size.width, size.height));
       var tableTop = 35.0;
@@ -1588,16 +1609,26 @@ class PdfService {
             brush: black,
             bounds: Rect.fromLTWH(24, 25, size.width - 48, 22),
             format: PdfStringFormat(alignment: PdfTextAlignment.center));
+        page.graphics.drawLine(
+          PdfPen(PdfColor(0, 0, 0), width: .7),
+          const Offset(24, 50),
+          Offset(size.width - 30, 50),
+        );
         final bidder = (values['bidderName'] ?? '').trim().toUpperCase();
         final reference = (values['referenceNumber'] ?? '').trim();
         page.graphics.drawString('Name of Bidder: $bidder', regular,
             brush: black, bounds: const Rect.fromLTWH(24, 58, 330, 14));
         page.graphics.drawString('Project ID No.: $reference', regular,
-            brush: black, bounds: const Rect.fromLTWH(390, 58, 190, 14));
+            brush: black, bounds: const Rect.fromLTWH(370, 58, 125, 14));
         page.graphics.drawString('Pricing Details for Goods Offered from Within the Philippines', regular,
             brush: black, bounds: const Rect.fromLTWH(24, 77, 500, 14));
         tableTop = 96;
       }
+      page.graphics.drawString('Page ${pageNumber + 1} of $pageCount', regular,
+          brush: black,
+          bounds: Rect.fromLTWH(
+              500, pageNumber == 0 ? 58 : 16, 82, 14),
+          format: PdfStringFormat(alignment: PdfTextAlignment.right));
       const headerHeight = 92.0;
       final rowCount = pageRowCounts[pageNumber];
       final available = size.height - tableTop - headerHeight - (pageNumber == pageCount - 1 ? 112 : 25);
@@ -1609,7 +1640,8 @@ class PdfService {
       page.graphics.drawLine(gridPen, Offset(columns.first, tableTop), Offset(columns.last, tableTop));
       page.graphics.drawLine(gridPen, Offset(columns.first, tableTop + headerHeight), Offset(columns.last, tableTop + headerHeight));
       const headers = <String>[
-        'Item\nNo.', 'Specification/s', 'Qty', 'Unit', 'Unit\nPrice/Item\n(50%)',
+        'Item\nNo.', 'Specification/s', 'Country\nof Origin', 'Qty', 'Unit',
+        'Unit\nPrice/Item\n(50%)',
         'Transportation &\nInsurance and All\nOther Costs (20%)',
         'Sales & Other\nTaxes Payable\nper Item (30%)',
         'Cost of Incidental\nServices, if\napplicable',
@@ -1634,12 +1666,13 @@ class PdfService {
         grandTotal += delivered;
         final texts = <String>[
           '${itemIndex + 1}', (specification['specification'] ?? '').toString(),
-          (specification['quantity'] ?? '').toString(), (specification['unit'] ?? '').toString(),
-          money(total * .50), money(total * .20), money(total * .30), '', money(total), money(delivered),
+          'PHL', (specification['quantity'] ?? '').toString(),
+          (specification['unit'] ?? '').toString(), money(total * .50),
+          money(total * .20), money(total * .30), '', money(total), money(delivered),
         ];
         for (var column = 0; column < texts.length; column++) {
           page.graphics.drawString(texts[column], regular,
-              brush: column == 9 ? red : black,
+              brush: column == 2 || column == 10 ? red : black,
               bounds: Rect.fromLTWH(columns[column] + 2, y + 1,
                   columns[column + 1] - columns[column] - 4, rowHeight - 2),
               format: PdfStringFormat(
@@ -1658,6 +1691,21 @@ class PdfService {
       }
     }
     return pageCount;
+  }
+
+  static int _findPriceScheduleStartPage(PdfDocument document) {
+    final lines = PdfTextExtractor(document).extractTextLines(
+      startPageIndex: 46,
+      endPageIndex: document.pages.count - 1,
+    );
+    for (final line in lines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('PRICE SCHEDULE FOR GOODS') ||
+          text.contains('PAGE 1 OF 8')) {
+        return line.pageIndex;
+      }
+    }
+    return document.pages.count > 49 ? 49 : -1;
   }
 
   static void _drawTechnicalSpecificationsCompliance(
