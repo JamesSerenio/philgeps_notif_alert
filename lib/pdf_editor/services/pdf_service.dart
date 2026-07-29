@@ -1871,9 +1871,9 @@ class PdfService {
       if (decoded is List) specifications = decoded.take(72).toList();
     }
     final delivery = (values['deliveredWeeksMonths'] ?? '').trim();
-    final pageCount = specifications.length <= 24
+    final pageCount = specifications.length <= 18
         ? 1
-        : specifications.length <= 56
+        : specifications.length <= 42
             ? 2
             : 3;
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
@@ -1881,16 +1881,16 @@ class PdfService {
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: .55);
     final titleFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      13,
+      15,
       style: PdfFontStyle.bold,
     );
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 8.5);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      8.5,
+      10,
       style: PdfFontStyle.bold,
     );
-    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 8.2);
+    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
     var itemIndex = 0;
 
     for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
@@ -1917,14 +1917,14 @@ class PdfService {
           'Schedule of Requirements',
           titleFont,
           brush: black,
-          bounds: Rect.fromLTWH(left, 26, width, 20),
+          bounds: Rect.fromLTWH(left, 24, width, 24),
           format: PdfStringFormat(alignment: PdfTextAlignment.center),
         );
         final procuringEntity =
             (values['procuringEntity'] ?? '').trim().toUpperCase();
         final projectTitle = (values['projectTitle'] ?? '').trim().toUpperCase();
         final reference = (values['referenceNumber'] ?? '').trim();
-        const labelLeft = 54.0;
+        const labelLeft = 48.0;
         const colonLeft = 250.0;
         const valueLeft = 280.0;
         void headerRow(String label, String value, double y, double height) {
@@ -1944,7 +1944,7 @@ class PdfService {
         headerRow('PROJECT TITLE', projectTitle, 76, 34);
         headerRow('REFERENCE NUMBER', reference, 112, 15);
         page.graphics.drawString(
-          'The delivery schedule is expressed as weeks/months stipulated after the date of delivery to the project site.',
+          'The delivery schedule is expressed as weeks/month stipulated share after a delivery date which is the date of delivery to the project site.',
           labelFont,
           brush: black,
           bounds: Rect.fromLTWH(left, 135, width, 28),
@@ -1952,10 +1952,12 @@ class PdfService {
         );
         tableTop = 168;
       }
-      const headerHeight = 38.0;
-      const rowHeight = 21.0;
+      const headerHeight = 44.0;
+      const rowHeight = 23.0;
       final remaining = specifications.length - itemIndex;
-      final capacity = pageNumber == 0 ? 24 : 32;
+      // Larger, more readable text needs fewer rows per sheet. This still
+      // supports the full 72-item limit across the three source templates.
+      final capacity = pageNumber == 0 ? 24 : 24;
       final rowsOnPage = remaining.clamp(0, capacity).toInt();
       final tableBottom = tableTop + headerHeight + rowsOnPage * rowHeight;
       for (final x in columns) {
