@@ -1593,8 +1593,13 @@ class PdfService {
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
-    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 7.5);
-    final bold = PdfStandardFont(PdfFontFamily.timesRoman, 7.2, style: PdfFontStyle.bold);
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 8.2);
+    final bold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      7.8,
+      style: PdfFontStyle.bold,
+    );
+    final detailFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
     final titleFont = PdfStandardFont(PdfFontFamily.timesRoman, 13, style: PdfFontStyle.bold);
     var itemIndex = 0;
     var grandTotal = 0.0;
@@ -1616,15 +1621,15 @@ class PdfService {
         );
         final bidder = (values['bidderName'] ?? '').trim().toUpperCase();
         final reference = (values['referenceNumber'] ?? '').trim();
-        page.graphics.drawString('Name of Bidder: $bidder', regular,
+        page.graphics.drawString('Name of Bidder: $bidder', detailFont,
             brush: black, bounds: const Rect.fromLTWH(24, 58, 330, 14));
-        page.graphics.drawString('Project ID No.: $reference', regular,
+        page.graphics.drawString('Project ID No.: $reference', detailFont,
             brush: black, bounds: const Rect.fromLTWH(370, 58, 125, 14));
-        page.graphics.drawString('Pricing Details for Goods Offered from Within the Philippines', regular,
+        page.graphics.drawString('Pricing Details for Goods Offered from Within the Philippines', detailFont,
             brush: black, bounds: const Rect.fromLTWH(24, 77, 500, 14));
         tableTop = 96;
       }
-      page.graphics.drawString('Page ${pageNumber + 1} of $pageCount', regular,
+      page.graphics.drawString('Page ${pageNumber + 1} of $pageCount', detailFont,
           brush: black,
           bounds: Rect.fromLTWH(
               500, pageNumber == 0 ? 58 : 16, 82, 14),
@@ -1641,11 +1646,12 @@ class PdfService {
       page.graphics.drawLine(gridPen, Offset(columns.first, tableTop + headerHeight), Offset(columns.last, tableTop + headerHeight));
       const headers = <String>[
         'Item\nNo.', 'Specification/s', 'Country\nof Origin', 'Qty', 'Unit',
-        'Unit\nPrice/Item\n(50%)',
-        'Transportation &\nInsurance and All\nOther Costs (20%)',
-        'Sales & Other\nTaxes Payable\nper Item (30%)',
-        'Cost of Incidental\nServices, if\napplicable',
-        'Total Price\nper Unit\n(100%)', 'Total Price\nDelivered Final\nDestination'
+        'Unit\nPrice/Item',
+        'Transportation &\nInsurance and All Other\nCosts Incidental to\ndelivery per Item',
+        'Sales & Other\nTaxes Payable if\nContract is Awarded\nper Item',
+        'Cost of Incidental\nServices, if applicable,\nper Item',
+        'Total Price per Unit\n(columns 5+6+7+8)\n(100%)',
+        'Total Price Delivered\nFinal Destination'
       ];
       for (var column = 0; column < headers.length; column++) {
         page.graphics.drawString(headers[column], bold, brush: black,
@@ -1684,10 +1690,51 @@ class PdfService {
         page.graphics.drawLine(gridPen, Offset(columns.first, y), Offset(columns.last, y));
       }
       if (pageNumber == pageCount - 1) {
-        page.graphics.drawString('TOTAL   ${money(grandTotal)}', bold, brush: red,
-            bounds: Rect.fromLTWH(410, y + 5, 172, 15),
-            format: PdfStringFormat(alignment: PdfTextAlignment.right));
-        _drawTechnicalSpecificationsSignatureAt(page, values, y + 28);
+        const totalRowHeight = 18.0;
+        final totalBottom = y + totalRowHeight;
+        page.graphics.drawLine(
+          gridPen,
+          Offset(columns.first, totalBottom),
+          Offset(columns.last, totalBottom),
+        );
+        for (final x in <double>[columns.first, columns[9], columns[10], columns.last]) {
+          page.graphics.drawLine(gridPen, Offset(x, y), Offset(x, totalBottom));
+        }
+        page.graphics.drawString(
+          'TOTAL',
+          bold,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            columns[9] + 2,
+            y + 1,
+            columns[10] - columns[9] - 4,
+            totalRowHeight - 2,
+          ),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.right,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+        page.graphics.drawString(
+          money(grandTotal),
+          bold,
+          brush: red,
+          bounds: Rect.fromLTWH(
+            columns[10] + 2,
+            y + 1,
+            columns[11] - columns[10] - 4,
+            totalRowHeight - 2,
+          ),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.right,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+        _drawTechnicalSpecificationsSignatureAt(
+          page,
+          values,
+          totalBottom + 28,
+        );
       }
     }
     return pageCount;
