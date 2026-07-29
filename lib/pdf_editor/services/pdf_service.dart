@@ -1561,11 +1561,11 @@ class PdfService {
       '(Printed Name & Signature)',
       labelFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(valueLeft, top + 14, 200, 13),
+      bounds: Rect.fromLTWH(valueLeft, top + 13, 200, 12),
     );
-    drawRow('Designation', 'Authorized Representative', top + 34);
-    drawRow('Name of Firm', bidderName, top + 51);
-    drawRow('Date', date, top + 68);
+    drawRow('Designation', 'Authorized Representative', top + 27);
+    drawRow('Name of Firm', bidderName, top + 43);
+    drawRow('Date', date, top + 59);
   }
 
   static int _drawPriceSchedule(
