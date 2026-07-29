@@ -150,14 +150,9 @@ class PdfService {
           pageIndex--) {
         document.pages.removeAt(pageIndex);
       }
-      // The source template has extra Technical Specification continuation
-      // sheets between its three working TS pages and the Price Schedule.
-      // They must not remain beside the newly generated schedule.
-      for (var pageIndex = priceScheduleStartPage - 1;
-          pageIndex >= 49;
-          pageIndex--) {
-        document.pages.removeAt(pageIndex);
-      }
+      // Keep the two Bid Securing Declaration sheets immediately before the
+      // Price Schedule. They are required document pages, not unused
+      // Technical Specification continuations.
     }
     if (technicalSpecificationPageCount < 3) {
       document.pages.removeAt(48);
