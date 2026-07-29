@@ -1524,34 +1524,35 @@ class PdfService {
       9,
       style: PdfFontStyle.bold,
     );
-    const labelLeft = 48.0;
-    const colonLeft = 145.0;
-    const valueLeft = 180.0;
+    // Match the formal signature grid used by the contract-statement pages.
+    const labelLeft = 36.0;
+    const colonLeft = 112.0;
+    const valueLeft = 150.0;
 
     void drawRow(String label, String value, double y) {
       page.graphics.drawString(
         label,
         labelFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(labelLeft, y, 95, 14),
+        bounds: Rect.fromLTWH(labelLeft, y, 68, 18),
       );
       page.graphics.drawString(
         ':',
         labelFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(colonLeft, y, 10, 14),
+        bounds: Rect.fromLTWH(colonLeft, y, 10, 18),
       );
       page.graphics.drawString(
         value,
         valueFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(valueLeft, y, 300, 14),
+        bounds: Rect.fromLTWH(valueLeft, y, 375, 18),
       );
     }
 
     drawRow('Submitted by', submittedBy, top);
     final nameWidth =
-        valueFont.measureString(submittedBy).width.clamp(0, 300).toDouble();
+        valueFont.measureString(submittedBy).width.clamp(0, 375).toDouble();
     page.graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.5),
       Offset(valueLeft, top + 12),
@@ -1561,11 +1562,11 @@ class PdfService {
       '(Printed Name & Signature)',
       labelFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(valueLeft, top + 13, 200, 12),
+      bounds: Rect.fromLTWH(valueLeft, top + 15, 210, 14),
     );
-    drawRow('Designation', 'Authorized Representative', top + 27);
-    drawRow('Name of Firm', bidderName, top + 43);
-    drawRow('Date', date, top + 59);
+    drawRow('Designation', 'Authorized Representative', top + 31);
+    drawRow('Name of Firm', bidderName, top + 48);
+    drawRow('Date', date, top + 65);
   }
 
   static int _drawPriceSchedule(
