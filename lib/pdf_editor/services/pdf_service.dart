@@ -23,6 +23,10 @@ class PdfService {
       inputBytes: templateBytes,
     );
 
+    // PDF work on Flutter Web shares the UI thread. Yield between the major
+    // stages so loading indicators can continue receiving animation frames.
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
     // Clean replacement for Page 1.
     if (document.pages.count > 0) {
       _drawPageOne(
@@ -69,6 +73,7 @@ class PdfService {
       technicalSpecificationPageCount =
           _drawTechnicalSpecifications(document, values);
     }
+    await Future<void>.delayed(const Duration(milliseconds: 1));
 
     // Find the actual Price Schedule section in the source instead of relying
     // on a fixed page number. Some template revisions have blank/form pages
@@ -82,6 +87,7 @@ class PdfService {
         priceScheduleStartPage,
       );
     }
+    await Future<void>.delayed(const Duration(milliseconds: 1));
 
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
@@ -163,6 +169,8 @@ class PdfService {
     // Locate this form by its actual text after optional technical pages have
     // been removed, since its final page index can change.
     _drawBidSecuringDeclarationDetails(document, values);
+
+    await Future<void>.delayed(const Duration(milliseconds: 1));
 
     // The scanned official receipt is only a sample attachment in the source
     // template and is not required in the generated bid documents.
@@ -1777,7 +1785,7 @@ class PdfService {
   static int _findPriceScheduleStartPage(PdfDocument document) {
     final lines = PdfTextExtractor(document).extractTextLines(
       startPageIndex: 46,
-      endPageIndex: document.pages.count - 1,
+      endPageIndex: 61.clamp(0, document.pages.count - 1).toInt(),
     );
     for (final line in lines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');

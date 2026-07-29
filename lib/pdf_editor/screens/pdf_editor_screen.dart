@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
-import 'dart:ui' show FontFeature, ImageFilter;
+import 'dart:ui' show FontFeature;
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
@@ -423,6 +423,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     });
 
     try {
+      // Give the browser a frame to paint the loading overlay before the
+      // CPU-heavy PDF work starts.
+      await Future<void>.delayed(const Duration(milliseconds: 80));
       slccSaveTimer?.cancel();
       technicalSpecificationsSaveTimer?.cancel();
       priceScheduleSaveTimer?.cancel();
@@ -1369,8 +1372,7 @@ class _PdfGenerationOverlay extends StatefulWidget {
   State<_PdfGenerationOverlay> createState() => _PdfGenerationOverlayState();
 }
 
-class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay>
-    with SingleTickerProviderStateMixin {
+class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay> {
   static const messages = <String>[
     'Saving your latest information...',
     'Preparing technical specifications...',
@@ -1379,17 +1381,12 @@ class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay>
     'Finalizing your bid document...',
   ];
 
-  late final AnimationController animationController;
   Timer? messageTimer;
   int messageIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
     messageTimer = Timer.periodic(const Duration(milliseconds: 1100), (_) {
       if (mounted) {
         setState(() => messageIndex = (messageIndex + 1) % messages.length);
@@ -1400,20 +1397,14 @@ class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay>
   @override
   void dispose() {
     messageTimer?.cancel();
-    animationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final pulse = Tween<double>(begin: .96, end: 1.04).animate(
-      CurvedAnimation(parent: animationController, curve: Curves.easeInOut),
-    );
     return Material(
       color: Colors.black.withOpacity(.38),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
-        child: Center(
+      child: Center(
           child: Container(
             width: 360,
             margin: const EdgeInsets.all(24),
@@ -1432,9 +1423,7 @@ class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ScaleTransition(
-                  scale: pulse,
-                  child: SizedBox(
+                SizedBox(
                     width: 86,
                     height: 86,
                     child: Stack(
@@ -1464,7 +1453,6 @@ class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay>
                         ),
                       ],
                     ),
-                  ),
                 ),
                 const SizedBox(height: 22),
                 const Text(
@@ -1522,7 +1510,6 @@ class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay>
               ],
             ),
           ),
-        ),
       ),
     );
   }
