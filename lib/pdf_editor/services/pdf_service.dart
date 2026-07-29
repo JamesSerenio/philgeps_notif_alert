@@ -1586,20 +1586,20 @@ class PdfService {
       remaining -= count;
     }
     final pageCount = pageRowCounts.length.clamp(1, 8).toInt();
-    const columns = <double>[
+    const baseColumns = <double>[
       24, 52, 158, 195, 226, 258, 306, 365, 422, 470, 526, 582
     ];
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: .55);
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
-    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 8.2);
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 9);
     final bold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      7.8,
+      8.5,
       style: PdfFontStyle.bold,
     );
-    final detailFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final detailFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
     final titleFont = PdfStandardFont(PdfFontFamily.timesRoman, 13, style: PdfFontStyle.bold);
     var itemIndex = 0;
     var grandTotal = 0.0;
@@ -1607,32 +1607,66 @@ class PdfService {
     for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
       final page = document.pages[startPageIndex + pageNumber];
       final size = page.getClientSize();
+      const horizontalMargin = 36.0;
+      final tableWidth = size.width - horizontalMargin * 2;
+      final baseWidth = baseColumns.last - baseColumns.first;
+      final columns = <double>[
+        for (final baseX in baseColumns)
+          horizontalMargin +
+              ((baseX - baseColumns.first) / baseWidth) * tableWidth,
+      ];
       page.graphics.drawRectangle(brush: white, bounds: Rect.fromLTWH(0, 0, size.width, size.height));
       var tableTop = 35.0;
       if (pageNumber == 0) {
         page.graphics.drawString('PRICE SCHEDULE FOR GOODS', titleFont,
             brush: black,
-            bounds: Rect.fromLTWH(24, 25, size.width - 48, 22),
+            bounds: Rect.fromLTWH(
+              horizontalMargin,
+              25,
+              tableWidth,
+              22,
+            ),
             format: PdfStringFormat(alignment: PdfTextAlignment.center));
         page.graphics.drawLine(
           PdfPen(PdfColor(0, 0, 0), width: .7),
-          const Offset(24, 50),
-          Offset(size.width - 30, 50),
+          const Offset(horizontalMargin, 50),
+          Offset(size.width - horizontalMargin, 50),
         );
         final bidder = (values['bidderName'] ?? '').trim().toUpperCase();
         final reference = (values['referenceNumber'] ?? '').trim();
         page.graphics.drawString('Name of Bidder: $bidder', detailFont,
-            brush: black, bounds: const Rect.fromLTWH(24, 58, 330, 14));
+            brush: black,
+            bounds: Rect.fromLTWH(
+              horizontalMargin,
+              58,
+              tableWidth * .48,
+              14,
+            ));
         page.graphics.drawString('Project ID No.: $reference', detailFont,
-            brush: black, bounds: const Rect.fromLTWH(370, 58, 125, 14));
+            brush: black,
+            bounds: Rect.fromLTWH(
+              horizontalMargin + tableWidth * .53,
+              58,
+              tableWidth * .25,
+              14,
+            ));
         page.graphics.drawString('Pricing Details for Goods Offered from Within the Philippines', detailFont,
-            brush: black, bounds: const Rect.fromLTWH(24, 77, 500, 14));
+            brush: black,
+            bounds: Rect.fromLTWH(
+              horizontalMargin,
+              77,
+              tableWidth * .70,
+              14,
+            ));
         tableTop = 96;
       }
       page.graphics.drawString('Page ${pageNumber + 1} of $pageCount', detailFont,
           brush: black,
           bounds: Rect.fromLTWH(
-              500, pageNumber == 0 ? 58 : 16, 82, 14),
+              size.width - horizontalMargin - 100,
+              pageNumber == 0 ? 58 : 16,
+              100,
+              14),
           format: PdfStringFormat(alignment: PdfTextAlignment.right));
       const headerHeight = 92.0;
       final rowCount = pageRowCounts[pageNumber];
