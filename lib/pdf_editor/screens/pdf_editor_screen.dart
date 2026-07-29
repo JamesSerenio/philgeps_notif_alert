@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
-import 'dart:ui' show FontFeature;
+import 'dart:ui' show FontFeature, ImageFilter;
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
@@ -1207,8 +1207,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       appBar: AppBar(
         title: const Text('Bid Docs PDF Editor'),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;
 
           final formPanel = Container(
@@ -1346,7 +1349,180 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               Expanded(child: previewPanel),
             ],
           );
-        },
+              },
+            ),
+          ),
+          if (isGenerating)
+            const Positioned.fill(
+              child: _PdfGenerationOverlay(),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PdfGenerationOverlay extends StatefulWidget {
+  const _PdfGenerationOverlay();
+
+  @override
+  State<_PdfGenerationOverlay> createState() => _PdfGenerationOverlayState();
+}
+
+class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay>
+    with SingleTickerProviderStateMixin {
+  static const messages = <String>[
+    'Saving your latest information...',
+    'Preparing technical specifications...',
+    'Calculating the price schedule...',
+    'Building and arranging PDF pages...',
+    'Finalizing your bid document...',
+  ];
+
+  late final AnimationController animationController;
+  Timer? messageTimer;
+  int messageIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    messageTimer = Timer.periodic(const Duration(milliseconds: 1100), (_) {
+      if (mounted) {
+        setState(() => messageIndex = (messageIndex + 1) % messages.length);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    messageTimer?.cancel();
+    animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pulse = Tween<double>(begin: .96, end: 1.04).animate(
+      CurvedAnimation(parent: animationController, curve: Curves.easeInOut),
+    );
+    return Material(
+      color: Colors.black.withOpacity(.38),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
+        child: Center(
+          child: Container(
+            width: 360,
+            margin: const EdgeInsets.all(24),
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 32,
+                  offset: Offset(0, 14),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ScaleTransition(
+                  scale: pulse,
+                  child: SizedBox(
+                    width: 86,
+                    height: 86,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 82,
+                          height: 82,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 4,
+                            color: Color(0xFF0B5D3B),
+                            backgroundColor: Color(0xFFE1EEE7),
+                          ),
+                        ),
+                        Container(
+                          width: 58,
+                          height: 58,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE7F4EC),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.picture_as_pdf_rounded,
+                            size: 31,
+                            color: Color(0xFF0B5D3B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                const Text(
+                  'Generating Bid Document',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF173D2C),
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 22,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, .3),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    child: Text(
+                      messages[messageIndex],
+                      key: ValueKey(messageIndex),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF66736C),
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: const LinearProgressIndicator(
+                    minHeight: 6,
+                    color: Color(0xFF0B5D3B),
+                    backgroundColor: Color(0xFFE2ECE6),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Please keep this window open.',
+                  style: TextStyle(
+                    color: Color(0xFF87918B),
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
