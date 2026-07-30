@@ -2996,6 +2996,12 @@ class PdfService {
       10.5,
       style: PdfFontStyle.italic,
     );
+    final headingRegular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final headingItalic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      12,
+      style: PdfFontStyle.italic,
+    );
     final reference = (values['referenceNumber'] ?? '').trim();
     final municipality = (values['municipality'] ?? '').trim();
     final province = (values['province'] ?? '').trim();
@@ -3041,7 +3047,8 @@ class PdfService {
           bounds: Rect.fromLTWH(
               x, line.bounds.top, width + 2, line.bounds.height + 4),
         );
-        if (identical(part.$2, boldItalic)) {
+        if (identical(part.$2, boldItalic) ||
+            identical(part.$2, headingItalic)) {
           graphics.drawString(
             part.$1,
             part.$2,
@@ -3057,15 +3064,15 @@ class PdfService {
     replaceStyledLine(
         idLine,
         <(String, PdfFont)>[
-          ('Project Identification No.: ', regular),
-          (reference, boldItalic),
+          ('Project Identification No.: ', headingRegular),
+          (reference, headingItalic),
         ],
         extraWidth: 80);
     replaceStyledLine(
         toLine,
         <(String, PdfFont)>[
-          ('To: ', italic),
-          (location, boldItalic),
+          ('To: ', headingItalic),
+          (location, headingItalic),
         ],
         extraWidth: 120);
 
