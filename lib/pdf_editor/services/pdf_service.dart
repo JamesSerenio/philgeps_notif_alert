@@ -3480,33 +3480,6 @@ class PdfService {
       );
     }
 
-    void replaceResolutionBlock(
-      TextLine? start,
-      TextLine? end,
-      List<(String, PdfFont)> runs,
-    ) {
-      if (start == null || end == null) return;
-      final left = start.bounds.left;
-      final top = start.bounds.top - 2;
-      final bottom = end.bounds.top - 2;
-      graphics.drawRectangle(
-        brush: white,
-        bounds: Rect.fromLTWH(
-          left - 3,
-          top,
-          page.size.width - left + 3,
-          bottom - top,
-        ),
-      );
-      drawRuns(
-        left,
-        start.bounds.top,
-        page.size.width - left - 35,
-        runs,
-        lineHeight: 13,
-      );
-    }
-
     replaceBlock(
       introduction,
       itemOne,
@@ -3564,51 +3537,60 @@ class PdfService {
         ],
       );
     }
-    replaceResolutionBlock(
+    replaceBlock(
       resolved,
       resolvedFurther,
-      <(String, PdfFont)>[
-        ('"RESOLVED, ', bold),
-        ('that ', italic),
-        ('MIKATA PRIME CORPORATION ', bold),
-        (
-          'is hereby authorized to participate in the public bidding, negotiate, and enter into a contract with the ',
-          italic
-        ),
-        ('Municipality of $municipality, $province ', bold),
-        ('for the project entitled: ', italic),
-        ('"$projectTitle";', bold),
-      ],
+      '"RESOLVED, that MIKATA PRIME CORPORATION is hereby authorized to '
+      'participate in the public bidding, negotiate, and enter into a contract '
+      'with the Municipality of $municipality, $province for the project '
+      'entitled: "$projectTitle";',
+      font: italic,
     );
-    replaceResolutionBlock(
+    replaceBlock(
       resolvedFurther,
       resolvedFinally,
-      <(String, PdfFont)>[
-        ('"RESOLVED FURTHER, ', bold),
-        ('that the Corporation hereby designates ', italic),
-        ('${representative.toUpperCase()}, ', bold),
-        (
-          'as the Authorized Representative of the Corporation, to represent, sign, execute, submit, and deliver any and all documents, agreements, forms, and proposals necessary to effectively participate in the bidding and implement the aforementioned project, granting unto the said representative full power and authority to do and perform any and all acts required;',
-          italic
-        ),
-      ],
+      '"RESOLVED FURTHER, that the Corporation hereby designates '
+      '${representative.toUpperCase()}, as the Authorized Representative of '
+      'the Corporation, to represent, sign, execute, submit, and deliver any '
+      'and all documents, agreements, forms, and proposals necessary to '
+      'effectively participate in the bidding and implement the aforementioned '
+      'project, granting unto the said representative full power and authority '
+      'to do and perform any and all acts required;',
+      font: italic,
     );
-    replaceResolutionBlock(
+    replaceBlock(
       resolvedFinally,
       itemFour,
-      <(String, PdfFont)>[
-        ('"RESOLVED FINALLY, ', bold),
-        (
-          'that any and all prior actions taken by the Authorized Representative, as well as the Proprietor/President of the Corporation, ',
-          italic
-        ),
-        ('PATRICK CARLO P. DEDEL, ', bold),
-        (
-          'in connection with the foregoing are hereby approved, ratified, and confirmed as the acts of the Corporation."',
-          italic
-        ),
-      ],
+      '"RESOLVED FINALLY, that any and all prior actions taken by the '
+      'Authorized Representative, as well as the Proprietor/President of the '
+      'Corporation, PATRICK CARLO P. DEDEL, in connection with the foregoing '
+      'are hereby approved, ratified, and confirmed as the acts of the '
+      'Corporation."',
+      font: italic,
     );
+
+    void boldResolutionHeading(TextLine? line, String heading) {
+      if (line == null) return;
+      final width = italic.measureString(heading).width + 2;
+      // Draw a small offset over the existing italic heading. This preserves
+      // the original wrapping/justification while giving the heading the same
+      // bold-italic appearance as the source template.
+      graphics.drawString(
+        heading,
+        italic,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          line.bounds.left + 0.35,
+          line.bounds.top,
+          width,
+          14,
+        ),
+      );
+    }
+
+    boldResolutionHeading(resolved, '"RESOLVED,');
+    boldResolutionHeading(resolvedFurther, '"RESOLVED FURTHER,');
+    boldResolutionHeading(resolvedFinally, '"RESOLVED FINALLY,');
     if (itemFour == null) return;
   }
 
