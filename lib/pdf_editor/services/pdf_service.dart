@@ -2103,6 +2103,82 @@ class PdfService {
       }
       pendingSpace = RegExp(r'\s$').hasMatch(part.$1);
     }
+
+    final projectTitle = (values['projectTitle'] ?? '').trim();
+    final municipality = (values['municipality'] ?? '').trim();
+    final province = (values['province'] ?? '').trim();
+    if (projectTitle.isEmpty || municipality.isEmpty || province.isEmpty) {
+      return;
+    }
+
+    const authorityTop = 246.0;
+    const authorityHeight = 91.0;
+    page.graphics.drawRectangle(
+      brush: PdfSolidBrush(PdfColor(255, 255, 255)),
+      bounds: Rect.fromLTWH(
+        left - 3,
+        authorityTop - 2,
+        right - left + 6,
+        authorityHeight + 5,
+      ),
+    );
+    final authorityParts = <(String, PdfFont)>[
+      ('I am granted full power and authority to do, execute and perform any '
+          'and all acts necessary to participate, submit the bid, and to sign '
+          'and execute the ensuing contract for ', regularFont),
+      (projectTitle, emphasizedFont),
+      (' of the ', regularFont),
+      ('Municipality of $municipality, $province', emphasizedFont),
+      (' as supported by the attached duly notarized Special Power of '
+          'Attorney, Board/Partnership Resolution, or Secretary’s Certificate, '
+          'whichever is applicable;', regularFont),
+    ];
+    var authorityY = authorityTop;
+    var authorityX = left + firstLineIndent;
+    var authorityPendingSpace = false;
+    for (final part in authorityParts) {
+      final matches = RegExp(r'\S+').allMatches(part.$1);
+      for (final match in matches) {
+        final word = match.group(0)!;
+        final hasLeadingSpace = authorityPendingSpace ||
+            (match.start > 0 &&
+                RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
+        authorityPendingSpace = false;
+        final spaceWidth = hasLeadingSpace ? 2.8 : 0.0;
+        final width = part.$2.measureString(word).width;
+        if (authorityX + spaceWidth + width > right && authorityX > left) {
+          authorityY += lineHeight;
+          authorityX = left;
+        }
+        if (authorityX > left) authorityX += spaceWidth;
+        page.graphics.drawString(
+          word,
+          part.$2,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            authorityX,
+            authorityY,
+            width + 1,
+            lineHeight,
+          ),
+        );
+        if (identical(part.$2, emphasizedFont)) {
+          page.graphics.drawString(
+            word,
+            part.$2,
+            brush: black,
+            bounds: Rect.fromLTWH(
+              authorityX + .22,
+              authorityY,
+              width + 1,
+              lineHeight,
+            ),
+          );
+        }
+        authorityX += width;
+      }
+      authorityPendingSpace = RegExp(r'\s$').hasMatch(part.$1);
+    }
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
