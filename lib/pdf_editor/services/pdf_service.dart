@@ -1925,12 +1925,13 @@ class PdfService {
     final date = (values['date'] ?? '').trim();
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      11,
       style: PdfFontStyle.bold,
     );
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
     final top = submittedLabel.bounds.top - 2;
     final labelLeft = submittedLabel.bounds.left;
     final colonLeft = labelLeft + 108;
@@ -1943,7 +1944,7 @@ class PdfService {
         labelLeft - 3,
         top - 2,
         clearRight - labelLeft + 3,
-        91,
+        104,
       ),
     );
 
@@ -1952,19 +1953,19 @@ class PdfService {
         label,
         labelFont,
         brush: black,
-        bounds: Rect.fromLTWH(labelLeft, y, 100, 15),
+        bounds: Rect.fromLTWH(labelLeft, y, 105, 18),
       );
       page.graphics.drawString(
         ':',
         labelFont,
         brush: black,
-        bounds: Rect.fromLTWH(colonLeft, y, 10, 15),
+        bounds: Rect.fromLTWH(colonLeft, y, 10, 18),
       );
       page.graphics.drawString(
         value,
         valueFont,
         brush: black,
-        bounds: Rect.fromLTWH(valueLeft, y, clearRight - valueLeft, 15),
+        bounds: Rect.fromLTWH(valueLeft, y, clearRight - valueLeft, 18),
       );
     }
 
@@ -1976,18 +1977,18 @@ class PdfService {
         .toDouble();
     page.graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: .5),
-      Offset(valueLeft, top + 12),
-      Offset(valueLeft + nameWidth, top + 12),
+      Offset(valueLeft, top + 14),
+      Offset(valueLeft + nameWidth, top + 14),
     );
     page.graphics.drawString(
       '(Printed Name & Signature)',
-      labelFont,
+      captionFont,
       brush: black,
-      bounds: Rect.fromLTWH(valueLeft, top + 15, 210, 14),
+      bounds: Rect.fromLTWH(valueLeft, top + 18, 210, 15),
     );
-    drawRow('Designation', 'Authorized Representative', top + 31);
-    drawRow('Name of Firm', bidderName, top + 48);
-    drawRow('Date', date, top + 65);
+    drawRow('Designation', 'Authorized Representative', top + 36);
+    drawRow('Name of Firm', bidderName, top + 55);
+    drawRow('Date', date, top + 74);
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
