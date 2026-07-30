@@ -2032,7 +2032,7 @@ class PdfService {
     final emphasizedFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       11,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.italic,
     );
 
     page.graphics.drawRectangle(
@@ -2073,9 +2073,10 @@ class PdfService {
             (match.start > 0 &&
                 RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
         pendingSpace = false;
-        final spaceWidth = hasLeadingSpace
-            ? regularFont.measureString(' ').width
-            : 0.0;
+        // PdfStandardFont reports a zero/near-zero width for an isolated
+        // space. Use the Times Roman word-space width explicitly so styled
+        // fragments do not run together.
+        final spaceWidth = hasLeadingSpace ? 2.8 : 0.0;
         final width = part.$2.measureString(word).width;
         if (x + spaceWidth + width > lineRight && x > left) {
           y += lineHeight;
@@ -2088,6 +2089,16 @@ class PdfService {
           brush: black,
           bounds: Rect.fromLTWH(x, y, width + 1, lineHeight),
         );
+        if (identical(part.$2, emphasizedFont)) {
+          // A subtle second pass gives the template's bold-italic appearance;
+          // Syncfusion's standard font API only accepts one style at a time.
+          page.graphics.drawString(
+            word,
+            part.$2,
+            brush: black,
+            bounds: Rect.fromLTWH(x + .22, y, width + 1, lineHeight),
+          );
+        }
         x += width;
       }
       pendingSpace = RegExp(r'\s$').hasMatch(part.$1);
