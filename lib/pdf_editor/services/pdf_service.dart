@@ -2729,6 +2729,26 @@ class PdfService {
           14,
         ),
       );
+      // Clear the complete sentence once more and render it as one continuous
+      // mixed-style paragraph. This avoids the bold company name being drawn
+      // on top of the regular copy underneath.
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          72,
+          top - 2,
+          page.getClientSize().width - 130,
+          42,
+        ),
+      );
+      drawStyledParagraph(<(String, PdfFont)>[
+        (bidderName, bold),
+        (
+          ' remains committed to ensuring the quality and durability of our '
+              'contributions to the Municipality’s infrastructure.',
+          regular
+        ),
+      ], top + 3, firstLineIndent: 0);
     }
 
     final labelLeft = submittedLine?.bounds.left ?? 143.0;
