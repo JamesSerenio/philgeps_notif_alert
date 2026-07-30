@@ -3569,28 +3569,30 @@ class PdfService {
       font: italic,
     );
 
-    void boldResolutionHeading(TextLine? line, String heading) {
+    void boldResolutionHeading(TextLine? line, int wordCount) {
       if (line == null) return;
-      final width = italic.measureString(heading).width + 2;
-      // Draw a small offset over the existing italic heading. This preserves
-      // the original wrapping/justification while giving the heading the same
-      // bold-italic appearance as the source template.
-      graphics.drawString(
-        heading,
-        italic,
-        brush: black,
-        bounds: Rect.fromLTWH(
-          line.bounds.left + 0.35,
-          line.bounds.top,
-          width,
-          14,
-        ),
-      );
+      final headingWords = line.wordCollection.take(wordCount);
+      for (final word in headingWords) {
+        // Use each extracted word's exact position. Justified text stretches
+        // spaces, so redrawing the whole heading as one string causes FINALLY
+        // to overlap. A slight offset makes the original italic word bold.
+        graphics.drawString(
+          word.text,
+          italic,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            word.bounds.left + 0.35,
+            word.bounds.top,
+            word.bounds.width + 2,
+            word.bounds.height + 2,
+          ),
+        );
+      }
     }
 
-    boldResolutionHeading(resolved, '"RESOLVED,');
-    boldResolutionHeading(resolvedFurther, '"RESOLVED FURTHER,');
-    boldResolutionHeading(resolvedFinally, '"RESOLVED FINALLY,');
+    boldResolutionHeading(resolved, 1);
+    boldResolutionHeading(resolvedFurther, 2);
+    boldResolutionHeading(resolvedFinally, 2);
     if (itemFour == null) return;
   }
 
