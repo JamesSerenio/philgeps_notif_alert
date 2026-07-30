@@ -1997,39 +1997,34 @@ class PdfService {
     PdfDocument document,
     Map<String, String> values,
   ) {
-    final formalName = (values['submittedByFormalName'] ?? '').trim();
-    final civilStatus = (values['submittedByCivilStatus'] ?? '').trim();
-    final address = (values['submittedByAddress'] ?? '').trim();
-    if (formalName.isEmpty || civilStatus.isEmpty || address.isEmpty) return;
-
-    // In the source template the actual Omnibus form is near page 66. Earlier
-    // pages may mention its title in indexes/checklists, so searching the
-    // whole document can anchor the overlay to the wrong page.
-    final lines = PdfTextExtractor(document).extractTextLines(
-      startPageIndex: 60.clamp(0, document.pages.count - 1).toInt(),
-      endPageIndex: document.pages.count - 1,
-    );
-    int? pageIndex;
-    TextLine? titleLine;
-    for (final line in lines) {
-      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-      if (text.contains('OMNIBUS SWORN STATEMENT')) {
-        pageIndex = line.pageIndex;
-        titleLine = line;
-        break;
-      }
+    final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
+    late final String formalName;
+    late final String civilStatus;
+    late final String address;
+    if (selectedName.contains('CARLOS RAFAEL A. JAMILO')) {
+      formalName = 'Carlos Rafael A. Jamilo';
+      civilStatus = 'single';
+      address = 'Camaman-an, Cagayan de Oro City, Misamis Oriental';
+    } else if (selectedName.contains('MARLJONE BLAIRE B. TINGTING')) {
+      formalName = 'Marljone Blaire B. Tingting';
+      civilStatus = 'single';
+      address = 'Tankulan, Manolo Fortich, Bukidnon';
+    } else {
+      formalName = 'Jho Ann Q. Cleopas';
+      civilStatus = 'married';
+      address = 'Tankulan, Manolo Fortich, Bukidnon';
     }
-    if (pageIndex == null || titleLine == null) return;
 
+    // The actual form is page 66 (zero-based index 65) in the unmodified
+    // source template. This runs before optional template pages are removed.
+    const pageIndex = 65;
+    if (document.pages.count <= pageIndex) return;
     final page = document.pages[pageIndex];
     final pageWidth = page.getClientSize().width;
     final left = pageWidth * .115;
-    final top = titleLine.bounds.bottom + 15;
+    const top = 116.0;
     final right = pageWidth - left;
-    // The first identity paragraph occupies a stable band immediately below
-    // the title. Its mixed bold/italic fragments are not reliably exposed as
-    // complete text lines by the extractor, so use the title as the anchor.
-    const originalHeight = 48.0;
+    const originalHeight = 51.0;
     final paragraph =
         'I, $formalName, of legal age, $civilStatus, Filipino, and with residence at $address, after having been duly sworn in accordance with law, do hereby depose and state that:';
     final font = PdfStandardFont(
