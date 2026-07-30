@@ -2004,44 +2004,40 @@ class PdfService {
 
     final lines = PdfTextExtractor(document).extractTextLines();
     int? pageIndex;
+    TextLine? titleLine;
     for (final line in lines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
       if (text.contains('OMNIBUS SWORN STATEMENT')) {
         pageIndex = line.pageIndex;
+        titleLine = line;
         break;
       }
     }
-    if (pageIndex == null) return;
+    if (pageIndex == null || titleLine == null) return;
 
     final pageLines = lines
         .where((line) => line.pageIndex == pageIndex)
         .toList()
       ..sort((a, b) => a.bounds.top.compareTo(b.bounds.top));
-    TextLine? firstLine;
-    TextLine? lastLine;
-    var inIdentityParagraph = false;
+    TextLine? nextParagraphLine;
     for (final line in pageLines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-      if (!inIdentityParagraph && text.contains('OF LEGAL AGE')) {
-        firstLine = line;
-        lastLine = line;
-        inIdentityParagraph = true;
-        if (text.contains('DEPOSE AND STATE THAT')) break;
-        continue;
-      }
-      if (inIdentityParagraph) {
-        lastLine = line;
-        if (text.contains('DEPOSE AND STATE THAT')) break;
+      if (line.bounds.top > titleLine.bounds.bottom &&
+          (text.contains('DULY AUTHORIZED AND DESIGNATED') ||
+              text.contains('AUTHORIZED AND DESIGNATED REPRESENTATIVE'))) {
+        nextParagraphLine = line;
+        break;
       }
     }
-    if (firstLine == null || lastLine == null) return;
+    if (nextParagraphLine == null) return;
 
     final page = document.pages[pageIndex];
     final pageWidth = page.getClientSize().width;
-    final left = firstLine.bounds.left.clamp(60, pageWidth / 3).toDouble();
-    final top = firstLine.bounds.top - 2;
+    final left = pageWidth * .115;
+    final top = titleLine.bounds.bottom + 17;
     final right = pageWidth - left;
-    final originalHeight = lastLine.bounds.bottom - firstLine.bounds.top + 5;
+    final originalHeight = nextParagraphLine.bounds.top - top - 7;
+    if (originalHeight < 20) return;
     final paragraph =
         'I, $formalName, of legal age, $civilStatus, Filipino, and with residence at $address, after having been duly sworn in accordance with law, do hereby depose and state that:';
     final font = PdfStandardFont(
