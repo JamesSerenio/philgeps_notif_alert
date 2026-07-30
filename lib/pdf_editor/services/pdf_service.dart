@@ -117,10 +117,6 @@ class PdfService {
     // editor, just like the generated schedules and specification sheets.
     _drawManpowerSignature(document, values);
 
-    // Use the hidden civil-status and address profile associated with the
-    // selected signatory on the Omnibus Sworn Statement.
-    _drawOmnibusSwornStatementIdentity(document, values);
-
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -223,6 +219,10 @@ class PdfService {
     if (document.pages.count > 45) {
       document.pages.removeAt(45);
     }
+
+    // Apply this after every optional-page removal because the Omnibus form's
+    // source index shifts. It is final output page 53 in the generated file.
+    _drawOmnibusSwornStatementIdentity(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -2015,9 +2015,9 @@ class PdfService {
       address = 'Tankulan, Manolo Fortich, Bukidnon';
     }
 
-    // The actual form is page 66 (zero-based index 65) in the unmodified
-    // source template. This runs before optional template pages are removed.
-    const pageIndex = 65;
+    // All optional template pages have already been removed at this point.
+    // The Omnibus Sworn Statement is final page 53 (zero-based index 52).
+    const pageIndex = 52;
     if (document.pages.count <= pageIndex) return;
     final page = document.pages[pageIndex];
     final pageWidth = page.getClientSize().width;
