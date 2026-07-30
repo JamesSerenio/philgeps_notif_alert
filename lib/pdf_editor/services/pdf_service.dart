@@ -117,6 +117,10 @@ class PdfService {
     // editor, just like the generated schedules and specification sheets.
     _drawManpowerSignature(document, values);
 
+    // Use the hidden civil-status and address profile associated with the
+    // selected signatory on the Omnibus Sworn Statement.
+    _drawOmnibusSwornStatementIdentity(document, values);
+
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -1906,10 +1910,8 @@ class PdfService {
     final pageLines = lines.where((line) => line.pageIndex == pageIndex);
     TextLine? submittedLabel;
     for (final line in pageLines) {
-      final text = line.text
-          .trim()
-          .toUpperCase()
-          .replaceAll(RegExp(r'\s+'), ' ');
+      final text =
+          line.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
       // The source sometimes encodes the label, colon, and old value as one
       // text line, so matching the complete extracted string is unreliable.
       if (text.contains('SUBMITTED BY')) {
@@ -1989,6 +1991,86 @@ class PdfService {
     drawRow('Designation', 'Authorized Representative', top + 36);
     drawRow('Name of Firm', bidderName, top + 55);
     drawRow('Date', date, top + 74);
+  }
+
+  static void _drawOmnibusSwornStatementIdentity(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    final formalName = (values['submittedByFormalName'] ?? '').trim();
+    final civilStatus = (values['submittedByCivilStatus'] ?? '').trim();
+    final address = (values['submittedByAddress'] ?? '').trim();
+    if (formalName.isEmpty || civilStatus.isEmpty || address.isEmpty) return;
+
+    final lines = PdfTextExtractor(document).extractTextLines();
+    int? pageIndex;
+    for (final line in lines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('OMNIBUS SWORN STATEMENT')) {
+        pageIndex = line.pageIndex;
+        break;
+      }
+    }
+    if (pageIndex == null) return;
+
+    final pageLines = lines
+        .where((line) => line.pageIndex == pageIndex)
+        .toList()
+      ..sort((a, b) => a.bounds.top.compareTo(b.bounds.top));
+    TextLine? firstLine;
+    TextLine? lastLine;
+    var inIdentityParagraph = false;
+    for (final line in pageLines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (!inIdentityParagraph && text.contains('OF LEGAL AGE')) {
+        firstLine = line;
+        lastLine = line;
+        inIdentityParagraph = true;
+        if (text.contains('DEPOSE AND STATE THAT')) break;
+        continue;
+      }
+      if (inIdentityParagraph) {
+        lastLine = line;
+        if (text.contains('DEPOSE AND STATE THAT')) break;
+      }
+    }
+    if (firstLine == null || lastLine == null) return;
+
+    final page = document.pages[pageIndex];
+    final pageWidth = page.getClientSize().width;
+    final left = firstLine.bounds.left.clamp(60, pageWidth / 3).toDouble();
+    final top = firstLine.bounds.top - 2;
+    final right = pageWidth - left;
+    final originalHeight = lastLine.bounds.bottom - firstLine.bounds.top + 5;
+    final paragraph =
+        'I, $formalName, of legal age, $civilStatus, Filipino, and with residence at $address, after having been duly sworn in accordance with law, do hereby depose and state that:';
+    final font = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.italic,
+    );
+
+    page.graphics.drawRectangle(
+      brush: PdfSolidBrush(PdfColor(255, 255, 255)),
+      bounds: Rect.fromLTWH(
+        left - 3,
+        top - 2,
+        right - left + 6,
+        originalHeight + 6,
+      ),
+    );
+    page.graphics.drawString(
+      paragraph,
+      font,
+      brush: PdfSolidBrush(PdfColor(0, 0, 0)),
+      bounds: Rect.fromLTWH(left, top, right - left, originalHeight + 3),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.justify,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.word,
+        paragraphIndent: 32,
+      ),
+    );
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {

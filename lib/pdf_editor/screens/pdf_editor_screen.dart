@@ -41,6 +41,24 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     'CARLOS RAFAEL A. JAMILO',
     'MARLJONE BLAIRE B. TINGTING',
   ];
+  static const Map<String, ({String name, String civilStatus, String address})>
+      submittedByProfiles = {
+    'JHO ANN Q, CLEOPAS': (
+      name: 'Jho Ann Q. Cleopas',
+      civilStatus: 'married',
+      address: 'Tankulan, Manolo Fortich, Bukidnon',
+    ),
+    'CARLOS RAFAEL A. JAMILO': (
+      name: 'Carlos Rafael A. Jamilo',
+      civilStatus: 'single',
+      address: 'Camaman-an, Cagayan de Oro City, Misamis Oriental',
+    ),
+    'MARLJONE BLAIRE B. TINGTING': (
+      name: 'Marljone Blaire B. Tingting',
+      civilStatus: 'single',
+      address: 'Tankulan, Manolo Fortich, Bukidnon',
+    ),
+  };
   static const List<String> defaultUnitSuggestions = [
     'pcs',
     'pc',
@@ -474,6 +492,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     });
 
     try {
+      final submittedBy = submittedByController.text.trim();
+      final submittedByProfile = submittedByProfiles[submittedBy.toUpperCase()];
       // Give the browser a frame to paint the loading overlay before the
       // CPU-heavy PDF work starts.
       await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -494,7 +514,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'date': dateController.text.trim(),
           'bidderName': bidderNameController.text.trim(),
           'procuringEntity': procuringEntityController.text.trim(),
-          'submittedBy': submittedByController.text.trim(),
+          'submittedBy': submittedBy,
+          'submittedByFormalName': submittedByProfile?.name ?? submittedBy,
+          'submittedByCivilStatus': submittedByProfile?.civilStatus ?? '',
+          'submittedByAddress': submittedByProfile?.address ?? '',
           for (final entry in slccControllers.entries)
             entry.key: entry.value.text.trim(),
           'technicalSpecifications': jsonEncode([
@@ -580,9 +603,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         decoration: InputDecoration(
           labelText: label,
           filled: true,
-          fillColor: readOnly
-              ? const Color(0xFFF1F5F2)
-              : Colors.white,
+          fillColor: readOnly ? const Color(0xFFF1F5F2) : Colors.white,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,
             vertical: 13,
@@ -1091,6 +1112,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 ),
               );
             }
+
             return Card(
               elevation: 0,
               color: Colors.white,
@@ -1315,145 +1337,145 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           Positioned.fill(
             child: LayoutBuilder(
               builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 900;
+                final isWide = constraints.maxWidth >= 900;
 
-          final formPanel = Container(
-            width: isWide ? 380 : double.infinity,
-            color: const Color(0xFFF4F7F5),
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-            child: ListView(
-              children: [
-                sectionHeading(
-                  Icons.business_center_outlined,
-                  'PROJECT INFORMATION',
-                  subtitle: 'Bid and procuring entity details',
-                ),
-                formField(
-                  label: 'Province',
-                  controller: provinceController,
-                ),
-                formField(
-                  label: 'Municipality',
-                  controller: municipalityController,
-                ),
-                formField(
-                  label: 'Project Title',
-                  controller: projectTitleController,
-                  maxLines: 3,
-                ),
-                formField(
-                  label: 'Reference Number',
-                  controller: referenceNumberController,
-                ),
-                formField(
-                  label: 'Procuring Entity',
-                  controller: procuringEntityController,
-                  maxLines: 2,
-                ),
-                formField(
-                  label: 'Date',
-                  controller: dateController,
-                ),
-                formField(
-                  label: 'Bidder Name',
-                  controller: bidderNameController,
-                ),
-                submittedByField(),
-                const SizedBox(height: 4),
-                slccFields(),
-                const SizedBox(height: 12),
-                technicalSpecificationsFields(),
-                const SizedBox(height: 12),
-                priceScheduleFields(),
-                const SizedBox(height: 12),
-                scheduleRequirementsFields(),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: isGenerating ? null : generatePdf,
-                  icon: isGenerating
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Icon(Icons.picture_as_pdf),
-                  label: Text(
-                    isGenerating ? 'Generating...' : 'Generate PDF',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0B5D3B),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(50),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                if (errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    errorMessage!,
-                    style: const TextStyle(
-                      color: Colors.red,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          );
-
-          final previewPanel = Container(
-            color: const Color(0xFFF2F2F2),
-            child: previewViewType == null
-                ? const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.picture_as_pdf_outlined,
-                          size: 54,
-                          color: Colors.grey,
+                final formPanel = Container(
+                  width: isWide ? 380 : double.infinity,
+                  color: const Color(0xFFF4F7F5),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+                  child: ListView(
+                    children: [
+                      sectionHeading(
+                        Icons.business_center_outlined,
+                        'PROJECT INFORMATION',
+                        subtitle: 'Bid and procuring entity details',
+                      ),
+                      formField(
+                        label: 'Province',
+                        controller: provinceController,
+                      ),
+                      formField(
+                        label: 'Municipality',
+                        controller: municipalityController,
+                      ),
+                      formField(
+                        label: 'Project Title',
+                        controller: projectTitleController,
+                        maxLines: 3,
+                      ),
+                      formField(
+                        label: 'Reference Number',
+                        controller: referenceNumberController,
+                      ),
+                      formField(
+                        label: 'Procuring Entity',
+                        controller: procuringEntityController,
+                        maxLines: 2,
+                      ),
+                      formField(
+                        label: 'Date',
+                        controller: dateController,
+                      ),
+                      formField(
+                        label: 'Bidder Name',
+                        controller: bidderNameController,
+                      ),
+                      submittedByField(),
+                      const SizedBox(height: 4),
+                      slccFields(),
+                      const SizedBox(height: 12),
+                      technicalSpecificationsFields(),
+                      const SizedBox(height: 12),
+                      priceScheduleFields(),
+                      const SizedBox(height: 12),
+                      scheduleRequirementsFields(),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: isGenerating ? null : generatePdf,
+                        icon: isGenerating
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.picture_as_pdf),
+                        label: Text(
+                          isGenerating ? 'Generating...' : 'Generate PDF',
                         ),
-                        SizedBox(height: 12),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0B5D3B),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(50),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      if (errorMessage != null) ...[
+                        const SizedBox(height: 12),
                         Text(
-                          'Fill up the form, then click Generate PDF.',
+                          errorMessage!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                          ),
                         ),
                       ],
-                    ),
-                  )
-                : HtmlElementView(
-                    key: ValueKey(previewViewType),
-                    viewType: previewViewType!,
+                    ],
                   ),
-          );
+                );
 
-          if (isWide) {
-            return Row(
-              children: [
-                formPanel,
-                const VerticalDivider(width: 1),
-                Expanded(child: previewPanel),
-              ],
-            );
-          }
+                final previewPanel = Container(
+                  color: const Color(0xFFF2F2F2),
+                  child: previewViewType == null
+                      ? const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.picture_as_pdf_outlined,
+                                size: 54,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                'Fill up the form, then click Generate PDF.',
+                              ),
+                            ],
+                          ),
+                        )
+                      : HtmlElementView(
+                          key: ValueKey(previewViewType),
+                          viewType: previewViewType!,
+                        ),
+                );
 
-          return Column(
-            children: [
-              SizedBox(
-                height: 420,
-                child: formPanel,
-              ),
-              const Divider(height: 1),
-              Expanded(child: previewPanel),
-            ],
-          );
+                if (isWide) {
+                  return Row(
+                    children: [
+                      formPanel,
+                      const VerticalDivider(width: 1),
+                      Expanded(child: previewPanel),
+                    ],
+                  );
+                }
+
+                return Column(
+                  children: [
+                    SizedBox(
+                      height: 420,
+                      child: formPanel,
+                    ),
+                    const Divider(height: 1),
+                    Expanded(child: previewPanel),
+                  ],
+                );
               },
             ),
           ),
@@ -1507,111 +1529,111 @@ class _PdfGenerationOverlayState extends State<_PdfGenerationOverlay> {
     return Material(
       color: Colors.black.withOpacity(.38),
       child: Center(
-          child: Container(
-            width: 360,
-            margin: const EdgeInsets.all(24),
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 32,
-                  offset: Offset(0, 14),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                    width: 86,
-                    height: 86,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        const SizedBox(
-                          width: 82,
-                          height: 82,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 4,
-                            color: Color(0xFF0B5D3B),
-                            backgroundColor: Color(0xFFE1EEE7),
-                          ),
-                        ),
-                        Container(
-                          width: 58,
-                          height: 58,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE7F4EC),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(
-                            Icons.picture_as_pdf_rounded,
-                            size: 31,
-                            color: Color(0xFF0B5D3B),
-                          ),
-                        ),
-                      ],
-                    ),
-                ),
-                const SizedBox(height: 22),
-                const Text(
-                  'Generating Bid Document',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF173D2C),
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 22,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    transitionBuilder: (child, animation) => FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, .3),
-                          end: Offset.zero,
-                        ).animate(animation),
-                        child: child,
-                      ),
-                    ),
-                    child: Text(
-                      messages[messageIndex],
-                      key: ValueKey(messageIndex),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xFF66736C),
-                        fontSize: 13.5,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: const LinearProgressIndicator(
-                    minHeight: 6,
-                    color: Color(0xFF0B5D3B),
-                    backgroundColor: Color(0xFFE2ECE6),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Please keep this window open.',
-                  style: TextStyle(
-                    color: Color(0xFF87918B),
-                    fontSize: 11.5,
-                  ),
-                ),
-              ],
-            ),
+        child: Container(
+          width: 360,
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 32,
+                offset: Offset(0, 14),
+              ),
+            ],
           ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 86,
+                height: 86,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 82,
+                      height: 82,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 4,
+                        color: Color(0xFF0B5D3B),
+                        backgroundColor: Color(0xFFE1EEE7),
+                      ),
+                    ),
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE7F4EC),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.picture_as_pdf_rounded,
+                        size: 31,
+                        color: Color(0xFF0B5D3B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'Generating Bid Document',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF173D2C),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 22,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, .3),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  ),
+                  child: Text(
+                    messages[messageIndex],
+                    key: ValueKey(messageIndex),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFF66736C),
+                      fontSize: 13.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: const LinearProgressIndicator(
+                  minHeight: 6,
+                  color: Color(0xFF0B5D3B),
+                  backgroundColor: Color(0xFFE2ECE6),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Please keep this window open.',
+                style: TextStyle(
+                  color: Color(0xFF87918B),
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
