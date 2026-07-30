@@ -2220,26 +2220,43 @@ class PdfService {
 
     // Item 7(d): replace the sample Sumilao project with the current bid.
     if (projectTitle.isNotEmpty) {
-      graphics.drawRectangle(
-        brush: white,
-        bounds: const Rect.fromLTWH(128, 129, 430, 43),
+      final pageLines = PdfTextExtractor(document).extractTextLines(
+        startPageIndex: pageIndex,
+        endPageIndex: pageIndex,
       );
-      graphics.drawString(
-        'd)     Inquire or secure Supplemental Bid Bulletin(s) issued for the',
-        regular,
-        brush: black,
-        bounds: const Rect.fromLTWH(128, 130, 430, 15),
-      );
-      graphics.drawString(
-        projectTitle,
-        italic,
-        brush: black,
-        bounds: const Rect.fromLTWH(158, 145, 400, 27),
-        format: PdfStringFormat(
-          wordWrap: PdfWordWrapType.word,
-          lineAlignment: PdfVerticalAlignment.top,
-        ),
-      );
+      TextLine? inquiryLine;
+      for (final line in pageLines) {
+        final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+        if (text.contains('INQUIRE OR SECURE SUPPLEMENTAL BID')) {
+          inquiryLine = line;
+          break;
+        }
+      }
+      if (inquiryLine != null) {
+        final top = inquiryLine.bounds.top - 2;
+        final left = (inquiryLine.bounds.left - 24).clamp(60, 500).toDouble();
+        final right = page.getClientSize().width - 55;
+        graphics.drawRectangle(
+          brush: white,
+          bounds: Rect.fromLTWH(left, top, right - left, 43),
+        );
+        graphics.drawString(
+          'd)     Inquire or secure Supplemental Bid Bulletin(s) issued for the',
+          regular,
+          brush: black,
+          bounds: Rect.fromLTWH(left, top + 1, right - left, 15),
+        );
+        graphics.drawString(
+          projectTitle,
+          italic,
+          brush: black,
+          bounds: Rect.fromLTWH(left + 30, top + 16, right - left - 30, 27),
+          format: PdfStringFormat(
+            wordWrap: PdfWordWrapType.word,
+            lineAlignment: PdfVerticalAlignment.top,
+          ),
+        );
+      }
     }
 
     // Witness clause: fill the date and place instead of retaining blanks.
