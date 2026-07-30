@@ -2058,7 +2058,10 @@ class PdfService {
       ('depose and state that:', regularFont),
     ];
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
-    const firstLineIndent = 32.0;
+    // Align the first "I" of the editable first and third paragraphs with
+    // the unchanged middle paragraph, matching the original three-paragraph
+    // vertical rhythm.
+    const firstLineIndent = 38.0;
     const lineHeight = 13.0;
     var y = top;
     var x = left + firstLineIndent;
