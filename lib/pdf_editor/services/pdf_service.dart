@@ -3709,7 +3709,93 @@ class PdfService {
         ),
       ]);
     }
-    if (itemFour == null) return;
+    TextLine? witnessLine;
+    TextLine? subscribedLine;
+    for (final line in lines) {
+      final text =
+          line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text.startsWith('IN WITNESS WHEREOF')) witnessLine ??= line;
+      if (text.startsWith('SUBSCRIBED AND SWORN')) subscribedLine ??= line;
+    }
+
+    String ordinal(int day) {
+      if (day >= 11 && day <= 13) return '${day}th';
+      return switch (day % 10) {
+        1 => '${day}st',
+        2 => '${day}nd',
+        3 => '${day}rd',
+        _ => '${day}th',
+      };
+    }
+
+    var legalDate = documentDate;
+    try {
+      final parsedDate = DateFormat('MMMM d, yyyy').parseStrict(documentDate);
+      legalDate = '${ordinal(parsedDate.day)} day of '
+          '${DateFormat('MMMM yyyy').format(parsedDate)}';
+    } on FormatException {
+      // Keep the supplied value if it is not in the expected display format.
+    }
+    final legalLocation =
+        'Municipality of $municipality, $province, Philippines';
+
+    void replaceLegalParagraph(
+      TextLine? line,
+      List<(String, PdfFont)> runs, {
+      double height = 36,
+    }) {
+      if (line == null) return;
+      final targetPage = document.pages[line.pageIndex];
+      final targetGraphics = targetPage.graphics;
+      final left = line.bounds.left;
+      final width = targetPage.size.width - left - 45;
+      targetGraphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(left - 2, line.bounds.top - 1, width + 4, height),
+      );
+      var x = left;
+      var y = line.bounds.top;
+      var hasWord = false;
+      const lineHeight = 15.0;
+      for (final run in runs) {
+        for (final word in run.$1.trim().split(RegExp(r'\s+'))) {
+          if (word.isEmpty) continue;
+          final spaceWidth = hasWord
+              ? run.$2.measureString(' x').width -
+                  run.$2.measureString('x').width
+              : 0.0;
+          final wordWidth = run.$2.measureString(word).width;
+          if (x > left && x + spaceWidth + wordWidth > left + width) {
+            x = left;
+            y += lineHeight;
+            hasWord = false;
+          }
+          if (hasWord) x += spaceWidth;
+          targetGraphics.drawString(
+            word,
+            run.$2,
+            brush: black,
+            bounds: Rect.fromLTWH(x, y, wordWidth + 2, lineHeight),
+          );
+          x += wordWidth;
+          hasWord = true;
+        }
+      }
+    }
+
+    replaceLegalParagraph(witnessLine, <(String, PdfFont)>[
+      ('IN WITNESS WHEREOF, ', bold),
+      ('I have hereunto set my hand this ', regular),
+      ('$legalDate ', bold),
+      ('at $legalLocation.', regular),
+    ]);
+    replaceLegalParagraph(subscribedLine, <(String, PdfFont)>[
+      ('SUBSCRIBED AND SWORN ', bold),
+      (
+        'to before me this $legalDate at $legalLocation, affiant exhibiting to me their competent evidence of identity.',
+        regular
+      ),
+    ]);
   }
 
   static String _formatBidAmount(double amount) {
