@@ -226,6 +226,7 @@ class PdfService {
     _drawOmnibusSwornStatementLastPage(document, values);
     _drawAfterSalesServiceCertificate(document, values);
     _drawProductWarrantyCertificate(document, values);
+    _drawJuratPlaceholders(document);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -2815,6 +2816,93 @@ class PdfService {
     drawRow('Designation', 'Authorized Representative', signatureTop + 31);
     drawRow('Name of Firm', displayBidderName, signatureTop + 48);
     drawRow('Date', date, signatureTop + 65);
+  }
+
+  static void _drawJuratPlaceholders(PdfDocument document) {
+    final lines = PdfTextExtractor(document).extractTextLines();
+    TextLine? subscribedLine;
+    TextLine? witnessLine;
+    TextLine? ptrLine;
+    TextLine? ibpLine;
+    for (final line in lines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('SUBSCRIBED AND SWORN')) subscribedLine ??= line;
+      if (text.contains('WITNESS MY HAND AND SEAL')) witnessLine ??= line;
+      if (text.startsWith('PTR NO.')) ptrLine ??= line;
+      if (text.startsWith('IBP NO.')) ibpLine ??= line;
+    }
+    if (subscribedLine == null) return;
+
+    final page = document.pages[subscribedLine.pageIndex];
+    final graphics = page.graphics;
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11.5);
+    final bold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      11.5,
+      style: PdfFontStyle.bold,
+    );
+    final left = subscribedLine.bounds.left;
+    final right = page.getClientSize().width - left;
+    final subscribedTop = subscribedLine.bounds.top - 2;
+
+    graphics.drawRectangle(
+      brush: white,
+      bounds: Rect.fromLTWH(left - 3, subscribedTop - 2, right - left + 6, 82),
+    );
+    graphics.drawString(
+      'SUBSCRIBED AND SWORN to before me this ______ day of ________ at '
+      'Municipality of ________, ________, Philippines. Affiant/s is/are '
+      'personally known to me and was/were identified by me through competent '
+      'evidence of identity as defined in the 2004 Rules on Notarial Practice '
+      '(A.M. No. 02-8-13-SC). Affiant/s exhibited to me his/her National ID, '
+      'with his/her photograph and signature appearing thereon, with no. '
+      '____________________',
+      regular,
+      brush: black,
+      bounds: Rect.fromLTWH(left, subscribedTop, right - left, 80),
+      format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+    );
+
+    final witnessTop = (witnessLine?.bounds.top ?? subscribedTop + 86) - 2;
+    graphics.drawRectangle(
+      brush: white,
+      bounds: Rect.fromLTWH(left - 3, witnessTop - 2, right - left + 6, 22),
+    );
+    graphics.drawString(
+      'WITNESS MY HAND AND SEAL this ____ day of ________.',
+      bold,
+      brush: black,
+      bounds: Rect.fromLTWH(left, witnessTop, right - left, 18),
+    );
+
+    void replaceNotaryDate(TextLine? line, String label) {
+      if (line == null) return;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          line.bounds.left - 2,
+          line.bounds.top - 1,
+          line.bounds.width + 30,
+          line.bounds.height + 3,
+        ),
+      );
+      graphics.drawString(
+        '$label ____, ________',
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          line.bounds.left,
+          line.bounds.top,
+          line.bounds.width + 30,
+          16,
+        ),
+      );
+    }
+
+    replaceNotaryDate(ptrLine, 'PTR No.');
+    replaceNotaryDate(ibpLine, 'IBP No.');
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
