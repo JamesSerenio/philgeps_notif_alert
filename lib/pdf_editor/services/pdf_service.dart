@@ -1815,8 +1815,8 @@ class PdfService {
         ];
         for (var column = 0; column < texts.length; column++) {
           final isPriceColumn = column >= 5;
-          page.graphics.drawString(texts[column],
-              isPriceColumn ? priceBold : regular,
+          page.graphics.drawString(
+              texts[column], isPriceColumn ? priceBold : regular,
               brush: column == 2 || column == 10 ? red : black,
               bounds: Rect.fromLTWH(columns[column] + 2, y + 1,
                   columns[column + 1] - columns[column] - 4, rowHeight - 2),
@@ -2063,8 +2063,10 @@ class PdfService {
       ('Filipino', emphasizedFont),
       (', and with residence at ', regularFont),
       (address, emphasizedFont),
-      (', after having been duly sworn in accordance with law, do hereby ',
-          regularFont),
+      (
+        ', after having been duly sworn in accordance with law, do hereby ',
+        regularFont
+      ),
       ('depose and state that:', regularFont),
     ];
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
@@ -2136,15 +2138,21 @@ class PdfService {
       ),
     );
     final authorityParts = <(String, PdfFont)>[
-      ('I am granted full power and authority to do, execute and perform any '
-          'and all acts necessary to participate, submit the bid, and to sign '
-          'and execute the ensuing contract for ', regularFont),
+      (
+        'I am granted full power and authority to do, execute and perform any '
+            'and all acts necessary to participate, submit the bid, and to sign '
+            'and execute the ensuing contract for ',
+        regularFont
+      ),
       (projectTitle, emphasizedFont),
       (' of the ', regularFont),
       ('Municipality of $municipality, $province', emphasizedFont),
-      (' as supported by the attached duly notarized Special Power of '
-          'Attorney, Board/Partnership Resolution, or Secretary’s Certificate, '
-          'whichever is applicable;', regularFont),
+      (
+        ' as supported by the attached duly notarized Special Power of '
+            'Attorney, Board/Partnership Resolution, or Secretary’s Certificate, '
+            'whichever is applicable;',
+        regularFont
+      ),
     ];
     var authorityY = authorityTop;
     var authorityX = left + firstLineIndent;
@@ -2420,8 +2428,11 @@ class PdfService {
     final bodyParts = <(String, PdfFont)>[
       ('This serves to certify that ', bodyRegular),
       (bidderName, bodyBold),
-      (' is fully committed to providing comprehensive after-sales support '
-          'to the ', bodyRegular),
+      (
+        ' is fully committed to providing comprehensive after-sales support '
+            'to the ',
+        bodyRegular
+      ),
       (procuringEntity, bodyBold),
       (' for the project: ', bodyRegular),
       (projectTitle, bodyItalic),
@@ -2472,20 +2483,27 @@ class PdfService {
     }
 
     // Restore the complete support-period paragraph in the source format.
-    final supportTop = secondParagraphLine?.bounds.top ?? (certificateTop + 145);
+    final supportTop =
+        secondParagraphLine?.bounds.top ?? (certificateTop + 145);
     graphics.drawRectangle(
       brush: white,
       bounds: Rect.fromLTWH(96, supportTop - 5, 430, 100),
     );
     final supportParts = <(String, PdfFont)>[
-      ('Beyond the initial delivery of materials, our company pledges a '
-          'dedicated ', bodyRegular),
+      (
+        'Beyond the initial delivery of materials, our company pledges a '
+            'dedicated ',
+        bodyRegular
+      ),
       ('one (1) year', bodyBold),
-      (' period of technical support and after-sales service. We remain at '
-          'the full disposal of the municipal end-users to ensure that all '
-          'operational needs are met and that our professional assistance is '
-          'readily available throughout the first year of the facility’s '
-          'rehabilitation.', bodyRegular),
+      (
+        ' period of technical support and after-sales service. We remain at '
+            'the full disposal of the municipal end-users to ensure that all '
+            'operational needs are met and that our professional assistance is '
+            'readily available throughout the first year of the facility’s '
+            'rehabilitation.',
+        bodyRegular
+      ),
     ];
     var supportX = bodyLeft + 28;
     var supportY = supportTop;
@@ -2499,8 +2517,7 @@ class PdfService {
         supportPendingSpace = false;
         final spaceWidth = hasLeadingSpace ? 3.4 : 0.0;
         final width = part.$2.measureString(word).width;
-        if (supportX + spaceWidth + width > bodyRight &&
-            supportX > bodyLeft) {
+        if (supportX + spaceWidth + width > bodyRight && supportX > bodyLeft) {
           supportY += bodyLineHeight;
           supportX = bodyLeft;
         }
@@ -2617,6 +2634,16 @@ class PdfService {
       if (text.contains('SUBMITTED BY')) submittedLine ??= line;
     }
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
+    final bold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10.5,
+      style: PdfFontStyle.bold,
+    );
+    final italic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10.5,
+      style: PdfFontStyle.italic,
+    );
     final bodyLeft = 106.0;
     final bodyRight = page.getClientSize().width - 96;
     final firstTop = certificationLine?.bounds.top ?? 188.0;
@@ -2625,30 +2652,63 @@ class PdfService {
         : (guaranteeLine.bounds.top - firstTop - 8).clamp(65, 120).toDouble();
     graphics.drawRectangle(
       brush: white,
-      bounds: Rect.fromLTWH(90, firstTop - 6, bodyRight - 74, firstHeight + 12),
+      bounds: Rect.fromLTWH(
+          72, firstTop - 8, page.getClientSize().width - 130, firstHeight + 18),
     );
-    final firstParagraph =
-        'This is to certify that $bidderName provides a two (2) Year Limited '
-        'Warranty on all materials supplied for the $projectTitle in '
-        'Municipality of $municipality, $province.';
-    graphics.drawString(
-      firstParagraph,
-      regular,
-      brush: black,
-      bounds: Rect.fromLTWH(bodyLeft, firstTop, bodyRight - bodyLeft, firstHeight),
-      format: PdfStringFormat(
-        wordWrap: PdfWordWrapType.word,
-        lineAlignment: PdfVerticalAlignment.top,
-        paragraphIndent: 28,
-      ),
-    );
+    void drawStyledParagraph(
+      List<(String, PdfFont)> parts,
+      double top, {
+      double firstLineIndent = 28,
+    }) {
+      const lineHeight = 12.5;
+      var x = bodyLeft + firstLineIndent;
+      var y = top;
+      var pendingSpace = false;
+      for (final part in parts) {
+        for (final match in RegExp(r'\S+').allMatches(part.$1)) {
+          final word = match.group(0)!;
+          final hasLeadingSpace = pendingSpace ||
+              (match.start > 0 &&
+                  RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
+          pendingSpace = false;
+          final spaceWidth = hasLeadingSpace ? 2.7 : 0.0;
+          final width = part.$2.measureString(word).width;
+          if (x + spaceWidth + width > bodyRight && x > bodyLeft) {
+            y += lineHeight;
+            x = bodyLeft;
+          }
+          if (x > bodyLeft) x += spaceWidth;
+          graphics.drawString(word, part.$2,
+              brush: black, bounds: Rect.fromLTWH(x, y, width + 1, lineHeight));
+          x += width;
+        }
+        pendingSpace = RegExp(r'\s$').hasMatch(part.$1);
+      }
+    }
+
+    drawStyledParagraph(<(String, PdfFont)>[
+      ('This is to certify that ', regular),
+      (bidderName, bold),
+      (' provides a ', regular),
+      ('two (2) Year', bold),
+      (' Limited Warranty on all materials supplied for the ', regular),
+      (projectTitle, italic),
+      (' in ', regular),
+      ('Municipality of $municipality, $province', bold),
+      ('.', regular),
+    ], firstTop);
 
     // Update the company name in the closing commitment sentence.
     if (commitmentLine != null) {
       final top = commitmentLine.bounds.top - 3;
       graphics.drawRectangle(
         brush: white,
-        bounds: Rect.fromLTWH(96, top, bodyRight - 86, 38),
+        bounds: Rect.fromLTWH(
+          72,
+          top - 2,
+          page.getClientSize().width - 130,
+          42,
+        ),
       );
       graphics.drawString(
         '$bidderName remains committed to ensuring the quality and durability '
@@ -2657,6 +2717,17 @@ class PdfService {
         brush: black,
         bounds: Rect.fromLTWH(bodyLeft, top + 3, bodyRight - bodyLeft, 34),
         format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      );
+      graphics.drawString(
+        bidderName,
+        bold,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          bodyLeft,
+          top + 3,
+          bold.measureString(bidderName).width + 2,
+          14,
+        ),
       );
     }
 
@@ -2680,12 +2751,12 @@ class PdfService {
       style: PdfFontStyle.bold,
     );
     void drawRow(String label, String value, double y) {
-      graphics.drawString(label, labelFont, brush: black,
-          bounds: Rect.fromLTWH(labelLeft, y, 100, 15));
-      graphics.drawString(':', labelFont, brush: black,
-          bounds: Rect.fromLTWH(colonLeft, y, 10, 15));
-      graphics.drawString(value, valueFont, brush: black,
-          bounds: Rect.fromLTWH(valueLeft, y, 250, 15));
+      graphics.drawString(label, labelFont,
+          brush: black, bounds: Rect.fromLTWH(labelLeft, y, 100, 15));
+      graphics.drawString(':', labelFont,
+          brush: black, bounds: Rect.fromLTWH(colonLeft, y, 10, 15));
+      graphics.drawString(value, valueFont,
+          brush: black, bounds: Rect.fromLTWH(valueLeft, y, 250, 15));
     }
 
     drawRow('Submitted by', formalName, signatureTop);
