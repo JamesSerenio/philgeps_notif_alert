@@ -225,6 +225,7 @@ class PdfService {
     _drawOmnibusSwornStatementIdentity(document, values);
     _drawOmnibusSwornStatementLastPage(document, values);
     _drawAfterSalesServiceCertificate(document, values);
+    _drawProductWarrantyCertificate(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -2570,6 +2571,129 @@ class PdfService {
     drawRow('Designation', 'Authorized Representative', top + 31);
     drawRow('Name of Firm', bidderName.toUpperCase(), top + 48);
     drawRow('Date', date, top + 65);
+  }
+
+  static void _drawProductWarrantyCertificate(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    const pageIndex = 56;
+    if (document.pages.count <= pageIndex) return;
+    final page = document.pages[pageIndex];
+    final graphics = page.graphics;
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final bidderName = (values['bidderName'] ?? '').trim();
+    final projectTitle = (values['projectTitle'] ?? '').trim();
+    final municipality = (values['municipality'] ?? '').trim();
+    final province = (values['province'] ?? '').trim();
+    final date = (values['date'] ?? '').trim();
+    final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
+    final formalName = selectedName.contains('CARLOS RAFAEL A. JAMILO')
+        ? 'CARLOS RAFAEL A. JAMILO'
+        : selectedName.contains('MARLJONE BLAIRE B. TINGTING')
+            ? 'MARLJONE BLAIRE B. TINGTING'
+            : 'JHO ANN Q. CLEOPAS';
+    final lines = PdfTextExtractor(document).extractTextLines(
+      startPageIndex: pageIndex,
+      endPageIndex: pageIndex,
+    );
+    TextLine? certificationLine;
+    TextLine? guaranteeLine;
+    TextLine? commitmentLine;
+    TextLine? submittedLine;
+    for (final line in lines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('THIS IS TO CERTIFY THAT')) certificationLine ??= line;
+      if (text.contains('WE GUARANTEE')) guaranteeLine ??= line;
+      if (text.contains('REMAINS COMMITTED')) commitmentLine ??= line;
+      if (text.contains('SUBMITTED BY')) submittedLine ??= line;
+    }
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
+    final bodyLeft = 106.0;
+    final bodyRight = page.getClientSize().width - 96;
+    final firstTop = certificationLine?.bounds.top ?? 188.0;
+    final firstHeight = guaranteeLine == null
+        ? 95.0
+        : (guaranteeLine.bounds.top - firstTop - 8).clamp(65, 120).toDouble();
+    graphics.drawRectangle(
+      brush: white,
+      bounds: Rect.fromLTWH(90, firstTop - 6, bodyRight - 74, firstHeight + 12),
+    );
+    final firstParagraph =
+        'This is to certify that $bidderName provides a two (2) Year Limited '
+        'Warranty on all materials supplied for the $projectTitle in '
+        'Municipality of $municipality, $province.';
+    graphics.drawString(
+      firstParagraph,
+      regular,
+      brush: black,
+      bounds: Rect.fromLTWH(bodyLeft, firstTop, bodyRight - bodyLeft, firstHeight),
+      format: PdfStringFormat(
+        wordWrap: PdfWordWrapType.word,
+        lineAlignment: PdfVerticalAlignment.top,
+        paragraphIndent: 28,
+      ),
+    );
+
+    // Update the company name in the closing commitment sentence.
+    if (commitmentLine != null) {
+      final top = commitmentLine.bounds.top - 3;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(96, top, bodyRight - 86, 38),
+      );
+      graphics.drawString(
+        '$bidderName remains committed to ensuring the quality and durability '
+        'of our contributions to the Municipality’s infrastructure.',
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(bodyLeft, top + 3, bodyRight - bodyLeft, 34),
+        format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      );
+    }
+
+    final labelLeft = submittedLine?.bounds.left ?? 143.0;
+    final colonLeft = labelLeft + 109;
+    final valueLeft = labelLeft + 145;
+    final signatureTop = (submittedLine?.bounds.top ?? 475.0) - 1;
+    graphics.drawRectangle(
+      brush: white,
+      bounds: Rect.fromLTWH(
+        labelLeft - 5,
+        signatureTop - 5,
+        page.getClientSize().width - labelLeft - 25,
+        108,
+      ),
+    );
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.bold,
+    );
+    void drawRow(String label, String value, double y) {
+      graphics.drawString(label, labelFont, brush: black,
+          bounds: Rect.fromLTWH(labelLeft, y, 100, 15));
+      graphics.drawString(':', labelFont, brush: black,
+          bounds: Rect.fromLTWH(colonLeft, y, 10, 15));
+      graphics.drawString(value, valueFont, brush: black,
+          bounds: Rect.fromLTWH(valueLeft, y, 250, 15));
+    }
+
+    drawRow('Submitted by', formalName, signatureTop);
+    final nameWidth = valueFont.measureString(formalName).width;
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: .5),
+      Offset(valueLeft, signatureTop + 12),
+      Offset(valueLeft + nameWidth, signatureTop + 12),
+    );
+    graphics.drawString('(Printed Name & Signature)', labelFont,
+        brush: black,
+        bounds: Rect.fromLTWH(valueLeft, signatureTop + 15, 200, 14));
+    drawRow('Designation', 'Authorized Representative', signatureTop + 31);
+    drawRow('Name of Firm', bidderName.toUpperCase(), signatureTop + 48);
+    drawRow('Date', date, signatureTop + 65);
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
