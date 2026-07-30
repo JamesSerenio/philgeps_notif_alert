@@ -224,6 +224,7 @@ class PdfService {
     // source index shifts. It is final output page 53 in the generated file.
     _drawOmnibusSwornStatementIdentity(document, values);
     _drawOmnibusSwornStatementLastPage(document, values);
+    _drawAfterSalesServiceCertificate(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -2342,6 +2343,103 @@ class PdfService {
       ),
       format: leftAligned,
     );
+  }
+
+  static void _drawAfterSalesServiceCertificate(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    const pageIndex = 55;
+    if (document.pages.count <= pageIndex) return;
+    final page = document.pages[pageIndex];
+    final graphics = page.graphics;
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final bidderName = (values['bidderName'] ?? '').trim();
+    final procuringEntity = (values['procuringEntity'] ?? '').trim();
+    final projectTitle = (values['projectTitle'] ?? '').trim();
+    final date = (values['date'] ?? '').trim();
+    final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
+    final formalName = selectedName.contains('CARLOS RAFAEL A. JAMILO')
+        ? 'CARLOS RAFAEL A. JAMILO'
+        : selectedName.contains('MARLJONE BLAIRE B. TINGTING')
+            ? 'MARLJONE BLAIRE B. TINGTING'
+            : 'JHO ANN Q. CLEOPAS';
+
+    // Replace the sample Sumilao certification paragraph.
+    graphics.drawRectangle(
+      brush: white,
+      bounds: const Rect.fromLTWH(96, 184, 430, 96),
+    );
+    final paragraph =
+        'This serves to certify that $bidderName is fully committed to '
+        'providing comprehensive after-sales support to the $procuringEntity '
+        'for the project: $projectTitle.';
+    graphics.drawString(
+      paragraph,
+      PdfStandardFont(PdfFontFamily.timesRoman, 10.5),
+      brush: black,
+      bounds: const Rect.fromLTWH(106, 194, 410, 78),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.justify,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.word,
+        paragraphIndent: 28,
+      ),
+    );
+
+    // Replace the embedded signatory while keeping the original form grid.
+    const labelLeft = 143.0;
+    const colonLeft = 252.0;
+    const valueLeft = 288.0;
+    const top = 456.0;
+    graphics.drawRectangle(
+      brush: white,
+      bounds: const Rect.fromLTWH(138, 451, 405, 96),
+    );
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final valueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
+    void drawRow(String label, String value, double y) {
+      graphics.drawString(
+        label,
+        labelFont,
+        brush: black,
+        bounds: Rect.fromLTWH(labelLeft, y, 100, 15),
+      );
+      graphics.drawString(
+        ':',
+        labelFont,
+        brush: black,
+        bounds: Rect.fromLTWH(colonLeft, y, 10, 15),
+      );
+      graphics.drawString(
+        value,
+        valueFont,
+        brush: black,
+        bounds: Rect.fromLTWH(valueLeft, y, 250, 15),
+      );
+    }
+
+    drawRow('Submitted by', formalName, top);
+    final nameWidth = valueFont.measureString(formalName).width;
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: .5),
+      const Offset(valueLeft, top + 12),
+      Offset(valueLeft + nameWidth, top + 12),
+    );
+    graphics.drawString(
+      '(Printed Name & Signature)',
+      labelFont,
+      brush: black,
+      bounds: const Rect.fromLTWH(valueLeft, top + 15, 200, 14),
+    );
+    drawRow('Designation', 'Authorized Representative', top + 31);
+    drawRow('Name of Firm', bidderName.toUpperCase(), top + 48);
+    drawRow('Date', date, top + 65);
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
