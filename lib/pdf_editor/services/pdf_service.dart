@@ -2463,6 +2463,56 @@ class PdfService {
       bodyPendingSpace = RegExp(r'\s$').hasMatch(part.$1);
     }
 
+    // Restore the complete support-period paragraph in the source format.
+    final supportTop = secondParagraphLine?.bounds.top ?? (certificateTop + 145);
+    graphics.drawRectangle(
+      brush: white,
+      bounds: Rect.fromLTWH(96, supportTop - 5, 430, 100),
+    );
+    final supportParts = <(String, PdfFont)>[
+      ('Beyond the initial delivery of materials, our company pledges a '
+          'dedicated ', bodyRegular),
+      ('one (1) year', bodyBold),
+      (' period of technical support and after-sales service. We remain at '
+          'the full disposal of the municipal end-users to ensure that all '
+          'operational needs are met and that our professional assistance is '
+          'readily available throughout the first year of the facility’s '
+          'rehabilitation.', bodyRegular),
+    ];
+    var supportX = bodyLeft + 28;
+    var supportY = supportTop;
+    var supportPendingSpace = false;
+    for (final part in supportParts) {
+      for (final match in RegExp(r'\S+').allMatches(part.$1)) {
+        final word = match.group(0)!;
+        final hasLeadingSpace = supportPendingSpace ||
+            (match.start > 0 &&
+                RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
+        supportPendingSpace = false;
+        final spaceWidth = hasLeadingSpace ? 2.8 : 0.0;
+        final width = part.$2.measureString(word).width;
+        if (supportX + spaceWidth + width > bodyRight &&
+            supportX > bodyLeft) {
+          supportY += bodyLineHeight;
+          supportX = bodyLeft;
+        }
+        if (supportX > bodyLeft) supportX += spaceWidth;
+        graphics.drawString(
+          word,
+          part.$2,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            supportX,
+            supportY,
+            width + 1,
+            bodyLineHeight,
+          ),
+        );
+        supportX += width;
+      }
+      supportPendingSpace = RegExp(r'\s$').hasMatch(part.$1);
+    }
+
     // Replace the embedded signatory while keeping the original form grid.
     final labelLeft = submittedLine?.bounds.left ?? 143.0;
     final colonLeft = labelLeft + 109;
