@@ -3047,6 +3047,53 @@ class PdfService {
           format: PdfStringFormat(wordWrap: PdfWordWrapType.word));
     }
 
+    void drawStyledParagraph(
+      TextLine? start,
+      TextLine? next,
+      List<(String, PdfFont, bool)> parts,
+    ) {
+      if (start == null) return;
+      final left = start.bounds.left;
+      final right = page.getClientSize().width - 70;
+      final top = start.bounds.top - 2;
+      final height = next == null
+          ? 54.0
+          : (next.bounds.top - top - 2).clamp(36, 78).toDouble();
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(left - 3, top - 2, right - left + 6, height + 4),
+      );
+      const lineHeight = 12.5;
+      var x = left;
+      var y = top;
+      var pendingSpace = false;
+      for (final part in parts) {
+        for (final match in RegExp(r'\S+').allMatches(part.$1)) {
+          final word = match.group(0)!;
+          final hasLeadingSpace = pendingSpace ||
+              (match.start > 0 &&
+                  RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
+          pendingSpace = false;
+          final spaceWidth = hasLeadingSpace ? 2.7 : 0.0;
+          final width = part.$2.measureString(word).width;
+          if (x + spaceWidth + width > right && x > left) {
+            y += lineHeight;
+            x = left;
+          }
+          if (x > left) x += spaceWidth;
+          graphics.drawString(word, part.$2,
+              brush: black, bounds: Rect.fromLTWH(x, y, width + 1, lineHeight));
+          if (part.$3) {
+            graphics.drawString(word, part.$2,
+                brush: black,
+                bounds: Rect.fromLTWH(x + .2, y, width + 1, lineHeight));
+          }
+          x += width;
+        }
+        pendingSpace = RegExp(r'\s$').hasMatch(part.$1);
+      }
+    }
+
     replaceParagraph(
       itemA,
       itemB,
@@ -3066,6 +3113,38 @@ class PdfService {
       'The undersigned is authorized to submit the bid on behalf of $selected '
       'as evidenced by the attached Secretary’s Certificate.',
     );
+
+    // Restore the source BID FORM's mixed regular and bold-italic emphasis.
+    drawStyledParagraph(itemA, itemB, <(String, PdfFont, bool)>[
+      (
+        'a)  I/We have no reservation to the PBD, including the Supplemental '
+            'Bid Bulletins, for the Procurement ',
+        regular,
+        false
+      ),
+      (projectTitle, italic, true),
+      ('.', regular, false),
+    ]);
+    drawStyledParagraph(itemC, itemD, <(String, PdfFont, bool)>[
+      (
+        'c)  The total price of our Bid in words and figures, excluding any '
+            'discount offered below, is ',
+        regular,
+        false
+      ),
+      ('$amountWords Only (PHP $money).', italic, true),
+    ]);
+    drawStyledParagraph(
+        authorizedLine, acknowledgeLine, <(String, PdfFont, bool)>[
+      (
+        'The undersigned is authorized to submit the bid on behalf of ',
+        regular,
+        false
+      ),
+      (selected, italic, true),
+      (' as evidenced by the attached ', regular, false),
+      ('Secretary’s Certificate.', italic, true),
+    ]);
   }
 
   static String _formatBidAmount(double amount) {
