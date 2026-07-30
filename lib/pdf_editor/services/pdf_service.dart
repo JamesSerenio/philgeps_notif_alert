@@ -3002,6 +3002,12 @@ class PdfService {
       12,
       style: PdfFontStyle.italic,
     );
+    final itemCRegular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final itemCItalic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      12,
+      style: PdfFontStyle.italic,
+    );
     final reference = (values['referenceNumber'] ?? '').trim();
     final municipality = (values['municipality'] ?? '').trim();
     final province = (values['province'] ?? '').trim();
@@ -3102,8 +3108,10 @@ class PdfService {
     void drawStyledParagraph(
       TextLine? start,
       TextLine? next,
-      List<(String, PdfFont, bool)> parts,
-    ) {
+      List<(String, PdfFont, bool)> parts, {
+      double hangingIndent = 0,
+      double lineHeight = 12.5,
+    }) {
       if (start == null) return;
       final left = start.bounds.left;
       final right = page.getClientSize().width - 70;
@@ -3115,7 +3123,6 @@ class PdfService {
         brush: white,
         bounds: Rect.fromLTWH(left - 3, top - 2, right - left + 6, height + 4),
       );
-      const lineHeight = 12.5;
       var x = left;
       var y = top;
       var pendingSpace = false;
@@ -3130,7 +3137,7 @@ class PdfService {
           final width = part.$2.measureString(word).width;
           if (x + spaceWidth + width > right && x > left) {
             y += lineHeight;
-            x = left;
+            x = left + hangingIndent;
           }
           if (x > left) x += spaceWidth;
           graphics.drawString(word, part.$2,
@@ -3177,15 +3184,21 @@ class PdfService {
       (projectTitle, italic, true),
       ('.', regular, false),
     ]);
-    drawStyledParagraph(itemC, itemD, <(String, PdfFont, bool)>[
-      (
-        'c)  The total price of our Bid in words and figures, excluding any '
-            'discount offered below, is ',
-        regular,
-        false
-      ),
-      ('$amountWords Only (PHP $money).', italic, true),
-    ]);
+    drawStyledParagraph(
+      itemC,
+      itemD,
+      <(String, PdfFont, bool)>[
+        (
+          'c)  The total price of our Bid in words and figures, excluding any '
+              'discount offered below, is ',
+          itemCRegular,
+          false
+        ),
+        ('$amountWords Only (PHP $money).', itemCItalic, true),
+      ],
+      hangingIndent: 20,
+      lineHeight: 14.5,
+    );
     drawStyledParagraph(
         authorizedLine, acknowledgeLine, <(String, PdfFont, bool)>[
       (
