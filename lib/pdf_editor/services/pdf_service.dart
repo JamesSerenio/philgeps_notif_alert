@@ -2365,37 +2365,118 @@ class PdfService {
         : selectedName.contains('MARLJONE BLAIRE B. TINGTING')
             ? 'MARLJONE BLAIRE B. TINGTING'
             : 'JHO ANN Q. CLEOPAS';
+    final pageLines = PdfTextExtractor(document).extractTextLines(
+      startPageIndex: pageIndex,
+      endPageIndex: pageIndex,
+    );
+    TextLine? certificateLine;
+    TextLine? secondParagraphLine;
+    TextLine? submittedLine;
+    for (final line in pageLines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('THIS SERVES TO CERTIFY')) certificateLine ??= line;
+      if (text.contains('BEYOND THE INITIAL DELIVERY')) {
+        secondParagraphLine ??= line;
+      }
+      if (text.contains('SUBMITTED BY')) submittedLine ??= line;
+    }
 
     // Replace the sample Sumilao certification paragraph.
+    final certificateTop = certificateLine?.bounds.top ?? 194.0;
+    final certificateLeft = certificateLine?.bounds.left ?? 106.0;
+    final certificateRight = page.getClientSize().width - certificateLeft;
+    final certificateHeight = secondParagraphLine == null
+        ? 110.0
+        : (secondParagraphLine.bounds.top - certificateTop - 8)
+            .clamp(70, 150)
+            .toDouble();
     graphics.drawRectangle(
       brush: white,
-      bounds: const Rect.fromLTWH(96, 184, 430, 96),
-    );
-    final paragraph =
-        'This serves to certify that $bidderName is fully committed to '
-        'providing comprehensive after-sales support to the $procuringEntity '
-        'for the project: $projectTitle.';
-    graphics.drawString(
-      paragraph,
-      PdfStandardFont(PdfFontFamily.timesRoman, 10.5),
-      brush: black,
-      bounds: const Rect.fromLTWH(106, 194, 410, 78),
-      format: PdfStringFormat(
-        alignment: PdfTextAlignment.justify,
-        lineAlignment: PdfVerticalAlignment.top,
-        wordWrap: PdfWordWrapType.word,
-        paragraphIndent: 28,
+      bounds: Rect.fromLTWH(
+        certificateLeft - 8,
+        certificateTop - 5,
+        certificateRight - certificateLeft + 16,
+        certificateHeight + 10,
       ),
     );
+    final bodyRegular = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final bodyBold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.bold,
+    );
+    final bodyItalic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.italic,
+    );
+    final bodyParts = <(String, PdfFont)>[
+      ('This serves to certify that ', bodyRegular),
+      (bidderName, bodyBold),
+      (' is fully committed to providing comprehensive after-sales support '
+          'to the ', bodyRegular),
+      (procuringEntity, bodyBold),
+      (' for the project: ', bodyRegular),
+      (projectTitle, bodyItalic),
+      ('.', bodyRegular),
+    ];
+    final bodyLeft = certificateLeft;
+    final bodyRight = certificateRight;
+    const bodyLineHeight = 12.5;
+    var bodyX = bodyLeft + 28;
+    var bodyY = certificateTop;
+    var bodyPendingSpace = false;
+    for (final part in bodyParts) {
+      for (final match in RegExp(r'\S+').allMatches(part.$1)) {
+        final word = match.group(0)!;
+        final hasLeadingSpace = bodyPendingSpace ||
+            (match.start > 0 &&
+                RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
+        bodyPendingSpace = false;
+        final spaceWidth = hasLeadingSpace ? 2.6 : 0.0;
+        final width = part.$2.measureString(word).width;
+        if (bodyX + spaceWidth + width > bodyRight && bodyX > bodyLeft) {
+          bodyY += bodyLineHeight;
+          bodyX = bodyLeft;
+        }
+        if (bodyX > bodyLeft) bodyX += spaceWidth;
+        graphics.drawString(
+          word,
+          part.$2,
+          brush: black,
+          bounds: Rect.fromLTWH(bodyX, bodyY, width + 1, bodyLineHeight),
+        );
+        if (identical(part.$2, bodyItalic)) {
+          graphics.drawString(
+            word,
+            part.$2,
+            brush: black,
+            bounds: Rect.fromLTWH(
+              bodyX + .2,
+              bodyY,
+              width + 1,
+              bodyLineHeight,
+            ),
+          );
+        }
+        bodyX += width;
+      }
+      bodyPendingSpace = RegExp(r'\s$').hasMatch(part.$1);
+    }
 
     // Replace the embedded signatory while keeping the original form grid.
-    const labelLeft = 143.0;
-    const colonLeft = 252.0;
-    const valueLeft = 288.0;
-    const top = 456.0;
+    final labelLeft = submittedLine?.bounds.left ?? 143.0;
+    final colonLeft = labelLeft + 109;
+    final valueLeft = labelLeft + 145;
+    final top = (submittedLine?.bounds.top ?? 456.0) - 1;
     graphics.drawRectangle(
       brush: white,
-      bounds: const Rect.fromLTWH(138, 451, 405, 96),
+      bounds: Rect.fromLTWH(
+        labelLeft - 5,
+        top - 5,
+        page.getClientSize().width - labelLeft - 25,
+        112,
+      ),
     );
     final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
     final valueFont = PdfStandardFont(
@@ -2428,14 +2509,14 @@ class PdfService {
     final nameWidth = valueFont.measureString(formalName).width;
     graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: .5),
-      const Offset(valueLeft, top + 12),
+      Offset(valueLeft, top + 12),
       Offset(valueLeft + nameWidth, top + 12),
     );
     graphics.drawString(
       '(Printed Name & Signature)',
       labelFont,
       brush: black,
-      bounds: const Rect.fromLTWH(valueLeft, top + 15, 200, 14),
+      bounds: Rect.fromLTWH(valueLeft, top + 15, 200, 14),
     );
     drawRow('Designation', 'Authorized Representative', top + 31);
     drawRow('Name of Firm', bidderName.toUpperCase(), top + 48);
