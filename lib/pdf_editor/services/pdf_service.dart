@@ -2063,18 +2063,25 @@ class PdfService {
     var y = top;
     var x = left + firstLineIndent;
     var lineRight = right;
+    var pendingSpace = false;
 
     for (final part in parts) {
-      final words = RegExp(r'\S+\s*')
-          .allMatches(part.$1)
-          .map((match) => match.group(0)!)
-          .toList();
-      for (final word in words) {
+      final matches = RegExp(r'\S+').allMatches(part.$1);
+      for (final match in matches) {
+        final word = match.group(0)!;
+        final hasLeadingSpace = pendingSpace ||
+            (match.start > 0 &&
+                RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
+        pendingSpace = false;
+        final spaceWidth = hasLeadingSpace
+            ? regularFont.measureString(' ').width
+            : 0.0;
         final width = part.$2.measureString(word).width;
-        if (x + width > lineRight && x > left) {
+        if (x + spaceWidth + width > lineRight && x > left) {
           y += lineHeight;
           x = left;
         }
+        if (x > left) x += spaceWidth;
         page.graphics.drawString(
           word,
           part.$2,
@@ -2083,6 +2090,7 @@ class PdfService {
         );
         x += width;
       }
+      pendingSpace = RegExp(r'\s$').hasMatch(part.$1);
     }
   }
 
