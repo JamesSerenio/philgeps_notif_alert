@@ -3193,8 +3193,8 @@ class PdfService {
         (projectTitle, italic, true),
         ('.', regular, false),
       ],
-      hangingIndent: 21.5,
-      labelColumnWidth: 21.5,
+      hangingIndent: 13,
+      labelColumnWidth: 13,
     );
     drawStyledParagraph(
       itemC,
@@ -3208,8 +3208,8 @@ class PdfService {
         ),
         ('$amountWords Only (PHP $money).', itemCItalic, true),
       ],
-      hangingIndent: 21.5,
-      labelColumnWidth: 21.5,
+      hangingIndent: 13,
+      labelColumnWidth: 13,
       lineHeight: 14.5,
     );
     drawStyledParagraph(
