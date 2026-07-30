@@ -3383,7 +3383,13 @@ class PdfService {
         final words = run.$1.trim().split(RegExp(r'\s+'));
         for (final word in words) {
           if (word.isEmpty) continue;
-          final spaceWidth = pendingSpace ? run.$2.measureString(' ').width : 0;
+          // Standard PDF fonts can report a zero-width standalone space.
+          // Use a visible word gap so mixed-style runs keep natural spacing.
+          final measuredSpace = run.$2.measureString(' x').width -
+              run.$2.measureString('x').width;
+          final spaceWidth = pendingSpace
+              ? (measuredSpace > 2.5 ? measuredSpace : run.$2.size * 0.28)
+              : 0.0;
           final wordWidth = run.$2.measureString(word).width;
           if (x > left && x + spaceWidth + wordWidth > left + width) {
             x = left;
