@@ -2028,12 +2028,11 @@ class PdfService {
     const top = 140.0;
     final right = pageWidth - left;
     const originalHeight = 48.0;
-    final paragraph =
-        'I, $formalName, of legal age, $civilStatus, Filipino, and with residence at $address, after having been duly sworn in accordance with law, do hereby depose and state that:';
-    final font = PdfStandardFont(
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final emphasizedFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       11,
-      style: PdfFontStyle.regular,
+      style: PdfFontStyle.bold,
     );
 
     page.graphics.drawRectangle(
@@ -2045,18 +2044,46 @@ class PdfService {
         originalHeight + 6,
       ),
     );
-    page.graphics.drawString(
-      paragraph,
-      font,
-      brush: PdfSolidBrush(PdfColor(0, 0, 0)),
-      bounds: Rect.fromLTWH(left, top, right - left, originalHeight + 3),
-      format: PdfStringFormat(
-        alignment: PdfTextAlignment.justify,
-        lineAlignment: PdfVerticalAlignment.top,
-        wordWrap: PdfWordWrapType.word,
-        paragraphIndent: 32,
-      ),
-    );
+    final parts = <(String, PdfFont)>[
+      ('I, ', regularFont),
+      (formalName, emphasizedFont),
+      (', of legal age, ', regularFont),
+      (civilStatus, emphasizedFont),
+      (', ', regularFont),
+      ('Filipino', emphasizedFont),
+      (', and with residence at ', regularFont),
+      (address, emphasizedFont),
+      (', after having been duly sworn in accordance with law, do hereby ',
+          regularFont),
+      ('depose and state that:', regularFont),
+    ];
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    const firstLineIndent = 32.0;
+    const lineHeight = 13.0;
+    var y = top;
+    var x = left + firstLineIndent;
+    var lineRight = right;
+
+    for (final part in parts) {
+      final words = RegExp(r'\S+\s*')
+          .allMatches(part.$1)
+          .map((match) => match.group(0)!)
+          .toList();
+      for (final word in words) {
+        final width = part.$2.measureString(word).width;
+        if (x + width > lineRight && x > left) {
+          y += lineHeight;
+          x = left;
+        }
+        page.graphics.drawString(
+          word,
+          part.$2,
+          brush: black,
+          bounds: Rect.fromLTWH(x, y, width + 1, lineHeight),
+        );
+        x += width;
+      }
+    }
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
