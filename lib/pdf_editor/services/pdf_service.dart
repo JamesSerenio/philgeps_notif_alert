@@ -3762,9 +3762,9 @@ class PdfService {
       targetGraphics.drawRectangle(
         brush: white,
         bounds: Rect.fromLTWH(
-          left - 2,
+          left - 4,
           paragraphTop - 2,
-          width + 4,
+          targetPage.size.width - left + 4,
           height + 4,
         ),
       );
@@ -3775,9 +3775,10 @@ class PdfService {
       for (final run in runs) {
         for (final word in run.$1.trim().split(RegExp(r'\s+'))) {
           if (word.isEmpty) continue;
+          final measuredSpace = run.$2.measureString(' x').width -
+              run.$2.measureString('x').width;
           final spaceWidth = hasWord
-              ? run.$2.measureString(' x').width -
-                  run.$2.measureString('x').width
+              ? (measuredSpace > 2.5 ? measuredSpace : run.$2.size * 0.28)
               : 0.0;
           final wordWidth = run.$2.measureString(word).width;
           if (x > left && x + spaceWidth + wordWidth > left + width) {
