@@ -226,7 +226,7 @@ class PdfService {
     _drawOmnibusSwornStatementLastPage(document, values);
     _drawAfterSalesServiceCertificate(document, values);
     _drawProductWarrantyCertificate(document, values);
-    _drawJuratPlaceholders(document);
+    _drawJuratPlaceholders(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -2818,7 +2818,13 @@ class PdfService {
     drawRow('Date', date, signatureTop + 65);
   }
 
-  static void _drawJuratPlaceholders(PdfDocument document) {
+  static void _drawJuratPlaceholders(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    final date = (values['date'] ?? '').trim();
+    final yearMatch = RegExp(r'\b(\d{4})\b').firstMatch(date);
+    final year = yearMatch?.group(1) ?? '2026';
     final lines = PdfTextExtractor(document).extractTextLines();
     TextLine? subscribedLine;
     TextLine? witnessLine;
@@ -2852,7 +2858,7 @@ class PdfService {
       bounds: Rect.fromLTWH(left - 3, subscribedTop - 2, right - left + 6, 82),
     );
     graphics.drawString(
-      'SUBSCRIBED AND SWORN to before me this ______ day of ________ at '
+      'SUBSCRIBED AND SWORN to before me this ______ day of ________ $year at '
       'Municipality of ________, ________, Philippines. Affiant/s is/are '
       'personally known to me and was/were identified by me through competent '
       'evidence of identity as defined in the 2004 Rules on Notarial Practice '
@@ -2871,7 +2877,7 @@ class PdfService {
       bounds: Rect.fromLTWH(left - 3, witnessTop - 2, right - left + 6, 22),
     );
     graphics.drawString(
-      'WITNESS MY HAND AND SEAL this ____ day of ________.',
+      'WITNESS MY HAND AND SEAL this ____ day of ________ $year.',
       bold,
       brush: black,
       bounds: Rect.fromLTWH(left, witnessTop, right - left, 18),
@@ -2889,7 +2895,7 @@ class PdfService {
         ),
       );
       graphics.drawString(
-        '$label ____, ________',
+        '$label ____, ________ $year',
         regular,
         brush: black,
         bounds: Rect.fromLTWH(
