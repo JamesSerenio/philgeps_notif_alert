@@ -3480,6 +3480,32 @@ class PdfService {
       );
     }
 
+    void replaceResolutionBlock(
+      TextLine? start,
+      TextLine? end,
+      List<(String, PdfFont)> runs,
+    ) {
+      if (start == null || end == null) return;
+      final left = start.bounds.left;
+      final top = start.bounds.top - 2;
+      final bottom = end.bounds.top - 2;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          left - 3,
+          top,
+          page.size.width - left + 3,
+          bottom - top,
+        ),
+      );
+      drawRuns(
+        left,
+        start.bounds.top,
+        page.size.width - left - 65,
+        runs,
+      );
+    }
+
     replaceBlock(
       introduction,
       itemOne,
@@ -3537,28 +3563,39 @@ class PdfService {
         ],
       );
     }
-    replaceBlock(
+    replaceResolutionBlock(
       resolved,
       resolvedFurther,
-      '“RESOLVED, that MIKATA PRIME CORPORATION is hereby authorized to '
-      'participate in the public bidding, negotiate, and enter into a contract '
-      'with the Municipality of $municipality, $province for the project '
-      'entitled: “$projectTitle”;',
-      font: italic,
+      <(String, PdfFont)>[
+        ('"RESOLVED, ', bold),
+        ('that ', italic),
+        ('MIKATA PRIME CORPORATION ', bold),
+        ('is hereby authorized to participate in the public bidding, negotiate, and enter into a contract with the ', italic),
+        ('Municipality of $municipality, $province ', bold),
+        ('for the project entitled: ', italic),
+        ('"$projectTitle";', bold),
+      ],
     );
-    replaceBlock(
+    replaceResolutionBlock(
       resolvedFurther,
       resolvedFinally,
-      '“RESOLVED FURTHER, that the Corporation hereby designates '
-      '${representative.toUpperCase()}, as the Authorized Representative of '
-      'the Corporation, to represent, sign, execute, submit, and deliver any '
-      'and all documents, agreements, forms, and proposals necessary to '
-      'effectively participate in the bidding and implement the aforementioned '
-      'project, granting unto the said representative full power and authority '
-      'to do and perform any and all acts required;',
-      font: italic,
+      <(String, PdfFont)>[
+        ('"RESOLVED FURTHER, ', bold),
+        ('that the Corporation hereby designates ', italic),
+        ('${representative.toUpperCase()}, ', bold),
+        ('as the Authorized Representative of the Corporation, to represent, sign, execute, submit, and deliver any and all documents, agreements, forms, and proposals necessary to effectively participate in the bidding and implement the aforementioned project, granting unto the said representative full power and authority to do and perform any and all acts required;', italic),
+      ],
     );
-    // Keep the final resolution and succeeding numbered paragraphs untouched.
+    replaceResolutionBlock(
+      resolvedFinally,
+      itemFour,
+      <(String, PdfFont)>[
+        ('"RESOLVED FINALLY, ', bold),
+        ('that any and all prior actions taken by the Authorized Representative, as well as the Proprietor/President of the Corporation, ', italic),
+        ('PATRICK CARLO P. DEDEL, ', bold),
+        ('in connection with the foregoing are hereby approved, ratified, and confirmed as the acts of the Corporation."', italic),
+      ],
+    );
     if (itemFour == null) return;
   }
 
