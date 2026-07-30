@@ -3008,6 +3008,12 @@ class PdfService {
       12,
       style: PdfFontStyle.italic,
     );
+    final authorizedRegular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final authorizedItalic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      12,
+      style: PdfFontStyle.italic,
+    );
     final reference = (values['referenceNumber'] ?? '').trim();
     final municipality = (values['municipality'] ?? '').trim();
     final province = (values['province'] ?? '').trim();
@@ -3213,16 +3219,19 @@ class PdfService {
       lineHeight: 14.5,
     );
     drawStyledParagraph(
-        authorizedLine, acknowledgeLine, <(String, PdfFont, bool)>[
-      (
-        'The undersigned is authorized to submit the bid on behalf of ',
-        regular,
-        false
-      ),
-      (selected, italic, true),
-      (' as evidenced by the attached ', regular, false),
-      ('Secretary’s Certificate.', italic, true),
-    ]);
+        authorizedLine,
+        acknowledgeLine,
+        <(String, PdfFont, bool)>[
+          (
+            'The undersigned is authorized to submit the bid on behalf of ',
+            authorizedRegular,
+            false
+          ),
+          (selected, authorizedItalic, true),
+          (' as evidenced by the attached ', authorizedRegular, false),
+          ("Secretary's Certificate.", authorizedItalic, true),
+        ],
+        lineHeight: 14.5);
   }
 
   static String _formatBidAmount(double amount) {
