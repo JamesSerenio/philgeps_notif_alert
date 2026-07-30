@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html;
 import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
-import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../services/pdf_service.dart';
 import '../../utils/supabase_client.dart';
@@ -125,9 +124,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   Uint8List? generatedPdf;
   bool isGenerating = false;
   String? errorMessage;
-
-  String? previewViewType;
-  String? previewBlobUrl;
 
   @override
   void initState() {
@@ -539,43 +535,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
       if (!mounted) return;
 
-      // Keep the previous blob alive until Flutter has detached its iframe.
-      // Revoking it while Chrome's PDF viewer is still mounted can make the
-      // viewer cleanup script call removeChild on an element that is gone.
-      final previousBlobUrl = previewBlobUrl;
-
-      final blob = html.Blob(
-        <dynamic>[bytes],
-        'application/pdf',
-      );
-
-      final blobUrl = html.Url.createObjectUrlFromBlob(blob);
-
-      final viewType = 'generated-pdf-${DateTime.now().microsecondsSinceEpoch}';
-
-      ui_web.platformViewRegistry.registerViewFactory(
-        viewType,
-        (int viewId) {
-          return html.IFrameElement()
-            ..src = blobUrl
-            ..style.border = 'none'
-            ..style.width = '100%'
-            ..style.height = '100%'
-            ..allowFullscreen = true;
-        },
-      );
-
       setState(() {
         generatedPdf = bytes;
-        previewBlobUrl = blobUrl;
-        previewViewType = viewType;
       });
-
-      if (previousBlobUrl != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          html.Url.revokeObjectUrl(previousBlobUrl);
-        });
-      }
     } catch (error) {
       if (!mounted) return;
 
@@ -1296,10 +1258,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   @override
   void dispose() {
-    if (previewBlobUrl != null) {
-      html.Url.revokeObjectUrl(previewBlobUrl!);
-    }
-
     provinceController.dispose();
     municipalityController.dispose();
     projectTitleController.dispose();
@@ -1440,7 +1398,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
                 final previewPanel = Container(
                   color: const Color(0xFFF2F2F2),
-                  child: previewViewType == null
+                  child: generatedPdf == null
                       ? const Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -1457,9 +1415,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                             ],
                           ),
                         )
-                      : HtmlElementView(
-                          key: ValueKey(previewViewType),
-                          viewType: previewViewType!,
+                      : SfPdfViewer.memory(
+                          generatedPdf!,
+                          key: ValueKey(generatedPdf),
                         ),
                 );
 
