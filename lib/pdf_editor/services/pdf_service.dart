@@ -3370,7 +3370,7 @@ class PdfService {
       String text, {
       PdfFont? font,
       double leftInset = 0,
-      double rightMargin = 38,
+      double rightMargin = 65,
       double bottomPadding = 2,
     }) {
       if (start == null || end == null) return;
@@ -3382,7 +3382,7 @@ class PdfService {
         bounds: Rect.fromLTWH(
           left - 3,
           top,
-          page.size.width - left - rightMargin + 3,
+          page.size.width - left + 3,
           bottom - top,
         ),
       );
@@ -3411,15 +3411,45 @@ class PdfService {
       'address at $permanentAddress, after having been duly sworn in '
       'accordance with law, hereby depose and state that:',
     );
-    replaceBlock(
-      itemOne,
-      itemTwo,
-      '1.   I am the duly elected and qualified Corporate Secretary of '
-      'MIKATA PRIME CORPORATION, a corporation duly organized and existing '
-      'under and by virtue of the laws of the Republic of the Philippines, '
-      'with principal office address at $permanentAddress;',
-      leftInset: 0,
-    );
+    if (itemOne != null && itemTwo != null) {
+      final left = itemOne.bounds.left;
+      final top = itemOne.bounds.top - 2;
+      final bottom = itemTwo.bounds.top - 2;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          left - 3,
+          top,
+          page.size.width - left + 3,
+          bottom - top,
+        ),
+      );
+      graphics.drawString(
+        '1.',
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(left, itemOne.bounds.top, 18, 16),
+      );
+      graphics.drawString(
+        'I am the duly elected and qualified Corporate Secretary of '
+        'MIKATA PRIME CORPORATION, a corporation duly organized and existing '
+        'under and by virtue of the laws of the Republic of the Philippines, '
+        'with principal office address at $permanentAddress;',
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          left + 18,
+          itemOne.bounds.top,
+          page.size.width - left - 83,
+          bottom - itemOne.bounds.top,
+        ),
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.justify,
+          wordWrap: PdfWordWrapType.word,
+          lineSpacing: 2,
+        ),
+      );
+    }
     replaceBlock(
       resolved,
       resolvedFurther,
