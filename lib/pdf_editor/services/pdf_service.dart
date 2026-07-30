@@ -1906,8 +1906,13 @@ class PdfService {
     final pageLines = lines.where((line) => line.pageIndex == pageIndex);
     TextLine? submittedLabel;
     for (final line in pageLines) {
-      final text = line.text.trim().toUpperCase();
-      if (text == 'SUBMITTED BY:' || text == 'SUBMITTED BY') {
+      final text = line.text
+          .trim()
+          .toUpperCase()
+          .replaceAll(RegExp(r'\s+'), ' ');
+      // The source sometimes encodes the label, colon, and old value as one
+      // text line, so matching the complete extracted string is unreliable.
+      if (text.contains('SUBMITTED BY')) {
         submittedLabel = line;
         break;
       }
