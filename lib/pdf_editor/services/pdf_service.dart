@@ -228,6 +228,7 @@ class PdfService {
     _drawProductWarrantyCertificate(document, values);
     _drawJuratPlaceholders(document, values);
     _drawBidForm(document, values);
+    _drawSecretaryCertificate(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -3303,6 +3304,145 @@ class PdfService {
       );
       drawEmphasized(bidDate, top + 110);
     }
+  }
+
+  static void _drawSecretaryCertificate(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    final lines = PdfTextExtractor(document).extractTextLines();
+    int? pageIndex;
+    for (final line in lines) {
+      final text =
+          line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text == "SECRETARY'S CERTIFICATE" ||
+          text == 'SECRETARY’S CERTIFICATE') {
+        pageIndex = line.pageIndex;
+        break;
+      }
+    }
+    if (pageIndex == null) return;
+
+    TextLine? introduction;
+    TextLine? itemOne;
+    TextLine? itemTwo;
+    TextLine? resolved;
+    TextLine? resolvedFurther;
+    TextLine? resolvedFinally;
+    TextLine? itemFour;
+    for (final line in lines) {
+      if (line.pageIndex != pageIndex) continue;
+      final text =
+          line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text.startsWith('I, ALYSSA LYNN TALINGTING')) introduction ??= line;
+      if (text.contains('I AM THE DULY ELECTED AND QUALIFIED'))
+        itemOne ??= line;
+      if (text.contains('AS CORPORATE SECRETARY')) itemTwo ??= line;
+      if (text.contains('RESOLVED, THAT')) resolved ??= line;
+      if (text.contains('RESOLVED FURTHER')) resolvedFurther ??= line;
+      if (text.contains('RESOLVED FINALLY')) resolvedFinally ??= line;
+      if (text.contains('THE FOREGOING RESOLUTIONS HAVE NOT'))
+        itemFour ??= line;
+    }
+    if (introduction == null) return;
+
+    final page = document.pages[pageIndex];
+    final graphics = page.graphics;
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
+    final italic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10.5,
+      style: PdfFontStyle.italic,
+    );
+    const permanentAddress =
+        'Sitio Puli, Carmen, Cagayan de Oro, Misamis Oriental';
+    final municipality = (values['municipality'] ?? '').trim();
+    final province = (values['province'] ?? '').trim();
+    final projectTitle = (values['projectTitle'] ?? '').trim();
+    final representative =
+        (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+
+    void replaceBlock(
+      TextLine? start,
+      TextLine? end,
+      String text, {
+      PdfFont? font,
+      double leftInset = 0,
+      double rightMargin = 38,
+      double bottomPadding = 2,
+    }) {
+      if (start == null || end == null) return;
+      final left = start.bounds.left - leftInset;
+      final top = start.bounds.top - 2;
+      final bottom = end.bounds.top - bottomPadding;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          left - 3,
+          top,
+          page.size.width - left - rightMargin + 3,
+          bottom - top,
+        ),
+      );
+      graphics.drawString(
+        text,
+        font ?? regular,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          left,
+          start.bounds.top,
+          page.size.width - left - rightMargin,
+          bottom - start.bounds.top,
+        ),
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.justify,
+          wordWrap: PdfWordWrapType.word,
+          lineSpacing: 2,
+        ),
+      );
+    }
+
+    replaceBlock(
+      introduction,
+      itemOne,
+      'I, ALYSSA LYNN TALINGTING, of legal age, Filipino, and with office '
+      'address at $permanentAddress, after having been duly sworn in '
+      'accordance with law, hereby depose and state that:',
+    );
+    replaceBlock(
+      itemOne,
+      itemTwo,
+      '1.   I am the duly elected and qualified Corporate Secretary of '
+      'MIKATA PRIME CORPORATION, a corporation duly organized and existing '
+      'under and by virtue of the laws of the Republic of the Philippines, '
+      'with principal office address at $permanentAddress;',
+      leftInset: 0,
+    );
+    replaceBlock(
+      resolved,
+      resolvedFurther,
+      '“RESOLVED, that MIKATA PRIME CORPORATION is hereby authorized to '
+      'participate in the public bidding, negotiate, and enter into a contract '
+      'with the Municipality of $municipality, $province for the project '
+      'entitled: “$projectTitle”;',
+      font: italic,
+    );
+    replaceBlock(
+      resolvedFurther,
+      resolvedFinally,
+      '“RESOLVED FURTHER, that the Corporation hereby designates '
+      '${representative.toUpperCase()}, as the Authorized Representative of '
+      'the Corporation, to represent, sign, execute, submit, and deliver any '
+      'and all documents, agreements, forms, and proposals necessary to '
+      'effectively participate in the bidding and implement the aforementioned '
+      'project, granting unto the said representative full power and authority '
+      'to do and perform any and all acts required;',
+      font: italic,
+    );
+    // Keep the final resolution and succeeding numbered paragraphs untouched.
+    if (itemFour == null) return;
   }
 
   static String _formatBidAmount(double amount) {
