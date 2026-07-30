@@ -223,6 +223,7 @@ class PdfService {
     // Apply this after every optional-page removal because the Omnibus form's
     // source index shifts. It is final output page 53 in the generated file.
     _drawOmnibusSwornStatementIdentity(document, values);
+    _drawOmnibusSwornStatementLastPage(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -2182,6 +2183,128 @@ class PdfService {
       }
       authorityPendingSpace = RegExp(r'\s$').hasMatch(part.$1);
     }
+  }
+
+  static void _drawOmnibusSwornStatementLastPage(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    const pageIndex = 53;
+    if (document.pages.count <= pageIndex) return;
+    final page = document.pages[pageIndex];
+    final graphics = page.graphics;
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final italic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.italic,
+    );
+    final boldItalic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.bold,
+    );
+    final projectTitle = (values['projectTitle'] ?? '').trim();
+    final municipality = (values['municipality'] ?? '').trim();
+    final province = (values['province'] ?? '').trim();
+    final bidderName = (values['bidderName'] ?? '').trim();
+    final date = (values['date'] ?? '').trim();
+    final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
+    final formalName = selectedName.contains('CARLOS RAFAEL A. JAMILO')
+        ? 'Carlos Rafael A. Jamilo'
+        : selectedName.contains('MARLJONE BLAIRE B. TINGTING')
+            ? 'Marljone Blaire B. Tingting'
+            : 'Jho Ann Q. Cleopas';
+
+    // Item 7(d): replace the sample Sumilao project with the current bid.
+    if (projectTitle.isNotEmpty) {
+      graphics.drawRectangle(
+        brush: white,
+        bounds: const Rect.fromLTWH(128, 129, 430, 43),
+      );
+      graphics.drawString(
+        'd)     Inquire or secure Supplemental Bid Bulletin(s) issued for the',
+        regular,
+        brush: black,
+        bounds: const Rect.fromLTWH(128, 130, 430, 15),
+      );
+      graphics.drawString(
+        projectTitle,
+        italic,
+        brush: black,
+        bounds: const Rect.fromLTWH(158, 145, 400, 27),
+        format: PdfStringFormat(
+          wordWrap: PdfWordWrapType.word,
+          lineAlignment: PdfVerticalAlignment.top,
+        ),
+      );
+    }
+
+    // Witness clause: fill the date and place instead of retaining blanks.
+    if (date.isNotEmpty && municipality.isNotEmpty && province.isNotEmpty) {
+      graphics.drawRectangle(
+        brush: white,
+        bounds: const Rect.fromLTWH(70, 302, 475, 42),
+      );
+      graphics.drawString(
+        'IN WITNESS WHEREOF, I have hereunto set my hand on $date at '
+        '$municipality, $province, Philippines.',
+        regular,
+        brush: black,
+        bounds: const Rect.fromLTWH(104, 306, 438, 35),
+        format: PdfStringFormat(
+          wordWrap: PdfWordWrapType.word,
+          lineAlignment: PdfVerticalAlignment.top,
+          paragraphIndent: 0,
+        ),
+      );
+    }
+
+    // Signature block follows the selected bidder and representative.
+    graphics.drawRectangle(
+      brush: white,
+      bounds: const Rect.fromLTWH(235, 344, 335, 125),
+    );
+    const signatureLeft = 250.0;
+    const signatureWidth = 300.0;
+    final centered = PdfStringFormat(alignment: PdfTextAlignment.center);
+    graphics.drawString(
+      'Duly authorized to sign the Bid for and behalf of:',
+      regular,
+      brush: black,
+      bounds: const Rect.fromLTWH(signatureLeft, 352, signatureWidth, 16),
+      format: centered,
+    );
+    graphics.drawString(
+      bidderName,
+      boldItalic,
+      brush: black,
+      bounds: const Rect.fromLTWH(signatureLeft, 380, signatureWidth, 16),
+      format: centered,
+    );
+    graphics.drawString(
+      formalName,
+      boldItalic,
+      brush: black,
+      bounds: const Rect.fromLTWH(signatureLeft, 418, signatureWidth, 16),
+      format: centered,
+    );
+    graphics.drawString(
+      'Authorized Representative',
+      italic,
+      brush: black,
+      bounds: const Rect.fromLTWH(signatureLeft, 436, signatureWidth, 16),
+      format: centered,
+    );
+    graphics.drawString(
+      date,
+      boldItalic,
+      brush: black,
+      bounds: const Rect.fromLTWH(signatureLeft, 454, signatureWidth, 16),
+      format: centered,
+    );
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
