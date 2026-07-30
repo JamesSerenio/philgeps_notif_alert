@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import 'page_mapper.dart';
@@ -3327,6 +3328,7 @@ class PdfService {
     TextLine? introduction;
     TextLine? itemOne;
     TextLine? itemTwo;
+    TextLine? itemThree;
     TextLine? resolved;
     TextLine? resolvedFurther;
     TextLine? resolvedFinally;
@@ -3342,6 +3344,9 @@ class PdfService {
       if (text.contains('I AM THE DULY ELECTED AND QUALIFIED'))
         itemOne ??= line;
       if (text.contains('AS CORPORATE SECRETARY')) itemTwo ??= line;
+      if (text.contains('AT THE SPECIAL MEETING OF THE BOARD OF DIRECTORS')) {
+        itemThree ??= line;
+      }
       if (text.contains('RESOLVED, THAT')) resolved ??= line;
       if (text.contains('RESOLVED FURTHER')) resolvedFurther ??= line;
       if (text.contains('RESOLVED FINALLY')) resolvedFinally ??= line;
@@ -3375,6 +3380,16 @@ class PdfService {
     final municipality = (values['municipality'] ?? '').trim();
     final province = (values['province'] ?? '').trim();
     final projectTitle = (values['projectTitle'] ?? '').trim();
+    final documentDate = (values['date'] ?? '').trim();
+    var meetingDate = documentDate;
+    try {
+      final parsedDate = DateFormat('MMMM d, yyyy').parseStrict(documentDate);
+      meetingDate = DateFormat('MMMM d, yyyy').format(
+        parsedDate.add(const Duration(days: 3)),
+      );
+    } on FormatException {
+      // Keep the supplied value if it is not in the expected display format.
+    }
     final representative =
         (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
 
@@ -3540,6 +3555,45 @@ class PdfService {
           ),
           ('$permanentAddress;', regular),
         ],
+      );
+    }
+    if (itemThree != null && resolved != null) {
+      final left = itemThree.bounds.left;
+      final top = itemThree.bounds.top - 2;
+      final bottom = resolved.bounds.top - 2;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          left - 3,
+          top,
+          page.size.width - left + 3,
+          bottom - top,
+        ),
+      );
+      graphics.drawString(
+        '3.',
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(left, itemThree.bounds.top, 18, 16),
+      );
+      graphics.drawString(
+        'At the special meeting of the Board of Directors of Corporation held '
+        'on $meetingDate at its principal office, during which a quorum was '
+        'present and acting throughout, the following resolutions were '
+        'unanimously passed and approved:',
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          left + 18,
+          itemThree.bounds.top,
+          page.size.width - left - 83,
+          bottom - itemThree.bounds.top,
+        ),
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.justify,
+          wordWrap: PdfWordWrapType.word,
+          lineSpacing: 2,
+        ),
       );
     }
     if (resolved != null && itemFour != null) {
