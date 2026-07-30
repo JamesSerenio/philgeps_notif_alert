@@ -2383,31 +2383,30 @@ class PdfService {
 
     // Replace the sample Sumilao certification paragraph.
     final certificateTop = certificateLine?.bounds.top ?? 194.0;
-    final certificateLeft = certificateLine?.bounds.left ?? 106.0;
-    final certificateRight = page.getClientSize().width - certificateLeft;
-    final certificateHeight = secondParagraphLine == null
-        ? 110.0
-        : (secondParagraphLine.bounds.top - certificateTop - 8)
-            .clamp(70, 150)
-            .toDouble();
+    const certificateLeft = 106.0;
+    final certificateRight = page.getClientSize().width - 96;
+    // Mixed fonts split the source paragraph into unrelated extraction
+    // fragments, so its calculated height is unreliable. Clear the complete
+    // known paragraph band while stopping above the second paragraph.
+    const certificateHeight = 145.0;
     graphics.drawRectangle(
       brush: white,
       bounds: Rect.fromLTWH(
-        certificateLeft - 8,
-        certificateTop - 5,
-        certificateRight - certificateLeft + 16,
-        certificateHeight + 10,
+        80,
+        certificateTop - 12,
+        page.getClientSize().width - 150,
+        certificateHeight + 12,
       ),
     );
-    final bodyRegular = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final bodyRegular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final bodyBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      11,
       style: PdfFontStyle.bold,
     );
     final bodyItalic = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      11,
       style: PdfFontStyle.italic,
     );
     final bodyParts = <(String, PdfFont)>[
@@ -2422,7 +2421,7 @@ class PdfService {
     ];
     final bodyLeft = certificateLeft;
     final bodyRight = certificateRight;
-    const bodyLineHeight = 12.5;
+    const bodyLineHeight = 13.5;
     var bodyX = bodyLeft + 28;
     var bodyY = certificateTop;
     var bodyPendingSpace = false;
@@ -2433,7 +2432,7 @@ class PdfService {
             (match.start > 0 &&
                 RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
         bodyPendingSpace = false;
-        final spaceWidth = hasLeadingSpace ? 2.6 : 0.0;
+        final spaceWidth = hasLeadingSpace ? 2.8 : 0.0;
         final width = part.$2.measureString(word).width;
         if (bodyX + spaceWidth + width > bodyRight && bodyX > bodyLeft) {
           bodyY += bodyLineHeight;
