@@ -2015,29 +2015,15 @@ class PdfService {
     }
     if (pageIndex == null || titleLine == null) return;
 
-    final pageLines = lines
-        .where((line) => line.pageIndex == pageIndex)
-        .toList()
-      ..sort((a, b) => a.bounds.top.compareTo(b.bounds.top));
-    TextLine? nextParagraphLine;
-    for (final line in pageLines) {
-      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-      if (line.bounds.top > titleLine.bounds.bottom &&
-          (text.contains('DULY AUTHORIZED AND DESIGNATED') ||
-              text.contains('AUTHORIZED AND DESIGNATED REPRESENTATIVE'))) {
-        nextParagraphLine = line;
-        break;
-      }
-    }
-    if (nextParagraphLine == null) return;
-
     final page = document.pages[pageIndex];
     final pageWidth = page.getClientSize().width;
     final left = pageWidth * .115;
-    final top = titleLine.bounds.bottom + 17;
+    final top = titleLine.bounds.bottom + 15;
     final right = pageWidth - left;
-    final originalHeight = nextParagraphLine.bounds.top - top - 7;
-    if (originalHeight < 20) return;
+    // The first identity paragraph occupies a stable band immediately below
+    // the title. Its mixed bold/italic fragments are not reliably exposed as
+    // complete text lines by the extractor, so use the title as the anchor.
+    const originalHeight = 48.0;
     final paragraph =
         'I, $formalName, of legal age, $civilStatus, Filipino, and with residence at $address, after having been duly sworn in accordance with law, do hereby depose and state that:';
     final font = PdfStandardFont(
