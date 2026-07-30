@@ -2246,14 +2246,14 @@ class PdfService {
     if (date.isNotEmpty && municipality.isNotEmpty && province.isNotEmpty) {
       graphics.drawRectangle(
         brush: white,
-        bounds: const Rect.fromLTWH(70, 302, 475, 42),
+        bounds: const Rect.fromLTWH(70, 492, 475, 44),
       );
       graphics.drawString(
         'IN WITNESS WHEREOF, I have hereunto set my hand on $date at '
         '$municipality, $province, Philippines.',
         regular,
         brush: black,
-        bounds: const Rect.fromLTWH(104, 306, 438, 35),
+        bounds: const Rect.fromLTWH(104, 497, 438, 35),
         format: PdfStringFormat(
           wordWrap: PdfWordWrapType.word,
           lineAlignment: PdfVerticalAlignment.top,
@@ -2265,7 +2265,7 @@ class PdfService {
     // Signature block follows the selected bidder and representative.
     graphics.drawRectangle(
       brush: white,
-      bounds: const Rect.fromLTWH(235, 344, 335, 125),
+      bounds: const Rect.fromLTWH(235, 535, 335, 128),
     );
     const signatureLeft = 250.0;
     const signatureWidth = 300.0;
@@ -2274,35 +2274,35 @@ class PdfService {
       'Duly authorized to sign the Bid for and behalf of:',
       regular,
       brush: black,
-      bounds: const Rect.fromLTWH(signatureLeft, 352, signatureWidth, 16),
+      bounds: const Rect.fromLTWH(signatureLeft, 544, signatureWidth, 16),
       format: centered,
     );
     graphics.drawString(
       bidderName,
       boldItalic,
       brush: black,
-      bounds: const Rect.fromLTWH(signatureLeft, 380, signatureWidth, 16),
+      bounds: const Rect.fromLTWH(signatureLeft, 572, signatureWidth, 16),
       format: centered,
     );
     graphics.drawString(
       formalName,
       boldItalic,
       brush: black,
-      bounds: const Rect.fromLTWH(signatureLeft, 418, signatureWidth, 16),
+      bounds: const Rect.fromLTWH(signatureLeft, 610, signatureWidth, 16),
       format: centered,
     );
     graphics.drawString(
       'Authorized Representative',
       italic,
       brush: black,
-      bounds: const Rect.fromLTWH(signatureLeft, 436, signatureWidth, 16),
+      bounds: const Rect.fromLTWH(signatureLeft, 628, signatureWidth, 16),
       format: centered,
     );
     graphics.drawString(
       date,
       boldItalic,
       brush: black,
-      bounds: const Rect.fromLTWH(signatureLeft, 454, signatureWidth, 16),
+      bounds: const Rect.fromLTWH(signatureLeft, 646, signatureWidth, 16),
       format: centered,
     );
   }
