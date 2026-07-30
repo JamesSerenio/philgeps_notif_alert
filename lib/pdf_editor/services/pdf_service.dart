@@ -227,6 +227,7 @@ class PdfService {
     _drawAfterSalesServiceCertificate(document, values);
     _drawProductWarrantyCertificate(document, values);
     _drawJuratPlaceholders(document, values);
+    _drawBidForm(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -2909,6 +2910,248 @@ class PdfService {
 
     replaceNotaryDate(ptrLine, 'PTR No.');
     replaceNotaryDate(ibpLine, 'IBP No.');
+  }
+
+  static void _drawBidForm(
+    PdfDocument document,
+    Map<String, String> values,
+  ) {
+    final lines = PdfTextExtractor(document).extractTextLines();
+    int? bidFormPageIndex;
+    for (final line in lines) {
+      final text =
+          line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text == 'BID FORM') {
+        bidFormPageIndex = line.pageIndex;
+        break;
+      }
+    }
+    if (bidFormPageIndex == null) return;
+    TextLine? idLine;
+    TextLine? toLine;
+    TextLine? itemA;
+    TextLine? itemB;
+    TextLine? itemC;
+    TextLine? itemD;
+    TextLine? authorizedLine;
+    TextLine? acknowledgeLine;
+    for (final line in lines) {
+      if (line.pageIndex != bidFormPageIndex) continue;
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('PROJECT IDENTIFICATION NO.')) idLine ??= line;
+      if (text.startsWith('TO:')) toLine ??= line;
+      if (text.contains('I/WE HAVE NO RESERVATION')) itemA ??= line;
+      if (text.contains('I/WE OFFER TO EXECUTE')) itemB ??= line;
+      if (text.contains('THE TOTAL PRICE OF OUR BID IN WORDS')) itemC ??= line;
+      if (text.contains('THE DISCOUNTS OFFERED')) itemD ??= line;
+      if (text.contains('THE UNDERSIGNED IS AUTHORIZED')) {
+        authorizedLine ??= line;
+      }
+      if (text.contains('I/WE ACKNOWLEDGE THAT FAILURE')) {
+        acknowledgeLine ??= line;
+      }
+    }
+    if (idLine == null) return;
+
+    List<dynamic> specifications = const [];
+    List<dynamic> prices = const [];
+    final encodedSpecifications = values['technicalSpecifications'] ?? '';
+    final encodedPrices = values['priceSchedule'] ?? '';
+    if (encodedSpecifications.isNotEmpty) {
+      final decoded = jsonDecode(encodedSpecifications);
+      if (decoded is List) specifications = decoded;
+    }
+    if (encodedPrices.isNotEmpty) {
+      final decoded = jsonDecode(encodedPrices);
+      if (decoded is List) prices = decoded;
+    }
+    double number(dynamic value) =>
+        double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ??
+        0;
+    var total = 0.0;
+    for (var index = 0; index < specifications.length; index++) {
+      final specification = specifications[index] is Map
+          ? specifications[index] as Map
+          : const {};
+      final price = index < prices.length && prices[index] is Map
+          ? prices[index] as Map
+          : const {};
+      total += (number(specification['quantity']) *
+              number(price['totalPricePerUnit']))
+          .roundToDouble();
+    }
+
+    final page = document.pages[idLine.pageIndex];
+    final graphics = page.graphics;
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
+    final italic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10.5,
+      style: PdfFontStyle.italic,
+    );
+    final boldItalic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10.5,
+      style: PdfFontStyle.bold,
+    );
+    final reference = (values['referenceNumber'] ?? '').trim();
+    final municipality = (values['municipality'] ?? '').trim();
+    final province = (values['province'] ?? '').trim();
+    final projectTitle = (values['projectTitle'] ?? '').trim();
+    final selected =
+        (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+    final location = 'Municipality of $municipality, $province';
+    final money = _formatBidAmount(total);
+    final amountWords = _bidAmountInWords(total);
+
+    void replaceLine(TextLine? line, String text,
+        {PdfFont? font, double extraWidth = 20}) {
+      if (line == null) return;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(line.bounds.left - 3, line.bounds.top - 2,
+            line.bounds.width + extraWidth + 6, line.bounds.height + 5),
+      );
+      graphics.drawString(text, font ?? regular,
+          brush: black,
+          bounds: Rect.fromLTWH(line.bounds.left, line.bounds.top,
+              line.bounds.width + extraWidth, line.bounds.height + 4));
+    }
+
+    replaceLine(idLine, 'Project Identification No.: $reference',
+        font: boldItalic, extraWidth: 80);
+    replaceLine(toLine, 'To: $location', font: boldItalic, extraWidth: 120);
+
+    void replaceParagraph(
+      TextLine? start,
+      TextLine? next,
+      String text, {
+      PdfFont? font,
+    }) {
+      if (start == null) return;
+      final left = start.bounds.left;
+      final right = page.getClientSize().width - 70;
+      final top = start.bounds.top - 2;
+      final height = next == null
+          ? 54.0
+          : (next.bounds.top - top - 2).clamp(36, 78).toDouble();
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(left - 3, top - 2, right - left + 6, height + 4),
+      );
+      graphics.drawString(text, font ?? regular,
+          brush: black,
+          bounds: Rect.fromLTWH(left, top, right - left, height),
+          format: PdfStringFormat(wordWrap: PdfWordWrapType.word));
+    }
+
+    replaceParagraph(
+      itemA,
+      itemB,
+      'a)  I/We have no reservation to the PBD, including the Supplemental Bid '
+      'Bulletins, for the Procurement $projectTitle.',
+    );
+    replaceParagraph(
+      itemC,
+      itemD,
+      'c)  The total price of our Bid in words and figures, excluding any '
+      'discount offered below, is $amountWords Only (PHP $money).',
+      font: italic,
+    );
+    replaceParagraph(
+      authorizedLine,
+      acknowledgeLine,
+      'The undersigned is authorized to submit the bid on behalf of $selected '
+      'as evidenced by the attached Secretary’s Certificate.',
+    );
+  }
+
+  static String _formatBidAmount(double amount) {
+    final parts = amount.toStringAsFixed(2).split('.');
+    final whole = parts.first.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return '$whole.${parts.last}';
+  }
+
+  static String _bidAmountInWords(double amount) {
+    final centavosTotal = (amount * 100).round();
+    final pesos = centavosTotal ~/ 100;
+    final centavos = centavosTotal % 100;
+    final pesoWords = _integerInWords(pesos);
+    if (centavos == 0) return '$pesoWords Pesos';
+    return '$pesoWords Pesos and ${_integerInWords(centavos)} Centavos';
+  }
+
+  static String _integerInWords(int value) {
+    if (value == 0) return 'Zero';
+    const ones = <String>[
+      '',
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+      'Eight',
+      'Nine',
+      'Ten',
+      'Eleven',
+      'Twelve',
+      'Thirteen',
+      'Fourteen',
+      'Fifteen',
+      'Sixteen',
+      'Seventeen',
+      'Eighteen',
+      'Nineteen',
+    ];
+    const tens = <String>[
+      '',
+      '',
+      'Twenty',
+      'Thirty',
+      'Forty',
+      'Fifty',
+      'Sixty',
+      'Seventy',
+      'Eighty',
+      'Ninety',
+    ];
+    String underThousand(int number) {
+      final words = <String>[];
+      if (number >= 100) {
+        words.add('${ones[number ~/ 100]} Hundred');
+        number %= 100;
+      }
+      if (number >= 20) {
+        words.add(tens[number ~/ 10]);
+        number %= 10;
+      }
+      if (number > 0) words.add(ones[number]);
+      return words.join(' ');
+    }
+
+    final groups = <(int, String)>[
+      (1000000000, 'Billion'),
+      (1000000, 'Million'),
+      (1000, 'Thousand'),
+      (1, ''),
+    ];
+    final words = <String>[];
+    var remaining = value;
+    for (final group in groups) {
+      final part = remaining ~/ group.$1;
+      if (part == 0) continue;
+      words.add(underThousand(part));
+      if (group.$2.isNotEmpty) words.add(group.$2);
+      remaining %= group.$1;
+    }
+    return words.join(' ');
   }
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
