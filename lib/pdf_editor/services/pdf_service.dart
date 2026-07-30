@@ -2398,15 +2398,15 @@ class PdfService {
         certificateHeight + 12,
       ),
     );
-    final bodyRegular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final bodyRegular = PdfStandardFont(PdfFontFamily.timesRoman, 13.5);
     final bodyBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      13.5,
       style: PdfFontStyle.bold,
     );
     final bodyItalic = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      13.5,
       style: PdfFontStyle.italic,
     );
     final bodyParts = <(String, PdfFont)>[
@@ -2421,7 +2421,7 @@ class PdfService {
     ];
     final bodyLeft = certificateLeft;
     final bodyRight = certificateRight;
-    const bodyLineHeight = 13.5;
+    const bodyLineHeight = 16.2;
     var bodyX = bodyLeft + 28;
     var bodyY = certificateTop;
     var bodyPendingSpace = false;
@@ -2432,7 +2432,7 @@ class PdfService {
             (match.start > 0 &&
                 RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
         bodyPendingSpace = false;
-        final spaceWidth = hasLeadingSpace ? 2.8 : 0.0;
+        final spaceWidth = hasLeadingSpace ? 3.4 : 0.0;
         final width = part.$2.measureString(word).width;
         if (bodyX + spaceWidth + width > bodyRight && bodyX > bodyLeft) {
           bodyY += bodyLineHeight;
@@ -2489,7 +2489,7 @@ class PdfService {
             (match.start > 0 &&
                 RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
         supportPendingSpace = false;
-        final spaceWidth = hasLeadingSpace ? 2.8 : 0.0;
+        final spaceWidth = hasLeadingSpace ? 3.4 : 0.0;
         final width = part.$2.measureString(word).width;
         if (supportX + spaceWidth + width > bodyRight &&
             supportX > bodyLeft) {
@@ -2527,10 +2527,10 @@ class PdfService {
         112,
       ),
     );
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      11,
       style: PdfFontStyle.bold,
     );
     void drawRow(String label, String value, double y) {
