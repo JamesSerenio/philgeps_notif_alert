@@ -3376,8 +3376,8 @@ class PdfService {
     if (venueLine != null) {
       final venue = venueLine!;
       final venueText =
-          'MUNICIPALITY OF ${municipality.isEmpty ? '________' : municipality.toUpperCase()}, '
-          '${province.isEmpty ? '________' : province.toUpperCase()}   ) S.S';
+          'Municipality of ${municipality.isEmpty ? '________' : municipality}, '
+          '${province.isEmpty ? '________' : province}   ) S.S';
       graphics.drawRectangle(
         brush: white,
         bounds: Rect.fromLTWH(
