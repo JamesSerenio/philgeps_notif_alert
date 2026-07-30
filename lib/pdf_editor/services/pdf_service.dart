@@ -2111,8 +2111,8 @@ class PdfService {
       return;
     }
 
-    const authorityTop = 246.0;
-    const authorityHeight = 91.0;
+    const authorityTop = 237.0;
+    const authorityHeight = 100.0;
     page.graphics.drawRectangle(
       brush: PdfSolidBrush(PdfColor(255, 255, 255)),
       bounds: Rect.fromLTWH(
