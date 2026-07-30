@@ -3360,10 +3360,15 @@ class PdfService {
       12,
       style: PdfFontStyle.bold,
     );
-    final italic = PdfStandardFont(
+    final resolutionItalic = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      12,
+      11,
       style: PdfFontStyle.italic,
+    );
+    final resolutionBold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      11,
+      style: PdfFontStyle.bold,
     );
     const permanentAddress =
         'Sitio Puli, Carmen, Cagayan de Oro, Misamis Oriental';
@@ -3537,62 +3542,119 @@ class PdfService {
         ],
       );
     }
-    replaceBlock(
-      resolved,
-      resolvedFurther,
-      '"RESOLVED, that MIKATA PRIME CORPORATION is hereby authorized to '
-      'participate in the public bidding, negotiate, and enter into a contract '
-      'with the Municipality of $municipality, $province for the project '
-      'entitled: "$projectTitle";',
-      font: italic,
-    );
-    replaceBlock(
-      resolvedFurther,
-      resolvedFinally,
-      '"RESOLVED FURTHER, that the Corporation hereby designates '
-      '${representative.toUpperCase()}, as the Authorized Representative of '
-      'the Corporation, to represent, sign, execute, submit, and deliver any '
-      'and all documents, agreements, forms, and proposals necessary to '
-      'effectively participate in the bidding and implement the aforementioned '
-      'project, granting unto the said representative full power and authority '
-      'to do and perform any and all acts required;',
-      font: italic,
-    );
-    replaceBlock(
-      resolvedFinally,
-      itemFour,
-      '"RESOLVED FINALLY, that any and all prior actions taken by the '
-      'Authorized Representative, as well as the Proprietor/President of the '
-      'Corporation, PATRICK CARLO P. DEDEL, in connection with the foregoing '
-      'are hereby approved, ratified, and confirmed as the acts of the '
-      'Corporation."',
-      font: italic,
-    );
+    if (resolved != null && itemFour != null) {
+      final left = resolved.bounds.left;
+      final width = page.size.width - left - 35;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          left - 3,
+          resolved.bounds.top - 2,
+          page.size.width - left + 3,
+          itemFour.bounds.top - resolved.bounds.top,
+        ),
+      );
 
-    void boldResolutionHeading(TextLine? line, int wordCount) {
-      if (line == null) return;
-      final headingWords = line.wordCollection.take(wordCount);
-      for (final word in headingWords) {
-        // Use each extracted word's exact position. Justified text stretches
-        // spaces, so redrawing the whole heading as one string causes FINALLY
-        // to overlap. A slight offset makes the original italic word bold.
-        graphics.drawString(
-          word.text,
-          italic,
-          brush: black,
-          bounds: Rect.fromLTWH(
-            word.bounds.left + 0.35,
-            word.bounds.top,
-            word.bounds.width + 2,
-            word.bounds.height + 2,
-          ),
-        );
+      double drawResolutionParagraph(
+        double top,
+        List<(String, PdfFont)> runs,
+      ) {
+        final words = <(String, PdfFont)>[];
+        for (final run in runs) {
+          for (final word in run.$1.trim().split(RegExp(r'\s+'))) {
+            if (word.isNotEmpty) words.add((word, run.$2));
+          }
+        }
+        final lines = <List<(String, PdfFont)>>[];
+        var line = <(String, PdfFont)>[];
+        var usedWidth = 0.0;
+        final normalSpace = resolutionItalic.measureString(' x').width -
+            resolutionItalic.measureString('x').width;
+        for (final word in words) {
+          final wordWidth = word.$2.measureString(word.$1).width;
+          final nextWidth =
+              usedWidth + (line.isEmpty ? 0 : normalSpace) + wordWidth;
+          if (line.isNotEmpty && nextWidth > width) {
+            lines.add(line);
+            line = <(String, PdfFont)>[];
+            usedWidth = 0;
+          }
+          if (line.isNotEmpty) usedWidth += normalSpace;
+          line.add(word);
+          usedWidth += wordWidth;
+        }
+        if (line.isNotEmpty) lines.add(line);
+
+        const lineHeight = 13.0;
+        for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+          final currentLine = lines[lineIndex];
+          final wordsWidth = currentLine.fold<double>(
+            0,
+            (total, word) => total + word.$2.measureString(word.$1).width,
+          );
+          final isLastLine = lineIndex == lines.length - 1;
+          final gap = currentLine.length <= 1
+              ? 0.0
+              : isLastLine
+                  ? normalSpace
+                  : (width - wordsWidth) / (currentLine.length - 1);
+          var x = left;
+          for (final word in currentLine) {
+            final wordWidth = word.$2.measureString(word.$1).width;
+            graphics.drawString(
+              word.$1,
+              word.$2,
+              brush: black,
+              bounds: Rect.fromLTWH(x, top, wordWidth + 2, lineHeight),
+            );
+            x += wordWidth + gap;
+          }
+          top += lineHeight;
+        }
+        return top;
       }
-    }
 
-    boldResolutionHeading(resolved, 1);
-    boldResolutionHeading(resolvedFurther, 2);
-    boldResolutionHeading(resolvedFinally, 2);
+      var resolutionTop = resolved.bounds.top;
+      resolutionTop =
+          drawResolutionParagraph(resolutionTop, <(String, PdfFont)>[
+        ('"RESOLVED, ', resolutionBold),
+        ('that ', resolutionItalic),
+        ('MIKATA PRIME CORPORATION ', resolutionBold),
+        (
+          'is hereby authorized to participate in the public bidding, negotiate, and enter into a contract with the ',
+          resolutionItalic
+        ),
+        ('Municipality of $municipality, $province ', resolutionBold),
+        ('for the project entitled: ', resolutionItalic),
+        ('"$projectTitle";', resolutionBold),
+      ]);
+      resolutionTop += 7;
+      resolutionTop =
+          drawResolutionParagraph(resolutionTop, <(String, PdfFont)>[
+        ('"RESOLVED FURTHER, ', resolutionBold),
+        ('that the Corporation hereby designates ', resolutionItalic),
+        ('${representative.toUpperCase()}, ', resolutionBold),
+        ('as the ', resolutionItalic),
+        ('Authorized Representative ', resolutionBold),
+        (
+          'of the Corporation, to represent, sign, execute, submit, and deliver any and all documents, agreements, forms, and proposals necessary to effectively participate in the bidding and implement the aforementioned project, granting unto the said representative full power and authority to do and perform any and all acts required;',
+          resolutionItalic
+        ),
+      ]);
+      resolutionTop += 7;
+      drawResolutionParagraph(resolutionTop, <(String, PdfFont)>[
+        ('"RESOLVED FINALLY, ', resolutionBold),
+        (
+          'that any and all prior actions taken by the Authorized Representative, as well as the Proprietor/President of the Corporation, ',
+          resolutionItalic
+        ),
+        ('PATRICK CARLO P. DEDEL, ', resolutionBold),
+        (
+          'in connection with the foregoing are hereby approved, ratified, and confirmed as the acts of the Corporation."',
+          resolutionItalic
+        ),
+      ]);
+    }
     if (itemFour == null) return;
   }
 
