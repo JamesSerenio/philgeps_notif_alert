@@ -3350,10 +3350,15 @@ class PdfService {
     final graphics = page.graphics;
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
-    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final bold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      12,
+      style: PdfFontStyle.bold,
+    );
     final italic = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10.5,
+      12,
       style: PdfFontStyle.italic,
     );
     const permanentAddress =
@@ -3363,6 +3368,40 @@ class PdfService {
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final representative =
         (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+
+    void drawRuns(
+      double left,
+      double top,
+      double width,
+      List<(String, PdfFont)> runs, {
+      double lineHeight = 15,
+    }) {
+      var x = left;
+      var y = top;
+      var pendingSpace = false;
+      for (final run in runs) {
+        final words = run.$1.trim().split(RegExp(r'\s+'));
+        for (final word in words) {
+          if (word.isEmpty) continue;
+          final spaceWidth = pendingSpace ? run.$2.measureString(' ').width : 0;
+          final wordWidth = run.$2.measureString(word).width;
+          if (x > left && x + spaceWidth + wordWidth > left + width) {
+            x = left;
+            y += lineHeight;
+          }
+          if (pendingSpace && x > left) x += spaceWidth;
+          graphics.drawString(
+            word,
+            run.$2,
+            brush: black,
+            bounds: Rect.fromLTWH(x, y, wordWidth + 2, lineHeight),
+          );
+          x += wordWidth;
+          pendingSpace = true;
+        }
+        pendingSpace = run.$1.endsWith(' ');
+      }
+    }
 
     void replaceBlock(
       TextLine? start,
@@ -3407,9 +3446,22 @@ class PdfService {
     replaceBlock(
       introduction,
       itemOne,
-      'I, ALYSSA LYNN TALINGTING, of legal age, Filipino, and with office '
-      'address at $permanentAddress, after having been duly sworn in '
-      'accordance with law, hereby depose and state that:',
+      '',
+    );
+    drawRuns(
+      introduction.bounds.left,
+      introduction.bounds.top,
+      page.size.width - introduction.bounds.left - 65,
+      <(String, PdfFont)>[
+        ('I, ', regular),
+        ('ALYSSA LYNN TALINGTING, ', bold),
+        ('of legal age, Filipino, and with office address at ', regular),
+        ('$permanentAddress, ', regular),
+        (
+          'after having been duly sworn in accordance with law, hereby depose and state that:',
+          regular,
+        ),
+      ],
     );
     if (itemOne != null && itemTwo != null) {
       final left = itemOne.bounds.left;
@@ -3430,24 +3482,22 @@ class PdfService {
         brush: black,
         bounds: Rect.fromLTWH(left, itemOne.bounds.top, 18, 16),
       );
-      graphics.drawString(
-        'I am the duly elected and qualified Corporate Secretary of '
-        'MIKATA PRIME CORPORATION, a corporation duly organized and existing '
-        'under and by virtue of the laws of the Republic of the Philippines, '
-        'with principal office address at $permanentAddress;',
-        regular,
-        brush: black,
-        bounds: Rect.fromLTWH(
-          left + 18,
-          itemOne.bounds.top,
-          page.size.width - left - 83,
-          bottom - itemOne.bounds.top,
-        ),
-        format: PdfStringFormat(
-          alignment: PdfTextAlignment.justify,
-          wordWrap: PdfWordWrapType.word,
-          lineSpacing: 2,
-        ),
+      drawRuns(
+        left + 18,
+        itemOne.bounds.top,
+        page.size.width - left - 83,
+        <(String, PdfFont)>[
+          (
+            'I am the duly elected and qualified Corporate Secretary of ',
+            regular,
+          ),
+          ('MIKATA PRIME CORPORATION, ', bold),
+          (
+            'a corporation duly organized and existing under and by virtue of the laws of the Republic of the Philippines, with principal office address at ',
+            regular,
+          ),
+          ('$permanentAddress;', regular),
+        ],
       );
     }
     replaceBlock(
