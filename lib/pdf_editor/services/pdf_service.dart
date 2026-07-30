@@ -2608,16 +2608,22 @@ class PdfService {
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final bidderName = (values['bidderName'] ?? '').trim();
+    final displayBidderName = bidderName
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+        .join(' ');
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final municipality = (values['municipality'] ?? '').trim();
     final province = (values['province'] ?? '').trim();
     final date = (values['date'] ?? '').trim();
     final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
     final formalName = selectedName.contains('CARLOS RAFAEL A. JAMILO')
-        ? 'CARLOS RAFAEL A. JAMILO'
+        ? 'Carlos Rafael A. Jamilo'
         : selectedName.contains('MARLJONE BLAIRE B. TINGTING')
-            ? 'MARLJONE BLAIRE B. TINGTING'
-            : 'JHO ANN Q. CLEOPAS';
+            ? 'Marljone Blaire B. Tingting'
+            : 'Jho Ann Q. Cleopas';
     final lines = PdfTextExtractor(document).extractTextLines(
       startPageIndex: pageIndex,
       endPageIndex: pageIndex,
@@ -2688,7 +2694,7 @@ class PdfService {
 
     drawStyledParagraph(<(String, PdfFont)>[
       ('This is to certify that ', regular),
-      (bidderName, bold),
+      (displayBidderName, bold),
       (' provides a ', regular),
       ('two (2) Year', bold),
       (' Limited Warranty on all materials supplied for the ', regular),
@@ -2711,7 +2717,7 @@ class PdfService {
         ),
       );
       graphics.drawString(
-        '$bidderName remains committed to ensuring the quality and durability '
+        '$displayBidderName remains committed to ensuring the quality and durability '
         'of our contributions to the Municipality’s infrastructure.',
         regular,
         brush: black,
@@ -2719,13 +2725,13 @@ class PdfService {
         format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
       );
       graphics.drawString(
-        bidderName,
+        displayBidderName,
         bold,
         brush: black,
         bounds: Rect.fromLTWH(
           bodyLeft,
           top + 3,
-          bold.measureString(bidderName).width + 2,
+          bold.measureString(displayBidderName).width + 2,
           14,
         ),
       );
@@ -2742,10 +2748,27 @@ class PdfService {
         ),
       );
       drawStyledParagraph(<(String, PdfFont)>[
-        (bidderName, bold),
+        (displayBidderName, bold),
         (
           ' remains committed to ensuring the quality and durability of our '
               'contributions to the Municipality’s infrastructure.',
+          regular
+        ),
+      ], top + 3, firstLineIndent: 0);
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          72,
+          top - 2,
+          page.getClientSize().width - 130,
+          42,
+        ),
+      );
+      drawStyledParagraph(<(String, PdfFont)>[
+        (displayBidderName, bold),
+        (
+          ' remains committed to ensuring the quality and durability of our '
+              "contributions to the Municipality's infrastructure.",
           regular
         ),
       ], top + 3, firstLineIndent: 0);
@@ -2790,7 +2813,7 @@ class PdfService {
         brush: black,
         bounds: Rect.fromLTWH(valueLeft, signatureTop + 15, 200, 14));
     drawRow('Designation', 'Authorized Representative', signatureTop + 31);
-    drawRow('Name of Firm', bidderName.toUpperCase(), signatureTop + 48);
+    drawRow('Name of Firm', displayBidderName, signatureTop + 48);
     drawRow('Date', date, signatureTop + 65);
   }
 
