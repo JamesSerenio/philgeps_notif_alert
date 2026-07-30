@@ -3020,6 +3020,8 @@ class PdfService {
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final selected =
         (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+    final bidderName = (values['bidderName'] ?? '').trim();
+    final bidDate = (values['date'] ?? '').trim();
     final location = 'Municipality of $municipality, $province';
     final money = _formatBidAmount(total);
     final amountWords = _bidAmountInWords(total);
@@ -3232,6 +3234,71 @@ class PdfService {
           ("Secretary's Certificate.", authorizedItalic, true),
         ],
         lineHeight: 14.5);
+
+    // The BID FORM signature is on the following template page. Replace that
+    // block separately so it always follows the current sidebar values.
+    TextLine? continuationSignature;
+    for (final line in lines) {
+      if (line.pageIndex <= bidFormPageIndex) continue;
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('DULY AUTHORIZED TO SIGN THE BID FOR AND BEHALF OF')) {
+        continuationSignature = line;
+        break;
+      }
+    }
+    if (continuationSignature != null) {
+      final signaturePage = document.pages[continuationSignature.pageIndex];
+      final signatureGraphics = signaturePage.graphics;
+      final left = continuationSignature.bounds.left;
+      final top = continuationSignature.bounds.top;
+      final availableWidth = signaturePage.size.width - left - 42;
+
+      signatureGraphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          left - 4,
+          top - 3,
+          availableWidth + 8,
+          125,
+        ),
+      );
+      signatureGraphics.drawString(
+        'Duly authorized to sign the Bid for and behalf of:',
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(left, top, availableWidth, 15),
+      );
+
+      void drawEmphasized(String text, double y, {bool italicText = true}) {
+        final font = PdfStandardFont(
+          PdfFontFamily.timesRoman,
+          10.5,
+          style: italicText ? PdfFontStyle.italic : PdfFontStyle.regular,
+        );
+        signatureGraphics.drawString(
+          text,
+          font,
+          brush: black,
+          bounds: Rect.fromLTWH(left, y, availableWidth, 15),
+        );
+        signatureGraphics.drawString(
+          text,
+          font,
+          brush: black,
+          bounds: Rect.fromLTWH(left + .2, y, availableWidth, 15),
+        );
+      }
+
+      drawEmphasized(bidderName, top + 27);
+      drawEmphasized(selected, top + 65);
+      signatureGraphics.drawString(
+        'Authorized Representative',
+        italic,
+        brush: black,
+        bounds: Rect.fromLTWH(left, top + 82, availableWidth, 15),
+      );
+      drawEmphasized(bidDate, top + 99);
+    }
   }
 
   static String _formatBidAmount(double amount) {
