@@ -3730,7 +3730,25 @@ class PdfService {
     final legalLocation =
         'Municipality of $municipality, $province, Philippines';
 
+    final lastPageIndex = document.pages.count - 1;
+    TextLine? witnessLine;
+    TextLine? subscribedLine;
+    for (final line in lines) {
+      if (line.pageIndex != lastPageIndex) continue;
+      final compactText =
+          line.text.toUpperCase().replaceAll(RegExp('[^A-Z]'), '');
+      if (compactText.contains('INWITNESSWHEREOF') ||
+          compactText.contains('HEREUNTOSETMYHAND')) {
+        witnessLine ??= line;
+      }
+      if (compactText.contains('SUBSCRIBEDANDSWORN') ||
+          compactText.contains('AFFIANTEXHIBITING')) {
+        subscribedLine ??= line;
+      }
+    }
+
     void replaceLegalParagraph(
+      TextLine? sourceLine,
       List<(String, PdfFont)> runs, {
       required double top,
       double height = 36,
@@ -3738,14 +3756,20 @@ class PdfService {
       // These jurat paragraphs are always on the final generated page (61).
       final targetPage = document.pages[document.pages.count - 1];
       final targetGraphics = targetPage.graphics;
-      const left = 136.0;
+      final left = sourceLine?.bounds.left ?? 51.0;
+      final paragraphTop = sourceLine?.bounds.top ?? top;
       final width = targetPage.size.width - left - 45;
       targetGraphics.drawRectangle(
         brush: white,
-        bounds: Rect.fromLTWH(left - 2, top - 1, width + 4, height),
+        bounds: Rect.fromLTWH(
+          left - 2,
+          paragraphTop - 2,
+          width + 4,
+          height + 4,
+        ),
       );
       var x = left;
-      var y = top;
+      var y = paragraphTop;
       var hasWord = false;
       const lineHeight = 15.0;
       for (final run in runs) {
@@ -3774,19 +3798,25 @@ class PdfService {
       }
     }
 
-    replaceLegalParagraph(<(String, PdfFont)>[
-      ('IN WITNESS WHEREOF, ', bold),
-      ('I have hereunto set my hand this ', regular),
-      ('$legalDate ', bold),
-      ('at $legalLocation.', regular),
-    ], top: 32);
-    replaceLegalParagraph(<(String, PdfFont)>[
-      ('SUBSCRIBED AND SWORN ', bold),
-      (
-        'to before me this $legalDate at $legalLocation, affiant exhibiting to me their competent evidence of identity.',
-        regular
-      ),
-    ], top: 126);
+    replaceLegalParagraph(
+        witnessLine,
+        <(String, PdfFont)>[
+          ('IN WITNESS WHEREOF, ', bold),
+          ('I have hereunto set my hand this ', regular),
+          ('$legalDate ', bold),
+          ('at $legalLocation.', regular),
+        ],
+        top: 32);
+    replaceLegalParagraph(
+        subscribedLine,
+        <(String, PdfFont)>[
+          ('SUBSCRIBED AND SWORN ', bold),
+          (
+            'to before me this $legalDate at $legalLocation, affiant exhibiting to me their competent evidence of identity.',
+            regular
+          ),
+        ],
+        top: 126);
   }
 
   static String _formatBidAmount(double amount) {
