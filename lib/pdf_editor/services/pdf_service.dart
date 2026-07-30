@@ -3259,45 +3259,49 @@ class PdfService {
           left - 4,
           top - 3,
           availableWidth + 8,
-          125,
+          132,
         ),
       );
       signatureGraphics.drawString(
         'Duly authorized to sign the Bid for and behalf of:',
-        regular,
+        PdfStandardFont(PdfFontFamily.timesRoman, 12),
         brush: black,
-        bounds: Rect.fromLTWH(left, top, availableWidth, 15),
+        bounds: Rect.fromLTWH(left, top, availableWidth, 17),
       );
 
       void drawEmphasized(String text, double y, {bool italicText = true}) {
         final font = PdfStandardFont(
           PdfFontFamily.timesRoman,
-          10.5,
+          12,
           style: italicText ? PdfFontStyle.italic : PdfFontStyle.regular,
         );
         signatureGraphics.drawString(
           text,
           font,
           brush: black,
-          bounds: Rect.fromLTWH(left, y, availableWidth, 15),
+          bounds: Rect.fromLTWH(left, y, availableWidth, 17),
         );
         signatureGraphics.drawString(
           text,
           font,
           brush: black,
-          bounds: Rect.fromLTWH(left + .2, y, availableWidth, 15),
+          bounds: Rect.fromLTWH(left + .2, y, availableWidth, 17),
         );
       }
 
-      drawEmphasized(bidderName, top + 27);
-      drawEmphasized(selected, top + 65);
+      drawEmphasized(bidderName, top + 30);
+      drawEmphasized(selected, top + 72);
       signatureGraphics.drawString(
         'Authorized Representative',
-        italic,
+        PdfStandardFont(
+          PdfFontFamily.timesRoman,
+          12,
+          style: PdfFontStyle.italic,
+        ),
         brush: black,
-        bounds: Rect.fromLTWH(left, top + 82, availableWidth, 15),
+        bounds: Rect.fromLTWH(left, top + 91, availableWidth, 17),
       );
-      drawEmphasized(bidDate, top + 99);
+      drawEmphasized(bidDate, top + 110);
     }
   }
 
