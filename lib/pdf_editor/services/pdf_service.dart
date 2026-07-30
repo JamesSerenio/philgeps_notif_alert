@@ -2994,7 +2994,7 @@ class PdfService {
     final boldItalic = PdfStandardFont(
       PdfFontFamily.timesRoman,
       10.5,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.italic,
     );
     final reference = (values['referenceNumber'] ?? '').trim();
     final municipality = (values['municipality'] ?? '').trim();
@@ -3020,9 +3020,54 @@ class PdfService {
               line.bounds.width + extraWidth, line.bounds.height + 4));
     }
 
-    replaceLine(idLine, 'Project Identification No.: $reference',
-        font: boldItalic, extraWidth: 80);
-    replaceLine(toLine, 'To: $location', font: boldItalic, extraWidth: 120);
+    void replaceStyledLine(
+      TextLine? line,
+      List<(String, PdfFont)> parts, {
+      double extraWidth = 20,
+    }) {
+      if (line == null) return;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(line.bounds.left - 3, line.bounds.top - 2,
+            line.bounds.width + extraWidth + 6, line.bounds.height + 5),
+      );
+      var x = line.bounds.left;
+      for (final part in parts) {
+        final width = part.$2.measureString(part.$1).width;
+        graphics.drawString(
+          part.$1,
+          part.$2,
+          brush: black,
+          bounds: Rect.fromLTWH(
+              x, line.bounds.top, width + 2, line.bounds.height + 4),
+        );
+        if (identical(part.$2, boldItalic)) {
+          graphics.drawString(
+            part.$1,
+            part.$2,
+            brush: black,
+            bounds: Rect.fromLTWH(
+                x + .2, line.bounds.top, width + 2, line.bounds.height + 4),
+          );
+        }
+        x += width;
+      }
+    }
+
+    replaceStyledLine(
+        idLine,
+        <(String, PdfFont)>[
+          ('Project Identification No.: ', regular),
+          (reference, boldItalic),
+        ],
+        extraWidth: 80);
+    replaceStyledLine(
+        toLine,
+        <(String, PdfFont)>[
+          ('To: ', italic),
+          (location, boldItalic),
+        ],
+        extraWidth: 120);
 
     void replaceParagraph(
       TextLine? start,
