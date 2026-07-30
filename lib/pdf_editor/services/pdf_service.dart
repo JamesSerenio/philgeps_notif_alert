@@ -3501,8 +3501,9 @@ class PdfService {
       drawRuns(
         left,
         start.bounds.top,
-        page.size.width - left - 65,
+        page.size.width - left - 35,
         runs,
+        lineHeight: 13,
       );
     }
 
@@ -3570,7 +3571,10 @@ class PdfService {
         ('"RESOLVED, ', bold),
         ('that ', italic),
         ('MIKATA PRIME CORPORATION ', bold),
-        ('is hereby authorized to participate in the public bidding, negotiate, and enter into a contract with the ', italic),
+        (
+          'is hereby authorized to participate in the public bidding, negotiate, and enter into a contract with the ',
+          italic
+        ),
         ('Municipality of $municipality, $province ', bold),
         ('for the project entitled: ', italic),
         ('"$projectTitle";', bold),
@@ -3583,7 +3587,10 @@ class PdfService {
         ('"RESOLVED FURTHER, ', bold),
         ('that the Corporation hereby designates ', italic),
         ('${representative.toUpperCase()}, ', bold),
-        ('as the Authorized Representative of the Corporation, to represent, sign, execute, submit, and deliver any and all documents, agreements, forms, and proposals necessary to effectively participate in the bidding and implement the aforementioned project, granting unto the said representative full power and authority to do and perform any and all acts required;', italic),
+        (
+          'as the Authorized Representative of the Corporation, to represent, sign, execute, submit, and deliver any and all documents, agreements, forms, and proposals necessary to effectively participate in the bidding and implement the aforementioned project, granting unto the said representative full power and authority to do and perform any and all acts required;',
+          italic
+        ),
       ],
     );
     replaceResolutionBlock(
@@ -3591,9 +3598,15 @@ class PdfService {
       itemFour,
       <(String, PdfFont)>[
         ('"RESOLVED FINALLY, ', bold),
-        ('that any and all prior actions taken by the Authorized Representative, as well as the Proprietor/President of the Corporation, ', italic),
+        (
+          'that any and all prior actions taken by the Authorized Representative, as well as the Proprietor/President of the Corporation, ',
+          italic
+        ),
         ('PATRICK CARLO P. DEDEL, ', bold),
-        ('in connection with the foregoing are hereby approved, ratified, and confirmed as the acts of the Corporation."', italic),
+        (
+          'in connection with the foregoing are hereby approved, ratified, and confirmed as the acts of the Corporation."',
+          italic
+        ),
       ],
     );
     if (itemFour == null) return;
