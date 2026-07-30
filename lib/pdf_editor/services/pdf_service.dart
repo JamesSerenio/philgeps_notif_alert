@@ -2204,7 +2204,7 @@ class PdfService {
     final boldItalic = PdfStandardFont(
       PdfFontFamily.timesRoman,
       10,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.italic,
     );
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final municipality = (values['municipality'] ?? '').trim();
@@ -2286,41 +2286,47 @@ class PdfService {
     );
     const signatureLeft = 250.0;
     const signatureWidth = 300.0;
-    final centered = PdfStringFormat(alignment: PdfTextAlignment.center);
+    final leftAligned = PdfStringFormat(alignment: PdfTextAlignment.left);
+    final formattedBidderName = bidderName
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+        .join(' ');
     graphics.drawString(
       'Duly authorized to sign the Bid for and behalf of:',
       regular,
       brush: black,
       bounds: const Rect.fromLTWH(signatureLeft, 544, signatureWidth, 16),
-      format: centered,
+      format: leftAligned,
     );
     graphics.drawString(
-      bidderName,
+      formattedBidderName,
       boldItalic,
       brush: black,
       bounds: const Rect.fromLTWH(signatureLeft, 572, signatureWidth, 16),
-      format: centered,
+      format: leftAligned,
     );
     graphics.drawString(
       formalName,
       boldItalic,
       brush: black,
       bounds: const Rect.fromLTWH(signatureLeft, 610, signatureWidth, 16),
-      format: centered,
+      format: leftAligned,
     );
     graphics.drawString(
       'Authorized Representative',
       italic,
       brush: black,
       bounds: const Rect.fromLTWH(signatureLeft, 628, signatureWidth, 16),
-      format: centered,
+      format: leftAligned,
     );
     graphics.drawString(
       date,
       boldItalic,
       brush: black,
       bounds: const Rect.fromLTWH(signatureLeft, 646, signatureWidth, 16),
-      format: centered,
+      format: leftAligned,
     );
   }
 
