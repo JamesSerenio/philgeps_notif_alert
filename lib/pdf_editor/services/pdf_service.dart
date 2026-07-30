@@ -2639,15 +2639,15 @@ class PdfService {
       if (text.contains('REMAINS COMMITTED')) commitmentLine ??= line;
       if (text.contains('SUBMITTED BY')) submittedLine ??= line;
     }
-    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 13.5);
     final bold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      12,
+      13.5,
       style: PdfFontStyle.bold,
     );
     final italic = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      12,
+      13.5,
       style: PdfFontStyle.italic,
     );
     final bodyLeft = 106.0;
@@ -2666,7 +2666,7 @@ class PdfService {
       double top, {
       double firstLineIndent = 0,
     }) {
-      const lineHeight = 14.5;
+      const lineHeight = 16.2;
       var x = bodyLeft + firstLineIndent;
       var y = top;
       var pendingSpace = false;
