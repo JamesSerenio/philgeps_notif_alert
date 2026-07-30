@@ -2207,8 +2207,6 @@ class PdfService {
       style: PdfFontStyle.italic,
     );
     final projectTitle = (values['projectTitle'] ?? '').trim();
-    final municipality = (values['municipality'] ?? '').trim();
-    final province = (values['province'] ?? '').trim();
     final bidderName = (values['bidderName'] ?? '').trim();
     final date = (values['date'] ?? '').trim();
     final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
@@ -2259,26 +2257,6 @@ class PdfService {
       }
     }
 
-    // Witness clause: fill the date and place instead of retaining blanks.
-    if (date.isNotEmpty && municipality.isNotEmpty && province.isNotEmpty) {
-      graphics.drawRectangle(
-        brush: white,
-        bounds: const Rect.fromLTWH(70, 492, 475, 44),
-      );
-      graphics.drawString(
-        'IN WITNESS WHEREOF, I have hereunto set my hand on $date at '
-        '$municipality, $province, Philippines.',
-        regular,
-        brush: black,
-        bounds: const Rect.fromLTWH(104, 497, 438, 35),
-        format: PdfStringFormat(
-          wordWrap: PdfWordWrapType.word,
-          lineAlignment: PdfVerticalAlignment.top,
-          paragraphIndent: 0,
-        ),
-      );
-    }
-
     // Signature block follows the selected bidder and representative.
     graphics.drawRectangle(
       brush: white,
@@ -2308,10 +2286,34 @@ class PdfService {
       format: leftAligned,
     );
     graphics.drawString(
+      formattedBidderName,
+      boldItalic,
+      brush: black,
+      bounds: const Rect.fromLTWH(
+        signatureLeft + .22,
+        572,
+        signatureWidth,
+        16,
+      ),
+      format: leftAligned,
+    );
+    graphics.drawString(
       formalName,
       boldItalic,
       brush: black,
       bounds: const Rect.fromLTWH(signatureLeft, 610, signatureWidth, 16),
+      format: leftAligned,
+    );
+    graphics.drawString(
+      formalName,
+      boldItalic,
+      brush: black,
+      bounds: const Rect.fromLTWH(
+        signatureLeft + .22,
+        610,
+        signatureWidth,
+        16,
+      ),
       format: leftAligned,
     );
     graphics.drawString(
@@ -2326,6 +2328,18 @@ class PdfService {
       boldItalic,
       brush: black,
       bounds: const Rect.fromLTWH(signatureLeft, 646, signatureWidth, 16),
+      format: leftAligned,
+    );
+    graphics.drawString(
+      date,
+      boldItalic,
+      brush: black,
+      bounds: const Rect.fromLTWH(
+        signatureLeft + .22,
+        646,
+        signatureWidth,
+        16,
+      ),
       format: leftAligned,
     );
   }
