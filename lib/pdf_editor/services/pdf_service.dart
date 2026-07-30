@@ -2025,9 +2025,9 @@ class PdfService {
     // Match the original identity paragraph beneath the centered Omnibus
     // title. Keeping this band separate preserves the title above and clears
     // the complete old paragraph, including "depose and state that".
-    const top = 158.0;
+    const top = 140.0;
     final right = pageWidth - left;
-    const originalHeight = 55.0;
+    const originalHeight = 48.0;
     final paragraph =
         'I, $formalName, of legal age, $civilStatus, Filipino, and with residence at $address, after having been duly sworn in accordance with law, do hereby depose and state that:';
     final font = PdfStandardFont(
