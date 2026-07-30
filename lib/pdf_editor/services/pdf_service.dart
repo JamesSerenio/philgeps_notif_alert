@@ -3323,6 +3323,7 @@ class PdfService {
     }
     if (pageIndex == null) return;
 
+    TextLine? venueLine;
     TextLine? introduction;
     TextLine? itemOne;
     TextLine? itemTwo;
@@ -3334,6 +3335,9 @@ class PdfService {
       if (line.pageIndex != pageIndex) continue;
       final text =
           line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text.contains('MUNICIPALITY OF')) {
+        venueLine ??= line;
+      }
       if (text.startsWith('I, ALYSSA LYNN TALINGTING')) introduction ??= line;
       if (text.contains('I AM THE DULY ELECTED AND QUALIFIED'))
         itemOne ??= line;
@@ -3368,6 +3372,33 @@ class PdfService {
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final representative =
         (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+
+    if (venueLine != null) {
+      final venue = venueLine!;
+      final venueText =
+          'MUNICIPALITY OF ${municipality.isEmpty ? '________' : municipality.toUpperCase()}, '
+          '${province.isEmpty ? '________' : province.toUpperCase()}   ) S.S';
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          venue.bounds.left - 2,
+          venue.bounds.top - 1,
+          page.size.width - venue.bounds.left + 2,
+          venue.bounds.height + 4,
+        ),
+      );
+      graphics.drawString(
+        venueText,
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          venue.bounds.left,
+          venue.bounds.top,
+          page.size.width - venue.bounds.left - 45,
+          18,
+        ),
+      );
+    }
 
     void drawRuns(
       double left,
