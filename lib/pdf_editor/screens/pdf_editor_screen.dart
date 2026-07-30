@@ -539,9 +539,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
       if (!mounted) return;
 
-      if (previewBlobUrl != null) {
-        html.Url.revokeObjectUrl(previewBlobUrl!);
-      }
+      // Keep the previous blob alive until Flutter has detached its iframe.
+      // Revoking it while Chrome's PDF viewer is still mounted can make the
+      // viewer cleanup script call removeChild on an element that is gone.
+      final previousBlobUrl = previewBlobUrl;
 
       final blob = html.Blob(
         <dynamic>[bytes],
@@ -569,6 +570,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         previewBlobUrl = blobUrl;
         previewViewType = viewType;
       });
+
+      if (previousBlobUrl != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          html.Url.revokeObjectUrl(previousBlobUrl);
+        });
+      }
     } catch (error) {
       if (!mounted) return;
 
