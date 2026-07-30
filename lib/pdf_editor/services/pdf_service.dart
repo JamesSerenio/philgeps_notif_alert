@@ -2002,7 +2002,13 @@ class PdfService {
     final address = (values['submittedByAddress'] ?? '').trim();
     if (formalName.isEmpty || civilStatus.isEmpty || address.isEmpty) return;
 
-    final lines = PdfTextExtractor(document).extractTextLines();
+    // In the source template the actual Omnibus form is near page 66. Earlier
+    // pages may mention its title in indexes/checklists, so searching the
+    // whole document can anchor the overlay to the wrong page.
+    final lines = PdfTextExtractor(document).extractTextLines(
+      startPageIndex: 60.clamp(0, document.pages.count - 1).toInt(),
+      endPageIndex: document.pages.count - 1,
+    );
     int? pageIndex;
     TextLine? titleLine;
     for (final line in lines) {
