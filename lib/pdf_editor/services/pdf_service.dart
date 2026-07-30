@@ -1664,6 +1664,11 @@ class PdfService {
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final priceBold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
     final bold = PdfStandardFont(
       PdfFontFamily.timesRoman,
       8.5,
@@ -1809,7 +1814,9 @@ class PdfService {
           money(delivered),
         ];
         for (var column = 0; column < texts.length; column++) {
-          page.graphics.drawString(texts[column], regular,
+          final isPriceColumn = column >= 5;
+          page.graphics.drawString(texts[column],
+              isPriceColumn ? priceBold : regular,
               brush: column == 2 || column == 10 ? red : black,
               bounds: Rect.fromLTWH(columns[column] + 2, y + 1,
                   columns[column + 1] - columns[column] - 4, rowHeight - 2),
@@ -2950,6 +2957,11 @@ class PdfService {
       style: PdfFontStyle.bold,
     );
     final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 8.5);
+    final priceFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      8.5,
+      style: PdfFontStyle.bold,
+    );
     final instructionFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       8.5,
@@ -3085,7 +3097,7 @@ class PdfService {
         for (var column = 0; column < valuesForRow.length; column++) {
           page.graphics.drawString(
             valuesForRow[column],
-            rowFont,
+            column == 2 ? priceFont : rowFont,
             brush: column == 2 ? red : black,
             bounds: rowBounds[column],
             format: PdfStringFormat(
