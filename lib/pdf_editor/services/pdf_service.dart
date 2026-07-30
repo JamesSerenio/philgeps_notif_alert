@@ -3110,6 +3110,7 @@ class PdfService {
       TextLine? next,
       List<(String, PdfFont, bool)> parts, {
       double hangingIndent = 0,
+      double labelColumnWidth = 0,
       double lineHeight = 12.5,
     }) {
       if (start == null) return;
@@ -3126,6 +3127,7 @@ class PdfService {
       var x = left;
       var y = top;
       var pendingSpace = false;
+      var isFirstWord = true;
       for (final part in parts) {
         for (final match in RegExp(r'\S+').allMatches(part.$1)) {
           final word = match.group(0)!;
@@ -3148,6 +3150,10 @@ class PdfService {
                 bounds: Rect.fromLTWH(x + .2, y, width + 1, lineHeight));
           }
           x += width;
+          if (isFirstWord && labelColumnWidth > 0) {
+            x = left + labelColumnWidth;
+          }
+          isFirstWord = false;
         }
         pendingSpace = RegExp(r'\s$').hasMatch(part.$1);
       }
@@ -3174,16 +3180,22 @@ class PdfService {
     );
 
     // Restore the source BID FORM's mixed regular and bold-italic emphasis.
-    drawStyledParagraph(itemA, itemB, <(String, PdfFont, bool)>[
-      (
-        'a)  I/We have no reservation to the PBD, including the Supplemental '
-            'Bid Bulletins, for the Procurement ',
-        regular,
-        false
-      ),
-      (projectTitle, italic, true),
-      ('.', regular, false),
-    ]);
+    drawStyledParagraph(
+      itemA,
+      itemB,
+      <(String, PdfFont, bool)>[
+        (
+          'a)  I/We have no reservation to the PBD, including the Supplemental '
+              'Bid Bulletins, for the Procurement ',
+          regular,
+          false
+        ),
+        (projectTitle, italic, true),
+        ('.', regular, false),
+      ],
+      hangingIndent: 24,
+      labelColumnWidth: 24,
+    );
     drawStyledParagraph(
       itemC,
       itemD,
@@ -3196,7 +3208,8 @@ class PdfService {
         ),
         ('$amountWords Only (PHP $money).', itemCItalic, true),
       ],
-      hangingIndent: 20,
+      hangingIndent: 24,
+      labelColumnWidth: 24,
       lineHeight: 14.5,
     );
     drawStyledParagraph(
