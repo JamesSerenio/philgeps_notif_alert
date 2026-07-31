@@ -1056,6 +1056,11 @@ class PdfService {
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final textFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final boldTextFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.bold,
+    );
     final recipientFont = PdfStandardFont(
       PdfFontFamily.helvetica,
       11,
@@ -1064,6 +1069,13 @@ class PdfService {
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
     final municipality = (values['municipality'] ?? '').trim().toUpperCase();
     final province = (values['province'] ?? '').trim().toUpperCase();
+    final procuringEntity =
+        (values['procuringEntity'] ?? '').trim().toUpperCase();
+    final venue = procuringEntity.isEmpty
+        ? 'MUNICIPALITY OF $municipality, $province'
+        : procuringEntity;
+    final dateParts = (values['date'] ?? '').trim().split(RegExp(r'\s+'));
+    final year = dateParts.isEmpty ? '' : dateParts.last;
     final recipient = 'MUNICIPALITY OF $municipality, $province';
 
     var recipientTop = 181.0;
@@ -1175,40 +1187,19 @@ class PdfService {
     );
     final yearLeft = monthLineLeft + monthLineWidth + 4;
     witnessGraphics.drawString(
-      '2026 at Municipality',
-      textFont,
+      '$year at',
+      boldTextFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(yearLeft, witnessTop, 120, 15),
+      bounds: Rect.fromLTWH(yearLeft, witnessTop, 70, 15),
     );
 
-    // Venue: Municipality of [municipality], [province].
+    // Use the complete procuring entity as the venue. It is printed directly
+    // instead of leaving municipality/province blanks in the template.
     witnessGraphics.drawString(
-      'of',
-      textFont,
+      '$venue.',
+      boldTextFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(36, witnessTop + 20, 12, 15),
-    );
-    witnessGraphics.drawLine(
-      linePen,
-      Offset(50, witnessTop + 32),
-      Offset(153, witnessTop + 32),
-    );
-    witnessGraphics.drawString(
-      ',',
-      textFont,
-      brush: blackBrush,
-      bounds: Rect.fromLTWH(155, witnessTop + 20, 5, 15),
-    );
-    witnessGraphics.drawLine(
-      linePen,
-      Offset(164, witnessTop + 32),
-      Offset(267, witnessTop + 32),
-    );
-    witnessGraphics.drawString(
-      '.',
-      textFont,
-      brush: blackBrush,
-      bounds: Rect.fromLTWH(269, witnessTop + 20, 5, 15),
+      bounds: Rect.fromLTWH(36, witnessTop + 20, 500, 15),
     );
 
     if (signaturePageIndex != null && dulyTop != null) {
