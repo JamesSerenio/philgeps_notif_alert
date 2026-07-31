@@ -1544,40 +1544,67 @@ class PdfService {
         lineAlignment: PdfVerticalAlignment.middle,
       ),
     );
-    firstPage.graphics.drawString(
-      statementText,
-      statementBodyFont,
-      brush: blackBrush,
-      bounds: Rect.fromLTWH(
-        columns.first + 6,
-        statementTop + statementTitleHeight + 7,
-        columns.last - columns.first - 12,
-        statementBodyHeight - 48,
-      ),
-      format: PdfStringFormat(
-        alignment: PdfTextAlignment.justify,
-        lineAlignment: PdfVerticalAlignment.top,
-        wordWrap: PdfWordWrapType.word,
-      ),
-    );
-    final emphasisBounds = Rect.fromLTWH(
-      columns.first + 6,
-      statementTop + statementTitleHeight + statementBodyHeight - 42,
-      columns.last - columns.first - 12,
-      36,
-    );
-    final emphasisFormat = PdfStringFormat(
-      alignment: PdfTextAlignment.justify,
-      lineAlignment: PdfVerticalAlignment.top,
-      wordWrap: PdfWordWrapType.word,
-    );
-    firstPage.graphics.drawString(
-      statementEmphasisText,
-      statementEmphasisFont,
-      brush: blackBrush,
-      bounds: emphasisBounds,
-      format: emphasisFormat,
-    );
+    // Lay out the regular paragraph and bold clause as one continuous flow.
+    // Separate drawString boxes introduce a visible gap and can split the GCC
+    // phrase, so words are wrapped together while retaining their own fonts.
+    final statementWords = <({String text, PdfFont font})>[
+      for (final word in statementText.split(RegExp(r'\s+')))
+        (text: word, font: statementBodyFont),
+      for (final word in statementEmphasisText.split(RegExp(r'\s+')))
+        (text: word, font: statementEmphasisFont),
+    ];
+    final statementLines = <List<({String text, PdfFont font})>>[];
+    var currentLine = <({String text, PdfFont font})>[];
+    var currentWidth = 0.0;
+    final statementLeft = columns.first + 6;
+    final statementWidth = columns.last - columns.first - 12;
+    final spaceWidth = statementBodyFont.measureString(' ').width;
+
+    for (final word in statementWords) {
+      final wordWidth = word.font.measureString(word.text).width;
+      final candidateWidth =
+          currentWidth + (currentLine.isEmpty ? 0 : spaceWidth) + wordWidth;
+      if (currentLine.isNotEmpty && candidateWidth > statementWidth) {
+        statementLines.add(currentLine);
+        currentLine = <({String text, PdfFont font})>[word];
+        currentWidth = wordWidth;
+      } else {
+        currentLine.add(word);
+        currentWidth = candidateWidth;
+      }
+    }
+    if (currentLine.isNotEmpty) statementLines.add(currentLine);
+
+    final lineHeight = statementBodyFont.measureString('Ag').height + 0.6;
+    var statementY = statementTop + statementTitleHeight + 7;
+    for (var lineIndex = 0; lineIndex < statementLines.length; lineIndex++) {
+      final line = statementLines[lineIndex];
+      final wordsWidth = line.fold<double>(
+        0,
+        (total, word) => total + word.font.measureString(word.text).width,
+      );
+      final isLastLine = lineIndex == statementLines.length - 1;
+      final gapWidth = line.length <= 1
+          ? 0.0
+          : isLastLine
+              ? spaceWidth
+              : (statementWidth - wordsWidth) / (line.length - 1);
+      var statementX = statementLeft;
+      for (var wordIndex = 0; wordIndex < line.length; wordIndex++) {
+        final word = line[wordIndex];
+        final wordWidth = word.font.measureString(word.text).width;
+        firstPage.graphics.drawString(
+          word.text,
+          word.font,
+          brush: blackBrush,
+          bounds:
+              Rect.fromLTWH(statementX, statementY, wordWidth + 2, lineHeight),
+        );
+        statementX += wordWidth;
+        if (wordIndex < line.length - 1) statementX += gapWidth;
+      }
+      statementY += lineHeight;
+    }
 
     for (var technicalPage = 0; technicalPage < pageCount; technicalPage++) {
       final page = document.pages[46 + technicalPage];
