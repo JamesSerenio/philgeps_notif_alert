@@ -902,20 +902,41 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(180, 318, 10, 16),
     );
-    final nfccAddress = _permanentBusinessAddress.toUpperCase();
+    const nfccAddressFirstLine = 'SITIO PULI, CARMEN, CAGAYAN DE ORO,';
+    const nfccAddressSecondLine = 'MISAMIS ORIENTAL';
     graphics.drawString(
-      nfccAddress,
+      nfccAddressFirstLine,
       valueFont,
       brush: blackBrush,
       bounds: const Rect.fromLTWH(184, 318, 375, 20),
       format: format,
     );
-    final addressWidth =
-        valueFont.measureString(nfccAddress).width.clamp(0, 375).toDouble();
+    graphics.drawString(
+      nfccAddressSecondLine,
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(184, 332, 375, 20),
+      format: format,
+    );
+    final firstLineWidth = valueFont
+        .measureString(nfccAddressFirstLine)
+        .width
+        .clamp(0, 375)
+        .toDouble();
+    final secondLineWidth = valueFont
+        .measureString(nfccAddressSecondLine)
+        .width
+        .clamp(0, 375)
+        .toDouble();
     graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.5),
       const Offset(184, 331),
-      Offset(184 + addressWidth, 331),
+      Offset(184 + firstLineWidth, 331),
+    );
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      const Offset(184, 345),
+      Offset(184 + secondLineWidth, 345),
     );
   }
 
