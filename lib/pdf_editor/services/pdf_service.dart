@@ -1122,6 +1122,28 @@ class PdfService {
         wordWrap: PdfWordWrapType.none,
       ),
     );
+    graphics.drawString(
+      recipient,
+      recipientFont,
+      brush: blackBrush,
+      bounds: Rect.fromLTWH(57.36, recipientTop - 1.5, 390, 16),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.left,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.none,
+      ),
+    );
+    graphics.drawString(
+      recipient,
+      recipientFont,
+      brush: blackBrush,
+      bounds: Rect.fromLTWH(57.18, recipientTop - 1.38, 390, 16),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.left,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.none,
+      ),
+    );
 
     // Cover the complete original sentence, including the fixed "May",
     // "Sumilao" and "Bukidnon" values in the source template.
