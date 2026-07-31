@@ -1500,11 +1500,12 @@ class PdfService {
         'Bidders statement of compliance or the supporting evidence that is '
         'found to be false either during Bid evaluation, post qualification or '
         'the execution of the Contract may be regarded as fraudulent and render '
-        'the Bidder or supplier liable for prosecution subject to the provisions '
-        'of ITB Clause Error!';
-    const statementFirstBoldText = 'Reference source not found';
-    const statementRegularConnector = 'and/or GCC Clause Error!';
-    const statementSecondBoldText = 'Reference source not found.';
+        'the Bidder or supplier liable for prosecution subject to the provisions of';
+    const statementBoldItb = 'ITB';
+    const statementRegularClause = 'Clause';
+    const statementFirstBoldText = 'Error! Reference source not found';
+    const statementRegularConnector = 'and/or GCC Clause';
+    const statementSecondBoldText = 'Error! Reference source not found.';
 
     // Rebuild the statement and table as one shared bordered structure.
     firstPage.graphics.drawRectangle(
@@ -1550,6 +1551,10 @@ class PdfService {
     // phrase, so words are wrapped together while retaining their own fonts.
     final statementWords = <({String text, PdfFont font})>[
       for (final word in statementText.split(RegExp(r'\s+')))
+        (text: word, font: statementBodyFont),
+      for (final word in statementBoldItb.split(RegExp(r'\s+')))
+        (text: word, font: statementEmphasisFont),
+      for (final word in statementRegularClause.split(RegExp(r'\s+')))
         (text: word, font: statementBodyFont),
       for (final word in statementFirstBoldText.split(RegExp(r'\s+')))
         (text: word, font: statementEmphasisFont),
