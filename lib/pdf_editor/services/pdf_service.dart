@@ -819,6 +819,7 @@ class PdfService {
     final province = (values['province'] ?? '').trim().toUpperCase();
     final procuringEntity =
         (values['procuringEntity'] ?? '').trim().toUpperCase();
+    final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
     final contractTitle =
         'REBIDDING FOR THE PROCUREMENT OF VARIOUS CONSTRUCTION\n'
         'MATERIALS FOR DIFFERENT PROJECTS IN BARANGAY $municipality';
@@ -888,6 +889,33 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(184, 242, 375, 42),
       format: format,
+    );
+
+    // The contractor printed in the template is fixed. Keep this row in sync
+    // with the Bidder Name entered in the editor and underline only its text.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(180, 278, 390, 22),
+    );
+    graphics.drawString(
+      ':',
+      colonFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(180, 282, 10, 16),
+    );
+    graphics.drawString(
+      bidderName,
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(184, 282, 375, 18),
+      format: format,
+    );
+    final bidderNameWidth =
+        valueFont.measureString(bidderName).width.clamp(0, 375).toDouble();
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      const Offset(184, 295),
+      Offset(184 + bidderNameWidth, 295),
     );
 
     // Replace the abbreviated former address embedded in the NFCC template.
