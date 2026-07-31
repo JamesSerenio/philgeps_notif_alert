@@ -985,7 +985,6 @@ class PdfService {
       11,
       style: PdfFontStyle.bold,
     );
-    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
     final lineHeight = valueFont.measureString('Ag').height;
     final titleHeight = titleLineCount * lineHeight;
     const projectTop = 88.0;
@@ -1644,12 +1643,13 @@ class PdfService {
     final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
     final date = (values['date'] ?? '').trim();
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      11,
       style: PdfFontStyle.bold,
     );
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
     // Match the formal signature grid used by the contract-statement pages.
     const labelLeft = 36.0;
     const colonLeft = 112.0;
