@@ -1422,10 +1422,10 @@ class PdfService {
       10,
       style: PdfFontStyle.bold,
     );
-    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
+    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final statementEmphasisFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10.5,
+      12,
       style: PdfFontStyle.bold,
     );
     final specificationFormat = PdfStringFormat(
@@ -1500,10 +1500,11 @@ class PdfService {
         'Bidders statement of compliance or the supporting evidence that is '
         'found to be false either during Bid evaluation, post qualification or '
         'the execution of the Contract may be regarded as fraudulent and render '
-        'the Bidder or supplier liable for prosecution subject to the provisions';
-    const statementEmphasisText =
-        'of ITB Clause Error! Reference source not found and/or GCC '
-        'Clause Error! Reference source not found.';
+        'the Bidder or supplier liable for prosecution subject to the provisions of';
+    const statementFirstBoldText =
+        'ITB Clause Error! Reference source not found';
+    const statementRegularConnector = 'and/or GCC Clause';
+    const statementSecondBoldText = 'Error! Reference source not found.';
 
     // Rebuild the statement and table as one shared bordered structure.
     firstPage.graphics.drawRectangle(
@@ -1550,7 +1551,11 @@ class PdfService {
     final statementWords = <({String text, PdfFont font})>[
       for (final word in statementText.split(RegExp(r'\s+')))
         (text: word, font: statementBodyFont),
-      for (final word in statementEmphasisText.split(RegExp(r'\s+')))
+      for (final word in statementFirstBoldText.split(RegExp(r'\s+')))
+        (text: word, font: statementEmphasisFont),
+      for (final word in statementRegularConnector.split(RegExp(r'\s+')))
+        (text: word, font: statementBodyFont),
+      for (final word in statementSecondBoldText.split(RegExp(r'\s+')))
         (text: word, font: statementEmphasisFont),
     ];
     final statementLines = <List<({String text, PdfFont font})>>[];
@@ -1584,11 +1589,14 @@ class PdfService {
         (total, word) => total + word.font.measureString(word.text).width,
       );
       final isLastLine = lineIndex == statementLines.length - 1;
-      final gapWidth = line.length <= 1
+      final calculatedGap = line.length <= 1
           ? 0.0
           : isLastLine
               ? spaceWidth
               : (statementWidth - wordsWidth) / (line.length - 1);
+      final gapWidth = line.length <= 1
+          ? 0.0
+          : calculatedGap.clamp(spaceWidth, spaceWidth * 2.5).toDouble();
       var statementX = statementLeft;
       for (var wordIndex = 0; wordIndex < line.length; wordIndex++) {
         final word = line[wordIndex];
@@ -1598,7 +1606,7 @@ class PdfService {
           word.font,
           brush: blackBrush,
           bounds:
-              Rect.fromLTWH(statementX, statementY, wordWidth + 2, lineHeight),
+              Rect.fromLTWH(statementX, statementY, wordWidth + 4, lineHeight),
         );
         statementX += wordWidth;
         if (wordIndex < line.length - 1) statementX += gapWidth;
