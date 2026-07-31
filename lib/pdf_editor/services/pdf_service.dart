@@ -979,12 +979,13 @@ class PdfService {
     final graphics = page.graphics;
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      11,
       style: PdfFontStyle.bold,
     );
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
     final lineHeight = valueFont.measureString('Ag').height;
     final titleHeight = titleLineCount * lineHeight;
     const projectTop = 88.0;
@@ -1680,14 +1681,14 @@ class PdfService {
         valueFont.measureString(submittedBy).width.clamp(0, 375).toDouble();
     page.graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      Offset(valueLeft, top + 12),
-      Offset(valueLeft + nameWidth, top + 12),
+      Offset(valueLeft, top + 14),
+      Offset(valueLeft + nameWidth, top + 14),
     );
     page.graphics.drawString(
       '(Printed Name & Signature)',
-      labelFont,
+      captionFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(valueLeft, top + 15, 210, 14),
+      bounds: Rect.fromLTWH(valueLeft, top + 16, 210, 14),
     );
     drawRow('Designation', 'Authorized Representative', top + 31);
     drawRow('Name of Firm', bidderName, top + 48);
