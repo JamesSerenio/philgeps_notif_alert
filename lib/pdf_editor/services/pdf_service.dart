@@ -1766,6 +1766,11 @@ class PdfService {
       style: PdfFontStyle.bold,
     );
     final detailFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final detailBoldFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.bold,
+    );
     final titleFont =
         PdfStandardFont(PdfFontFamily.timesRoman, 13, style: PdfFontStyle.bold);
     var itemIndex = 0;
@@ -1802,22 +1807,55 @@ class PdfService {
         );
         final bidder = (values['bidderName'] ?? '').trim().toUpperCase();
         final reference = (values['referenceNumber'] ?? '').trim();
-        page.graphics.drawString('Name of Bidder: $bidder', detailFont,
-            brush: black,
-            bounds: Rect.fromLTWH(
-              horizontalMargin,
-              58,
-              tableWidth * .48,
-              14,
-            ));
-        page.graphics.drawString('Project ID No.: $reference', detailFont,
-            brush: black,
-            bounds: Rect.fromLTWH(
-              horizontalMargin + tableWidth * .53,
-              58,
-              tableWidth * .25,
-              14,
-            ));
+        const bidderLabel = 'Name of Bidder:';
+        final bidderValueLeft =
+            horizontalMargin + detailFont.measureString(bidderLabel).width + 3;
+        page.graphics.drawString(
+          bidderLabel,
+          detailFont,
+          brush: black,
+          bounds: Rect.fromLTWH(horizontalMargin, 58, 100, 14),
+        );
+        page.graphics.drawString(
+          bidder,
+          detailBoldFont,
+          brush: black,
+          bounds: Rect.fromLTWH(bidderValueLeft, 58, tableWidth * .35, 14),
+        );
+        final bidderWidth =
+            detailBoldFont.measureString(bidder).width.clamp(0, 220).toDouble();
+        page.graphics.drawLine(
+          PdfPen(PdfColor(0, 0, 0), width: 0.5),
+          Offset(bidderValueLeft, 70),
+          Offset(bidderValueLeft + bidderWidth, 70),
+        );
+
+        final projectLabelLeft = horizontalMargin + tableWidth * .53;
+        const projectLabel = 'Project ID No.:';
+        final projectValueLeft =
+            projectLabelLeft + detailFont.measureString(projectLabel).width + 3;
+        page.graphics.drawString(
+          projectLabel,
+          detailFont,
+          brush: black,
+          bounds: Rect.fromLTWH(projectLabelLeft, 58, 100, 14),
+        );
+        page.graphics.drawString(
+          reference,
+          detailBoldFont,
+          brush: black,
+          bounds: Rect.fromLTWH(projectValueLeft, 58, 100, 14),
+        );
+        final referenceWidth = detailBoldFont
+            .measureString(reference)
+            .width
+            .clamp(0, 100)
+            .toDouble();
+        page.graphics.drawLine(
+          PdfPen(PdfColor(0, 0, 0), width: 0.5),
+          Offset(projectValueLeft, 70),
+          Offset(projectValueLeft + referenceWidth, 70),
+        );
         page.graphics.drawString(
             'Pricing Details for Goods Offered from Within the Philippines',
             detailFont,
