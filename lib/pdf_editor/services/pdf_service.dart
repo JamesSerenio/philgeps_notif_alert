@@ -1066,11 +1066,6 @@ class PdfService {
       11,
       style: PdfFontStyle.italic,
     );
-    final venueFont = PdfStandardFont(
-      PdfFontFamily.helvetica,
-      10,
-      style: PdfFontStyle.bold,
-    );
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
     final municipality = (values['municipality'] ?? '').trim().toUpperCase();
     final province = (values['province'] ?? '').trim().toUpperCase();
@@ -1082,48 +1077,17 @@ class PdfService {
     final dateParts = (values['date'] ?? '').trim().split(RegExp(r'\s+'));
     final year = dateParts.isEmpty ? '' : dateParts.last;
     final recipient = 'MUNICIPALITY OF $municipality, $province';
-    final venueName = venue.replaceFirst(
-      RegExp(r'^(CITY|MUNICIPALITY) OF\s+'),
-      '',
-    );
 
     var recipientTop = 181.0;
     var witnessTop = 936.0;
-    double? venueHeaderTop;
     for (final line in pageLines) {
       final text = line.text.toUpperCase();
-      if (text.contains('CITY/MUNICIPALITY OF')) {
-        venueHeaderTop = line.bounds.top;
-      }
       if (text.contains('MUNICIPALITY OF SUMILAO') && text.contains('TO:')) {
         recipientTop = line.bounds.top;
       }
       if (text.contains('IN WITNESS WHEREOF')) {
         witnessTop = line.bounds.top;
       }
-    }
-
-    if (venueHeaderTop != null) {
-      // Fill the template's blank venue using the current procuring entity.
-      // Preserve the printed label and make the supplied place name bold.
-      graphics.drawRectangle(
-        brush: whiteBrush,
-        bounds: Rect.fromLTWH(158, venueHeaderTop - 2, 405, 18),
-      );
-      graphics.drawString(
-        venueName,
-        venueFont,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(160, venueHeaderTop, 350, 16),
-      );
-      final venueNameWidth =
-          venueFont.measureString(venueName).width.clamp(0, 350).toDouble();
-      graphics.drawString(
-        ') S.S.',
-        textFont,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(164 + venueNameWidth, venueHeaderTop, 45, 16),
-      );
     }
 
     // Replace the fixed SUMILAO, BUKIDNON recipient with the municipality and
