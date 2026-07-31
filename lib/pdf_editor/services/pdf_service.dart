@@ -1563,7 +1563,10 @@ class PdfService {
     var currentWidth = 0.0;
     final statementLeft = columns.first + 6;
     final statementWidth = columns.last - columns.first - 12;
-    final spaceWidth = statementBodyFont.measureString(' ').width;
+    // Syncfusion's standard-font measurement can report a zero-width string
+    // for a standalone space. Use the Times Roman 12pt visual space width so
+    // individually rendered words never touch each other.
+    const spaceWidth = 3.4;
 
     for (final word in statementWords) {
       final wordWidth = word.font.measureString(word.text).width;
