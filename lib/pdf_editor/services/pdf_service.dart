@@ -1422,10 +1422,10 @@ class PdfService {
       10,
       style: PdfFontStyle.bold,
     );
-    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
     final statementEmphasisFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      12,
+      10.5,
       style: PdfFontStyle.bold,
     );
     final specificationFormat = PdfStringFormat(
@@ -1500,9 +1500,9 @@ class PdfService {
         'Bidders statement of compliance or the supporting evidence that is '
         'found to be false either during Bid evaluation, post qualification or '
         'the execution of the Contract may be regarded as fraudulent and render '
-        'the Bidder or supplier liable for prosecution subject to the';
+        'the Bidder or supplier liable for prosecution subject to the provisions';
     const statementEmphasisText =
-        'provisions of ITB Clause Error! Reference source not found and/or GCC '
+        'of ITB Clause Error! Reference source not found and/or GCC '
         'Clause Error! Reference source not found.';
 
     // Rebuild the statement and table as one shared bordered structure.
@@ -1576,13 +1576,6 @@ class PdfService {
       statementEmphasisFont,
       brush: blackBrush,
       bounds: emphasisBounds,
-      format: emphasisFormat,
-    );
-    firstPage.graphics.drawString(
-      statementEmphasisText,
-      statementEmphasisFont,
-      brush: blackBrush,
-      bounds: emphasisBounds.shift(const Offset(0.22, 0)),
       format: emphasisFormat,
     );
 
