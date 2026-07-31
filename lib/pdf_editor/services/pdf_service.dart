@@ -46,6 +46,8 @@ class PdfService {
         values,
         signatureTop: 428,
         signatureClearTop: 410,
+        businessAddressClearTop: 210,
+        businessAddressTop: 212,
       );
     }
 
@@ -57,6 +59,8 @@ class PdfService {
         values,
         signatureTop: 485,
         signatureClearTop: 478,
+        businessAddressClearTop: 174,
+        businessAddressTop: 176,
       );
       _drawSlccPrivateRow(document.pages[20], values);
     }
@@ -496,6 +500,8 @@ class PdfService {
     Map<String, String> values, {
     required double signatureTop,
     required double signatureClearTop,
+    required double businessAddressClearTop,
+    required double businessAddressTop,
   }) {
     final procuringEntity = (values['procuringEntity'] ?? '').trim();
     final projectTitle = (values['projectTitle'] ?? '').trim();
@@ -606,13 +612,13 @@ class PdfService {
     // business address used throughout the generated bid documents.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(390, 210, 427, 34),
+      bounds: Rect.fromLTWH(390, businessAddressClearTop, 427, 34),
     );
     graphics.drawString(
       _permanentBusinessAddress.toUpperCase(),
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(396, 212, 419, 30),
+      bounds: Rect.fromLTWH(396, businessAddressTop, 419, 30),
       format: valueFormat,
     );
 
