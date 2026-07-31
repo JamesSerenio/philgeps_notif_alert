@@ -889,6 +889,34 @@ class PdfService {
       bounds: const Rect.fromLTWH(184, 242, 375, 42),
       format: format,
     );
+
+    // Replace the abbreviated former address embedded in the NFCC template.
+    // Keep the original label/value alignment and underline treatment.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(180, 314, 390, 40),
+    );
+    graphics.drawString(
+      ':',
+      colonFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(180, 318, 10, 16),
+    );
+    final nfccAddress = _permanentBusinessAddress.toUpperCase();
+    graphics.drawString(
+      nfccAddress,
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(184, 318, 375, 20),
+      format: format,
+    );
+    final addressWidth =
+        valueFont.measureString(nfccAddress).width.clamp(0, 375).toDouble();
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.5),
+      const Offset(184, 331),
+      Offset(184 + addressWidth, 331),
+    );
   }
 
   static void _drawTechnicalSpecificationsHeader(
