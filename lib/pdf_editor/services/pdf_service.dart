@@ -1765,10 +1765,10 @@ class PdfService {
       8.5,
       style: PdfFontStyle.bold,
     );
-    final detailFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final detailFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final detailBoldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      12,
       style: PdfFontStyle.bold,
     );
     final titleFont =
@@ -1814,20 +1814,20 @@ class PdfService {
           bidderLabel,
           detailFont,
           brush: black,
-          bounds: Rect.fromLTWH(horizontalMargin, 58, 100, 14),
+          bounds: Rect.fromLTWH(horizontalMargin, 58, 120, 17),
         );
         page.graphics.drawString(
           bidder,
           detailBoldFont,
           brush: black,
-          bounds: Rect.fromLTWH(bidderValueLeft, 58, tableWidth * .35, 14),
+          bounds: Rect.fromLTWH(bidderValueLeft, 58, tableWidth * .35, 17),
         );
         final bidderWidth =
             detailBoldFont.measureString(bidder).width.clamp(0, 220).toDouble();
         page.graphics.drawLine(
           PdfPen(PdfColor(0, 0, 0), width: 0.5),
-          Offset(bidderValueLeft, 70),
-          Offset(bidderValueLeft + bidderWidth, 70),
+          Offset(bidderValueLeft, 73),
+          Offset(bidderValueLeft + bidderWidth, 73),
         );
 
         final projectLabelLeft = horizontalMargin + tableWidth * .53;
@@ -1838,13 +1838,13 @@ class PdfService {
           projectLabel,
           detailFont,
           brush: black,
-          bounds: Rect.fromLTWH(projectLabelLeft, 58, 100, 14),
+          bounds: Rect.fromLTWH(projectLabelLeft, 58, 120, 17),
         );
         page.graphics.drawString(
           reference,
           detailBoldFont,
           brush: black,
-          bounds: Rect.fromLTWH(projectValueLeft, 58, 100, 14),
+          bounds: Rect.fromLTWH(projectValueLeft, 58, 100, 17),
         );
         final referenceWidth = detailBoldFont
             .measureString(reference)
@@ -1853,8 +1853,8 @@ class PdfService {
             .toDouble();
         page.graphics.drawLine(
           PdfPen(PdfColor(0, 0, 0), width: 0.5),
-          Offset(projectValueLeft, 70),
-          Offset(projectValueLeft + referenceWidth, 70),
+          Offset(projectValueLeft, 73),
+          Offset(projectValueLeft + referenceWidth, 73),
         );
         page.graphics.drawString(
             'Pricing Details for Goods Offered from Within the Philippines',
@@ -1864,7 +1864,7 @@ class PdfService {
               horizontalMargin,
               77,
               tableWidth * .70,
-              14,
+              17,
             ));
         tableTop = 96;
       }
@@ -1872,7 +1872,7 @@ class PdfService {
           'Page ${pageNumber + 1} of $pageCount', detailFont,
           brush: black,
           bounds: Rect.fromLTWH(size.width - horizontalMargin - 100,
-              pageNumber == 0 ? 58 : 16, 100, 14),
+              pageNumber == 0 ? 58 : 16, 100, 17),
           format: PdfStringFormat(alignment: PdfTextAlignment.right));
       const headerHeight = 92.0;
       final rowCount = pageRowCounts[pageNumber];
