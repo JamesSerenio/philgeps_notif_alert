@@ -11,6 +11,9 @@ import 'page_mapper.dart';
 class PdfService {
   const PdfService._();
 
+  static const String _permanentBusinessAddress =
+      'Sitio Puli, Carmen, Cagayan de Oro, Misamis Oriental';
+
   static Future<Uint8List> generateBidDocs({
     required Map<String, String> values,
   }) async {
@@ -596,6 +599,21 @@ class PdfService {
       referenceNumber,
       referenceTop,
       18,
+    );
+
+    // The source template contains the company's former address as fixed
+    // text. Replace it on both contract-statement pages with the permanent
+    // business address used throughout the generated bid documents.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(355, 198, 465, 40),
+    );
+    graphics.drawString(
+      _permanentBusinessAddress.toUpperCase(),
+      valueFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(360, 202, 455, 34),
+      format: valueFormat,
     );
 
     // Replace the complete old signatory block and position it below the
@@ -3375,8 +3393,7 @@ class PdfService {
       11,
       style: PdfFontStyle.bold,
     );
-    const permanentAddress =
-        'Sitio Puli, Carmen, Cagayan de Oro, Misamis Oriental';
+    const permanentAddress = _permanentBusinessAddress;
     final municipality = (values['municipality'] ?? '').trim();
     final province = (values['province'] ?? '').trim();
     final projectTitle = (values['projectTitle'] ?? '').trim();
