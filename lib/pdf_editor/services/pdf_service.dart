@@ -1186,17 +1186,21 @@ class PdfService {
       Offset(monthLineLeft + monthLineWidth, witnessTop + 12),
     );
     final yearLeft = monthLineLeft + monthLineWidth + 4;
+    final venueWords = venue.split(RegExp(r'\s+'));
+    final venueLead = venueWords.isEmpty ? '' : venueWords.first;
+    final venueRemainder =
+        venueWords.length <= 1 ? '' : venueWords.skip(1).join(' ');
     witnessGraphics.drawString(
-      '$year at',
+      '$year at $venueLead',
       boldTextFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(yearLeft, witnessTop, 70, 15),
+      bounds: Rect.fromLTWH(yearLeft, witnessTop, 150, 15),
     );
 
     // Use the complete procuring entity as the venue. It is printed directly
     // instead of leaving municipality/province blanks in the template.
     witnessGraphics.drawString(
-      '$venue.',
+      '$venueRemainder.',
       boldTextFont,
       brush: blackBrush,
       bounds: Rect.fromLTWH(36, witnessTop + 20, 500, 15),
