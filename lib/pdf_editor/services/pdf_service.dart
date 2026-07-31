@@ -606,13 +606,13 @@ class PdfService {
     // business address used throughout the generated bid documents.
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(355, 198, 465, 40),
+      bounds: const Rect.fromLTWH(390, 210, 427, 34),
     );
     graphics.drawString(
       _permanentBusinessAddress.toUpperCase(),
       valueFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(360, 202, 455, 34),
+      bounds: const Rect.fromLTWH(396, 212, 419, 30),
       format: valueFormat,
     );
 
