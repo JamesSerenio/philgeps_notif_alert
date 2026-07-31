@@ -1423,6 +1423,11 @@ class PdfService {
       style: PdfFontStyle.bold,
     );
     final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final statementEmphasisFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      12,
+      style: PdfFontStyle.bold,
+    );
     final specificationFormat = PdfStringFormat(
       alignment: PdfTextAlignment.left,
       lineAlignment: PdfVerticalAlignment.middle,
@@ -1495,7 +1500,8 @@ class PdfService {
         'Bidders statement of compliance or the supporting evidence that is '
         'found to be false either during Bid evaluation, post qualification or '
         'the execution of the Contract may be regarded as fraudulent and render '
-        'the Bidder or supplier liable for prosecution subject to the '
+        'the Bidder or supplier liable for prosecution subject to the';
+    const statementEmphasisText =
         'provisions of ITB Clause Error! Reference source not found and/or GCC '
         'Clause Error! Reference source not found.';
 
@@ -1546,13 +1552,38 @@ class PdfService {
         columns.first + 6,
         statementTop + statementTitleHeight + 7,
         columns.last - columns.first - 12,
-        statementBodyHeight - 14,
+        statementBodyHeight - 48,
       ),
       format: PdfStringFormat(
         alignment: PdfTextAlignment.justify,
         lineAlignment: PdfVerticalAlignment.top,
         wordWrap: PdfWordWrapType.word,
       ),
+    );
+    final emphasisBounds = Rect.fromLTWH(
+      columns.first + 6,
+      statementTop + statementTitleHeight + statementBodyHeight - 42,
+      columns.last - columns.first - 12,
+      36,
+    );
+    final emphasisFormat = PdfStringFormat(
+      alignment: PdfTextAlignment.justify,
+      lineAlignment: PdfVerticalAlignment.top,
+      wordWrap: PdfWordWrapType.word,
+    );
+    firstPage.graphics.drawString(
+      statementEmphasisText,
+      statementEmphasisFont,
+      brush: blackBrush,
+      bounds: emphasisBounds,
+      format: emphasisFormat,
+    );
+    firstPage.graphics.drawString(
+      statementEmphasisText,
+      statementEmphasisFont,
+      brush: blackBrush,
+      bounds: emphasisBounds.shift(const Offset(0.22, 0)),
+      format: emphasisFormat,
     );
 
     for (var technicalPage = 0; technicalPage < pageCount; technicalPage++) {
