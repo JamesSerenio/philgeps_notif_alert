@@ -1404,7 +1404,7 @@ class PdfService {
     const statementBodyHeight = 165.0;
     final firstTableTop =
         statementTop + statementTitleHeight + statementBodyHeight;
-    const headerHeight = 38.0;
+    const headerHeight = 44.0;
     const minimumRowHeight = 18.0;
     const signatureSpace = 125.0;
     final firstPage = document.pages[46];
@@ -1414,7 +1414,7 @@ class PdfService {
     final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
     final boldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      11,
       style: PdfFontStyle.bold,
     );
     final statementTitleFont = PdfStandardFont(
