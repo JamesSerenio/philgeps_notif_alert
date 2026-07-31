@@ -829,16 +829,17 @@ class PdfService {
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      11,
       style: PdfFontStyle.bold,
     );
     final colonFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      11,
     );
     final notaryFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      11,
+      style: PdfFontStyle.bold,
     );
     final format = PdfStringFormat(
       alignment: PdfTextAlignment.left,
