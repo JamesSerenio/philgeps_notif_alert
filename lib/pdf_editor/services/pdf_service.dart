@@ -1500,11 +1500,11 @@ class PdfService {
         'Bidders statement of compliance or the supporting evidence that is '
         'found to be false either during Bid evaluation, post qualification or '
         'the execution of the Contract may be regarded as fraudulent and render '
-        'the Bidder or supplier liable for prosecution subject to the provisions of';
-    const statementFirstBoldText =
-        'ITB Clause Error! Reference source not found';
-    const statementRegularConnector = 'and/or GCC Clause';
-    const statementSecondBoldText = 'Error! Reference source not found.';
+        'the Bidder or supplier liable for prosecution subject to the provisions '
+        'of ITB Clause Error!';
+    const statementFirstBoldText = 'Reference source not found';
+    const statementRegularConnector = 'and/or GCC Clause Error!';
+    const statementSecondBoldText = 'Reference source not found.';
 
     // Rebuild the statement and table as one shared bordered structure.
     firstPage.graphics.drawRectangle(
