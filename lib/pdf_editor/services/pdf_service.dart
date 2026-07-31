@@ -1059,7 +1059,7 @@ class PdfService {
     final boldTextFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       10,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.italic,
     );
     final recipientFont = PdfStandardFont(
       PdfFontFamily.helvetica,
@@ -1196,6 +1196,12 @@ class PdfService {
       brush: blackBrush,
       bounds: Rect.fromLTWH(yearLeft, witnessTop, 150, 15),
     );
+    witnessGraphics.drawString(
+      '$year at $venueLead',
+      boldTextFont,
+      brush: blackBrush,
+      bounds: Rect.fromLTWH(yearLeft + 0.18, witnessTop, 150, 15),
+    );
 
     // Use the complete procuring entity as the venue. It is printed directly
     // instead of leaving municipality/province blanks in the template.
@@ -1204,6 +1210,12 @@ class PdfService {
       boldTextFont,
       brush: blackBrush,
       bounds: Rect.fromLTWH(36, witnessTop + 20, 500, 15),
+    );
+    witnessGraphics.drawString(
+      '$venueRemainder.',
+      boldTextFont,
+      brush: blackBrush,
+      bounds: Rect.fromLTWH(36.18, witnessTop + 20, 500, 15),
     );
 
     if (signaturePageIndex != null && dulyTop != null) {
