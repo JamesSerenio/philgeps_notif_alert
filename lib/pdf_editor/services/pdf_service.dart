@@ -3097,6 +3097,22 @@ class PdfService {
           if (x > bodyLeft) x += spaceWidth;
           graphics.drawString(word, part.$2,
               brush: black, bounds: Rect.fromLTWH(x, y, width + 1, lineHeight));
+          if (identical(part.$2, italic)) {
+            // The project title uses the template's strong bold-italic look.
+            for (final offset in const <double>[.3, .6]) {
+              graphics.drawString(
+                word,
+                part.$2,
+                brush: black,
+                bounds: Rect.fromLTWH(
+                  x + offset,
+                  y,
+                  width + 1,
+                  lineHeight,
+                ),
+              );
+            }
+          }
           x += width;
         }
         pendingSpace = RegExp(r'\s$').hasMatch(part.$1);
