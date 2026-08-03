@@ -1871,15 +1871,15 @@ class PdfService {
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
-    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final priceBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      11,
       style: PdfFontStyle.bold,
     );
     final bold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      8.5,
+      11,
       style: PdfFontStyle.bold,
     );
     final detailFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
