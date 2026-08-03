@@ -2841,17 +2841,21 @@ class PdfService {
           bounds: Rect.fromLTWH(bodyX, bodyY, width + 1, bodyLineHeight),
         );
         if (identical(part.$2, bodyItalic)) {
-          graphics.drawString(
-            word,
-            part.$2,
-            brush: black,
-            bounds: Rect.fromLTWH(
-              bodyX + .2,
-              bodyY,
-              width + 1,
-              bodyLineHeight,
-            ),
-          );
+          // Use several close italic passes to match the source document's
+          // visibly heavy bold-italic project title.
+          for (final offset in const <double>[.3, .6, .9]) {
+            graphics.drawString(
+              word,
+              part.$2,
+              brush: black,
+              bounds: Rect.fromLTWH(
+                bodyX + offset,
+                bodyY,
+                width + 2,
+                bodyLineHeight,
+              ),
+            );
+          }
         }
         bodyX += width;
       }
