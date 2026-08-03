@@ -2572,7 +2572,9 @@ class PdfService {
         final right = page.getClientSize().width - 55;
         graphics.drawRectangle(
           brush: white,
-          bounds: Rect.fromLTWH(left - 3, top, right - left + 3, 46),
+          // Clear only the original two-line 7(d) block. Extending this band
+          // farther down clips the top of item 8 in the source template.
+          bounds: Rect.fromLTWH(left - 3, top, right - left + 3, 34),
         );
         const itemTextLeftOffset = 27.0;
         const inquiryText =
