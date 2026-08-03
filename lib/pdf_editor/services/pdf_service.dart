@@ -4381,9 +4381,9 @@ class PdfService {
       return '$grouped.${parts.last}';
     }
 
-    final pageCount = specifications.length <= 31
+    final pageCount = specifications.length <= 27
         ? 1
-        : specifications.length <= 68
+        : specifications.length <= 59
             ? 2
             : 3;
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
@@ -4397,13 +4397,13 @@ class PdfService {
     );
     final headerFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      8.5,
+      11,
       style: PdfFontStyle.bold,
     );
-    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 8.5);
+    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final priceFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      8.5,
+      11,
       style: PdfFontStyle.bold,
     );
     final instructionFont = PdfStandardFont(
@@ -4449,11 +4449,11 @@ class PdfService {
         );
         tableTop = 76;
       }
-      const headerHeight = 28.0;
-      const sectionHeight = 14.0;
-      const rowHeight = 14.0;
+      const headerHeight = 34.0;
+      const sectionHeight = 18.0;
+      const rowHeight = 19.0;
       final remaining = specifications.length - itemIndex;
-      final pageCapacity = pageNumber == 0 ? 31 : 37;
+      final pageCapacity = pageNumber == 0 ? 27 : 32;
       final rowsOnPage = remaining.clamp(0, pageCapacity).toInt();
       final dataBottom =
           tableTop + headerHeight + sectionHeight + rowsOnPage * rowHeight;
@@ -4557,7 +4557,7 @@ class PdfService {
       }
 
       if (pageNumber == pageCount - 1) {
-        const totalHeight = 20.0;
+        const totalHeight = 22.0;
         final totalBottom = y + totalHeight;
         page.graphics.drawLine(
             gridPen, Offset(left, totalBottom), Offset(right, totalBottom));
