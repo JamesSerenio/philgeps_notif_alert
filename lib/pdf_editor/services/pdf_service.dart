@@ -3499,10 +3499,10 @@ class PdfService {
       style: PdfFontStyle.italic,
     );
     final itemCRegular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
-    final itemCBold = PdfStandardFont(
+    final itemCBoldItalic = PdfStandardFont(
       PdfFontFamily.timesRoman,
       12,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.italic,
     );
     final authorizedRegular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final authorizedItalic = PdfStandardFont(
@@ -3712,7 +3712,7 @@ class PdfService {
           itemCRegular,
           false
         ),
-        ('$amountWords Only (PHP $money).', itemCBold, false),
+        ('$amountWords Only (PHP $money).', itemCBoldItalic, true),
       ],
       hangingIndent: 16,
       labelColumnWidth: 16,
