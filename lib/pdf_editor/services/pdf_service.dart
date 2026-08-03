@@ -2548,6 +2548,12 @@ class PdfService {
         }
       }
       if (inquiryLine != null) {
+        final itemRegular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+        final itemItalic = PdfStandardFont(
+          PdfFontFamily.timesRoman,
+          11,
+          style: PdfFontStyle.italic,
+        );
         final itemProjectTitle = projectTitle.replaceFirst(
           RegExp(r'^PROCUREMENT\s+OF\s+', caseSensitive: false),
           '',
@@ -2560,54 +2566,54 @@ class PdfService {
         final right = page.getClientSize().width - 55;
         graphics.drawRectangle(
           brush: white,
-          bounds: Rect.fromLTWH(left - 3, top, right - left + 3, 43),
+          bounds: Rect.fromLTWH(left - 3, top, right - left + 3, 46),
         );
         const itemTextLeftOffset = 30.0;
         const inquiryText =
             'Inquire or secure Supplemental Bid Bulletin(s) issued for the ';
         graphics.drawString(
           'd)',
-          regular,
+          itemRegular,
           brush: black,
-          bounds: Rect.fromLTWH(left, top + 1, itemTextLeftOffset, 15),
+          bounds: Rect.fromLTWH(left, top + 1, itemTextLeftOffset, 16),
         );
         final itemTextLeft = left + itemTextLeftOffset;
         graphics.drawString(
           inquiryText,
-          regular,
+          itemRegular,
           brush: black,
           bounds: Rect.fromLTWH(
             itemTextLeft,
             top + 1,
             right - itemTextLeft,
-            15,
+            16,
           ),
         );
         final procurementLeft = itemTextLeft +
-            regular.measureString(inquiryText.trimRight()).width +
+            itemRegular.measureString(inquiryText.trimRight()).width +
             2.8;
-        for (final offset in const <double>[0, .22]) {
+        for (final offset in const <double>[0, .25, .5]) {
           graphics.drawString(
             'Procurement of',
-            italic,
+            itemItalic,
             brush: black,
             bounds: Rect.fromLTWH(
               procurementLeft + offset,
               top + 1,
               right - procurementLeft,
-              15,
+              16,
             ),
           );
         }
         graphics.drawString(
           itemProjectTitle,
-          italic,
+          itemItalic,
           brush: black,
           bounds: Rect.fromLTWH(
             itemTextLeft,
-            top + 16,
+            top + 17,
             right - itemTextLeft,
-            27,
+            29,
           ),
           format: PdfStringFormat(
             wordWrap: PdfWordWrapType.word,
@@ -2616,21 +2622,23 @@ class PdfService {
         );
         // PdfStandardFont supports italic or bold as a single style. A subtle
         // second pass gives the project title the template's bold-italic look.
-        graphics.drawString(
-          itemProjectTitle,
-          italic,
-          brush: black,
-          bounds: Rect.fromLTWH(
-            itemTextLeft + .22,
-            top + 16,
-            right - itemTextLeft,
-            27,
-          ),
-          format: PdfStringFormat(
-            wordWrap: PdfWordWrapType.word,
-            lineAlignment: PdfVerticalAlignment.top,
-          ),
-        );
+        for (final offset in const <double>[.25, .5]) {
+          graphics.drawString(
+            itemProjectTitle,
+            itemItalic,
+            brush: black,
+            bounds: Rect.fromLTWH(
+              itemTextLeft + offset,
+              top + 17,
+              right - itemTextLeft,
+              29,
+            ),
+            format: PdfStringFormat(
+              wordWrap: PdfWordWrapType.word,
+              lineAlignment: PdfVerticalAlignment.top,
+            ),
+          );
+        }
       }
     }
 
