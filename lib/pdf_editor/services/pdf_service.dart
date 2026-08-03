@@ -4193,16 +4193,16 @@ class PdfService {
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: .55);
     final titleFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      15,
+      18,
       style: PdfFontStyle.bold,
     );
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      13,
       style: PdfFontStyle.bold,
     );
-    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
+    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 13);
     var itemIndex = 0;
 
     for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
@@ -4267,7 +4267,7 @@ class PdfService {
         );
         tableTop = 168;
       }
-      const headerHeight = 44.0;
+      const headerHeight = 48.0;
       const rowHeight = 23.0;
       final remaining = specifications.length - itemIndex;
       // Larger, more readable text needs fewer rows per sheet. This still
