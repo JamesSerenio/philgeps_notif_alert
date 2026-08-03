@@ -2554,7 +2554,13 @@ class PdfService {
           11,
           style: PdfFontStyle.italic,
         );
-        final itemProjectTitle = projectTitle.replaceFirst(
+        final normalizedProjectTitle = projectTitle.toUpperCase();
+        final projectPrefixMatch = RegExp(
+          r'^PROCUREMENT\s+OF\b',
+          caseSensitive: false,
+        ).firstMatch(normalizedProjectTitle);
+        final projectPrefix = projectPrefixMatch?.group(0) ?? '';
+        final itemProjectTitle = normalizedProjectTitle.replaceFirst(
           RegExp(r'^PROCUREMENT\s+OF\s+', caseSensitive: false),
           '',
         );
@@ -2568,7 +2574,7 @@ class PdfService {
           brush: white,
           bounds: Rect.fromLTWH(left - 3, top, right - left + 3, 46),
         );
-        const itemTextLeftOffset = 30.0;
+        const itemTextLeftOffset = 27.0;
         const inquiryText =
             'Inquire or secure Supplemental Bid Bulletin(s) issued for the ';
         graphics.drawString(
@@ -2594,7 +2600,7 @@ class PdfService {
             2.8;
         for (final offset in const <double>[0, .25, .5]) {
           graphics.drawString(
-            'Procurement of',
+            projectPrefix,
             itemItalic,
             brush: black,
             bounds: Rect.fromLTWH(
