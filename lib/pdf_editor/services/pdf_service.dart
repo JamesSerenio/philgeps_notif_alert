@@ -2553,14 +2553,14 @@ class PdfService {
           '',
         );
         final top = inquiryLine.bounds.top - 2;
-        // The extracted line starts at the text following the list marker.
-        // Offset slightly to the right so "d)" aligns with the template's
-        // existing a), b), and c) markers.
-        final left = (inquiryLine.bounds.left + 8).clamp(60, 500).toDouble();
+        // Replace from the original d) marker itself. Starting the clear and
+        // redraw at this exact bound avoids a leftover marker ("d)d)") and
+        // preserves the source template's alignment with a), b), and c).
+        final left = inquiryLine.bounds.left.clamp(60, 500).toDouble();
         final right = page.getClientSize().width - 55;
         graphics.drawRectangle(
           brush: white,
-          bounds: Rect.fromLTWH(left, top, right - left, 43),
+          bounds: Rect.fromLTWH(left - 3, top, right - left + 3, 43),
         );
         graphics.drawString(
           'd)     Inquire or secure Supplemental Bid Bulletin(s) issued for the Procurement of',
