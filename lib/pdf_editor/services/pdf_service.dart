@@ -3499,10 +3499,10 @@ class PdfService {
       style: PdfFontStyle.italic,
     );
     final itemCRegular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
-    final itemCItalic = PdfStandardFont(
+    final itemCBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
       12,
-      style: PdfFontStyle.italic,
+      style: PdfFontStyle.bold,
     );
     final authorizedRegular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final authorizedItalic = PdfStandardFont(
@@ -3649,9 +3649,11 @@ class PdfService {
           graphics.drawString(word, part.$2,
               brush: black, bounds: Rect.fromLTWH(x, y, width + 1, lineHeight));
           if (part.$3) {
-            graphics.drawString(word, part.$2,
-                brush: black,
-                bounds: Rect.fromLTWH(x + .2, y, width + 1, lineHeight));
+            for (final offset in const <double>[.25, .5, .75]) {
+              graphics.drawString(word, part.$2,
+                  brush: black,
+                  bounds: Rect.fromLTWH(x + offset, y, width + 2, lineHeight));
+            }
           }
           x += width;
           if (isFirstWord && labelColumnWidth > 0) {
@@ -3690,7 +3692,7 @@ class PdfService {
       <(String, PdfFont, bool)>[
         (
           'a)  I/We have no reservation to the PBD, including the Supplemental '
-              'Bid Bulletins, for the Procurement ',
+              'Bid Bulletins, for the ',
           regular,
           false
         ),
@@ -3710,7 +3712,7 @@ class PdfService {
           itemCRegular,
           false
         ),
-        ('$amountWords Only (PHP $money).', itemCItalic, true),
+        ('$amountWords Only (PHP $money).', itemCBold, false),
       ],
       hangingIndent: 16,
       labelColumnWidth: 16,
