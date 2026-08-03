@@ -2183,13 +2183,13 @@ class PdfService {
     final date = (values['date'] ?? '').trim();
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 14);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      14,
       style: PdfFontStyle.bold,
     );
-    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final top = submittedLabel.bounds.top - 2;
     final labelLeft = submittedLabel.bounds.left;
     final colonLeft = labelLeft + 108;
@@ -2202,7 +2202,7 @@ class PdfService {
         labelLeft - 3,
         top - 2,
         clearRight - labelLeft + 3,
-        104,
+        132,
       ),
     );
 
@@ -2211,19 +2211,19 @@ class PdfService {
         label,
         labelFont,
         brush: black,
-        bounds: Rect.fromLTWH(labelLeft, y, 105, 18),
+        bounds: Rect.fromLTWH(labelLeft, y, 105, 22),
       );
       page.graphics.drawString(
         ':',
         labelFont,
         brush: black,
-        bounds: Rect.fromLTWH(colonLeft, y, 10, 18),
+        bounds: Rect.fromLTWH(colonLeft, y, 10, 22),
       );
       page.graphics.drawString(
         value,
         valueFont,
         brush: black,
-        bounds: Rect.fromLTWH(valueLeft, y, clearRight - valueLeft, 18),
+        bounds: Rect.fromLTWH(valueLeft, y, clearRight - valueLeft, 22),
       );
     }
 
@@ -2235,18 +2235,18 @@ class PdfService {
         .toDouble();
     page.graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: .5),
-      Offset(valueLeft, top + 14),
-      Offset(valueLeft + nameWidth, top + 14),
+      Offset(valueLeft, top + 18),
+      Offset(valueLeft + nameWidth, top + 18),
     );
     page.graphics.drawString(
       '(Printed Name & Signature)',
       captionFont,
       brush: black,
-      bounds: Rect.fromLTWH(valueLeft, top + 18, 210, 15),
+      bounds: Rect.fromLTWH(valueLeft, top + 22, 230, 17),
     );
-    drawRow('Designation', 'Authorized Representative', top + 36);
-    drawRow('Name of Firm', bidderName, top + 55);
-    drawRow('Date', date, top + 74);
+    drawRow('Designation', 'Authorized Representative', top + 45);
+    drawRow('Name of Firm', bidderName, top + 70);
+    drawRow('Date', date, top + 95);
   }
 
   static void _drawOmnibusSwornStatementIdentity(
