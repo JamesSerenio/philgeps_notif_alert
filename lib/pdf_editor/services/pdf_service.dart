@@ -1759,56 +1759,56 @@ class PdfService {
     final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
     final date = (values['date'] ?? '').trim();
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 14);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      14,
       style: PdfFontStyle.bold,
     );
-    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
+    final captionFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     // Match the formal signature grid used by the contract-statement pages.
     const labelLeft = 36.0;
-    const colonLeft = 112.0;
-    const valueLeft = 150.0;
+    const colonLeft = 130.0;
+    const valueLeft = 165.0;
 
     void drawRow(String label, String value, double y) {
       page.graphics.drawString(
         label,
         labelFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(labelLeft, y, 68, 18),
+        bounds: Rect.fromLTWH(labelLeft, y, 90, 22),
       );
       page.graphics.drawString(
         ':',
         labelFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(colonLeft, y, 10, 18),
+        bounds: Rect.fromLTWH(colonLeft, y, 10, 22),
       );
       page.graphics.drawString(
         value,
         valueFont,
         brush: blackBrush,
-        bounds: Rect.fromLTWH(valueLeft, y, 375, 18),
+        bounds: Rect.fromLTWH(valueLeft, y, 360, 22),
       );
     }
 
     drawRow('Submitted by', submittedBy, top);
     final nameWidth =
-        valueFont.measureString(submittedBy).width.clamp(0, 375).toDouble();
+        valueFont.measureString(submittedBy).width.clamp(0, 360).toDouble();
     page.graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      Offset(valueLeft, top + 14),
-      Offset(valueLeft + nameWidth, top + 14),
+      Offset(valueLeft, top + 18),
+      Offset(valueLeft + nameWidth, top + 18),
     );
     page.graphics.drawString(
       '(Printed Name & Signature)',
       captionFont,
       brush: blackBrush,
-      bounds: Rect.fromLTWH(valueLeft, top + 16, 210, 14),
+      bounds: Rect.fromLTWH(valueLeft, top + 22, 230, 17),
     );
-    drawRow('Designation', 'Authorized Representative', top + 31);
-    drawRow('Name of Firm', bidderName, top + 48);
-    drawRow('Date', date, top + 65);
+    drawRow('Designation', 'Authorized Representative', top + 45);
+    drawRow('Name of Firm', bidderName, top + 70);
+    drawRow('Date', date, top + 95);
   }
 
   static int _drawPriceSchedule(
