@@ -12,7 +12,7 @@ class PdfService {
   const PdfService._();
 
   static const String _permanentBusinessAddress =
-      'Sitio Puli, Carmen, Cagayan de Oro, Misamis Oriental';
+      'Sitio Puli, Carmen, Cagayan de Oro. Misamis Oriental';
 
   static Future<Uint8List> generateBidDocs({
     required Map<String, String> values,
@@ -2363,6 +2363,60 @@ class PdfService {
         x += width;
       }
       pendingSpace = RegExp(r'\s$').hasMatch(part.$1);
+    }
+
+    // Replace the template's embedded company office address paragraph.
+    const officeTop = 195.0;
+    page.graphics.drawRectangle(
+      brush: PdfSolidBrush(PdfColor(255, 255, 255)),
+      bounds: Rect.fromLTWH(left - 3, officeTop - 2, right - left + 6, 40),
+    );
+    final bidderName = (values['bidderName'] ?? '').trim();
+    final officeParts = <(String, PdfFont)>[
+      (
+        'I am the duly authorized and designated representative of ',
+        regularFont
+      ),
+      (bidderName, emphasizedFont),
+      (' with office address at ', regularFont),
+      (_permanentBusinessAddress, emphasizedFont),
+      ('.', regularFont),
+    ];
+    var officeY = officeTop;
+    var officeX = left + firstLineIndent;
+    var officePendingSpace = false;
+    for (final part in officeParts) {
+      for (final match in RegExp(r'\S+').allMatches(part.$1)) {
+        final word = match.group(0)!;
+        final hasLeadingSpace = officePendingSpace ||
+            (match.start > 0 &&
+                RegExp(r'\s').hasMatch(part.$1[match.start - 1]));
+        officePendingSpace = false;
+        final spaceWidth = hasLeadingSpace ? 2.8 : 0.0;
+        final wordWidth = part.$2.measureString(word).width;
+        if (officeX + spaceWidth + wordWidth > right && officeX > left) {
+          officeY += lineHeight;
+          officeX = left;
+        }
+        if (officeX > left) officeX += spaceWidth;
+        page.graphics.drawString(
+          word,
+          part.$2,
+          brush: black,
+          bounds: Rect.fromLTWH(officeX, officeY, wordWidth + 1, lineHeight),
+        );
+        if (identical(part.$2, emphasizedFont)) {
+          page.graphics.drawString(
+            word,
+            part.$2,
+            brush: black,
+            bounds: Rect.fromLTWH(
+                officeX + .22, officeY, wordWidth + 1, lineHeight),
+          );
+        }
+        officeX += wordWidth;
+      }
+      officePendingSpace = RegExp(r'\s$').hasMatch(part.$1);
     }
 
     final projectTitle = (values['projectTitle'] ?? '').trim();
