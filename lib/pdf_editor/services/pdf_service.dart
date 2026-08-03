@@ -2562,17 +2562,70 @@ class PdfService {
           brush: white,
           bounds: Rect.fromLTWH(left - 3, top, right - left + 3, 43),
         );
+        const itemTextLeftOffset = 30.0;
+        const inquiryText =
+            'Inquire or secure Supplemental Bid Bulletin(s) issued for the ';
         graphics.drawString(
-          'd)     Inquire or secure Supplemental Bid Bulletin(s) issued for the Procurement of',
+          'd)',
           regular,
           brush: black,
-          bounds: Rect.fromLTWH(left, top + 1, right - left, 15),
+          bounds: Rect.fromLTWH(left, top + 1, itemTextLeftOffset, 15),
         );
+        final itemTextLeft = left + itemTextLeftOffset;
+        graphics.drawString(
+          inquiryText,
+          regular,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            itemTextLeft,
+            top + 1,
+            right - itemTextLeft,
+            15,
+          ),
+        );
+        final procurementLeft = itemTextLeft +
+            regular.measureString(inquiryText.trimRight()).width +
+            2.8;
+        for (final offset in const <double>[0, .22]) {
+          graphics.drawString(
+            'Procurement of',
+            italic,
+            brush: black,
+            bounds: Rect.fromLTWH(
+              procurementLeft + offset,
+              top + 1,
+              right - procurementLeft,
+              15,
+            ),
+          );
+        }
         graphics.drawString(
           itemProjectTitle,
           italic,
           brush: black,
-          bounds: Rect.fromLTWH(left + 30, top + 16, right - left - 30, 27),
+          bounds: Rect.fromLTWH(
+            itemTextLeft,
+            top + 16,
+            right - itemTextLeft,
+            27,
+          ),
+          format: PdfStringFormat(
+            wordWrap: PdfWordWrapType.word,
+            lineAlignment: PdfVerticalAlignment.top,
+          ),
+        );
+        // PdfStandardFont supports italic or bold as a single style. A subtle
+        // second pass gives the project title the template's bold-italic look.
+        graphics.drawString(
+          itemProjectTitle,
+          italic,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            itemTextLeft + .22,
+            top + 16,
+            right - itemTextLeft,
+            27,
+          ),
           format: PdfStringFormat(
             wordWrap: PdfWordWrapType.word,
             lineAlignment: PdfVerticalAlignment.top,
