@@ -2553,7 +2553,10 @@ class PdfService {
           '',
         );
         final top = inquiryLine.bounds.top - 2;
-        final left = (inquiryLine.bounds.left - 24).clamp(60, 500).toDouble();
+        // The extracted line starts at the text following the list marker.
+        // Offset slightly to the right so "d)" aligns with the template's
+        // existing a), b), and c) markers.
+        final left = (inquiryLine.bounds.left + 8).clamp(60, 500).toDouble();
         final right = page.getClientSize().width - 55;
         graphics.drawRectangle(
           brush: white,
