@@ -3649,11 +3649,14 @@ class PdfService {
           graphics.drawString(word, part.$2,
               brush: black, bounds: Rect.fromLTWH(x, y, width + 1, lineHeight));
           if (part.$3) {
-            for (final offset in const <double>[.25, .5, .75]) {
-              graphics.drawString(word, part.$2,
-                  brush: black,
-                  bounds: Rect.fromLTWH(x + offset, y, width + 2, lineHeight));
-            }
+            // Match the template's clean bold-italic weight without making
+            // the glyphs look doubled or excessively heavy.
+            graphics.drawString(
+              word,
+              part.$2,
+              brush: black,
+              bounds: Rect.fromLTWH(x + .25, y, width + 1, lineHeight),
+            );
           }
           x += width;
           if (isFirstWord && labelColumnWidth > 0) {
