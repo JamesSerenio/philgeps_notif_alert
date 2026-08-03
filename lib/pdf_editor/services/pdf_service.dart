@@ -3030,37 +3030,38 @@ class PdfService {
         labelLeft - 5,
         signatureTop - 5,
         page.getClientSize().width - labelLeft - 25,
-        108,
+        132,
       ),
     );
-    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 9.5);
+    final labelFont = PdfStandardFont(PdfFontFamily.timesRoman, 14);
     final valueFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      14,
       style: PdfFontStyle.bold,
     );
     void drawRow(String label, String value, double y) {
       graphics.drawString(label, labelFont,
-          brush: black, bounds: Rect.fromLTWH(labelLeft, y, 100, 15));
+          brush: black, bounds: Rect.fromLTWH(labelLeft, y, 105, 22));
       graphics.drawString(':', labelFont,
-          brush: black, bounds: Rect.fromLTWH(colonLeft, y, 10, 15));
+          brush: black, bounds: Rect.fromLTWH(colonLeft, y, 10, 22));
       graphics.drawString(value, valueFont,
-          brush: black, bounds: Rect.fromLTWH(valueLeft, y, 250, 15));
+          brush: black, bounds: Rect.fromLTWH(valueLeft, y, 280, 22));
     }
 
     drawRow('Submitted by', formalName, signatureTop);
     final nameWidth = valueFont.measureString(formalName).width;
     graphics.drawLine(
       PdfPen(PdfColor(0, 0, 0), width: .5),
-      Offset(valueLeft, signatureTop + 12),
-      Offset(valueLeft + nameWidth, signatureTop + 12),
+      Offset(valueLeft, signatureTop + 18),
+      Offset(valueLeft + nameWidth, signatureTop + 18),
     );
-    graphics.drawString('(Printed Name & Signature)', labelFont,
+    graphics.drawString('(Printed Name & Signature)',
+        PdfStandardFont(PdfFontFamily.timesRoman, 11),
         brush: black,
-        bounds: Rect.fromLTWH(valueLeft, signatureTop + 15, 200, 14));
-    drawRow('Designation', 'Authorized Representative', signatureTop + 31);
-    drawRow('Name of Firm', displayBidderName, signatureTop + 48);
-    drawRow('Date', date, signatureTop + 65);
+        bounds: Rect.fromLTWH(valueLeft, signatureTop + 22, 230, 17));
+    drawRow('Designation', 'Authorized Representative', signatureTop + 45);
+    drawRow('Name of Firm', displayBidderName, signatureTop + 70);
+    drawRow('Date', date, signatureTop + 95);
   }
 
   static void _drawJuratPlaceholders(
