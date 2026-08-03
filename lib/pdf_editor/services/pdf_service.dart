@@ -3869,10 +3869,10 @@ class PdfService {
       11,
       style: PdfFontStyle.italic,
     );
-    final resolutionBold = PdfStandardFont(
+    final resolutionBoldItalic = PdfStandardFont(
       PdfFontFamily.timesRoman,
       11,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.italic,
     );
     const permanentAddress = _permanentBusinessAddress;
     final municipality = (values['municipality'] ?? '').trim();
@@ -4159,6 +4159,14 @@ class PdfService {
               brush: black,
               bounds: Rect.fromLTWH(x, top, wordWidth + 2, lineHeight),
             );
+            if (identical(word.$2, resolutionBoldItalic)) {
+              graphics.drawString(
+                word.$1,
+                word.$2,
+                brush: black,
+                bounds: Rect.fromLTWH(x + .3, top, wordWidth + 2, lineHeight),
+              );
+            }
             x += wordWidth + gap;
           }
           top += lineHeight;
@@ -4169,25 +4177,25 @@ class PdfService {
       var resolutionTop = resolved.bounds.top;
       resolutionTop =
           drawResolutionParagraph(resolutionTop, <(String, PdfFont)>[
-        ('"RESOLVED, ', resolutionBold),
+        ('"RESOLVED, ', resolutionItalic),
         ('that ', resolutionItalic),
-        ('MIKATA PRIME CORPORATION ', resolutionBold),
+        ('MIKATA PRIME CORPORATION ', resolutionBoldItalic),
         (
           'is hereby authorized to participate in the public bidding, negotiate, and enter into a contract with the ',
           resolutionItalic
         ),
-        ('Municipality of $municipality, $province ', resolutionBold),
+        ('Municipality of $municipality, $province ', resolutionBoldItalic),
         ('for the project entitled: ', resolutionItalic),
-        ('"$projectTitle";', resolutionBold),
+        ('"$projectTitle";', resolutionBoldItalic),
       ]);
       resolutionTop += 7;
       resolutionTop =
           drawResolutionParagraph(resolutionTop, <(String, PdfFont)>[
-        ('"RESOLVED FURTHER, ', resolutionBold),
+        ('"RESOLVED FURTHER, ', resolutionItalic),
         ('that the Corporation hereby designates ', resolutionItalic),
-        ('${representative.toUpperCase()}, ', resolutionBold),
+        ('${representative.toUpperCase()}, ', resolutionBoldItalic),
         ('as the ', resolutionItalic),
-        ('Authorized Representative ', resolutionBold),
+        ('Authorized Representative ', resolutionBoldItalic),
         (
           'of the Corporation, to represent, sign, execute, submit, and deliver any and all documents, agreements, forms, and proposals necessary to effectively participate in the bidding and implement the aforementioned project, granting unto the said representative full power and authority to do and perform any and all acts required;',
           resolutionItalic
@@ -4195,12 +4203,12 @@ class PdfService {
       ]);
       resolutionTop += 7;
       drawResolutionParagraph(resolutionTop, <(String, PdfFont)>[
-        ('"RESOLVED FINALLY, ', resolutionBold),
+        ('"RESOLVED FINALLY, ', resolutionItalic),
         (
           'that any and all prior actions taken by the Authorized Representative, as well as the Proprietor/President of the Corporation, ',
           resolutionItalic
         ),
-        ('PATRICK CARLO P. DEDEL, ', resolutionBold),
+        ('PATRICK CARLO P. DEDEL, ', resolutionBoldItalic),
         (
           'in connection with the foregoing are hereby approved, ratified, and confirmed as the acts of the Corporation."',
           resolutionItalic
