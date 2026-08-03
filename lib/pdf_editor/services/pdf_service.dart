@@ -4408,7 +4408,7 @@ class PdfService {
     );
     final instructionFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      14,
       style: PdfFontStyle.italic,
     );
     final signatureBold = PdfStandardFont(
@@ -4443,7 +4443,7 @@ class PdfService {
           'The Procuring Entity may modify the table below as necessary to comply with the requirements of the Procurement Project',
           instructionFont,
           brush: black,
-          bounds: Rect.fromLTWH(left, 53, right - left, 18),
+          bounds: Rect.fromLTWH(left, 51, right - left, 24),
           format: PdfStringFormat(alignment: PdfTextAlignment.center),
         );
         tableTop = 76;
