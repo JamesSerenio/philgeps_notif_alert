@@ -3201,6 +3201,8 @@ class PdfService {
     final date = (values['date'] ?? '').trim();
     final yearMatch = RegExp(r'\b(\d{4})\b').firstMatch(date);
     final year = yearMatch?.group(1) ?? '2026';
+    final procuringEntity =
+        (values['procuringEntity'] ?? '').trim().toUpperCase();
     final lines = PdfTextExtractor(document).extractTextLines();
     TextLine? subscribedLine;
     TextLine? witnessLine;
@@ -3220,10 +3222,10 @@ class PdfService {
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11.5);
-    final bold = PdfStandardFont(
+    final boldItalic = PdfStandardFont(
       PdfFontFamily.timesRoman,
       11.5,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.italic,
     );
     final left = subscribedLine.bounds.left;
     final right = page.getClientSize().width - left;
@@ -3233,31 +3235,81 @@ class PdfService {
       brush: white,
       bounds: Rect.fromLTWH(left - 3, subscribedTop - 2, right - left + 6, 82),
     );
-    graphics.drawString(
-      'SUBSCRIBED AND SWORN to before me this ______ day of ________ $year at '
-      'Municipality of ________, ________, Philippines. Affiant/s is/are '
-      'personally known to me and was/were identified by me through competent '
-      'evidence of identity as defined in the 2004 Rules on Notarial Practice '
-      '(A.M. No. 02-8-13-SC). Affiant/s exhibited to me his/her National ID, '
-      'with his/her photograph and signature appearing thereon, with no. '
-      '____________________',
-      regular,
-      brush: black,
-      bounds: Rect.fromLTWH(left, subscribedTop, right - left, 80),
-      format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
-    );
+    void drawRuns(
+      double top,
+      double width,
+      List<(String, PdfFont, bool)> runs, {
+      double lineHeight = 13.5,
+    }) {
+      var x = left;
+      var y = top;
+      var needsSpace = false;
+      for (final run in runs) {
+        for (final word in run.$1.trim().split(RegExp(r'\s+'))) {
+          if (word.isEmpty) continue;
+          final spaceWidth = needsSpace ? 3.0 : 0.0;
+          final wordWidth = run.$2.measureString(word).width;
+          if (x > left && x + spaceWidth + wordWidth > left + width) {
+            x = left;
+            y += lineHeight;
+          } else if (x > left) {
+            x += spaceWidth;
+          }
+          graphics.drawString(
+            word,
+            run.$2,
+            brush: black,
+            bounds: Rect.fromLTWH(x, y, wordWidth + 2, lineHeight),
+          );
+          if (run.$3) {
+            graphics.drawString(
+              word,
+              run.$2,
+              brush: black,
+              bounds: Rect.fromLTWH(x + .3, y, wordWidth + 2, lineHeight),
+            );
+          }
+          x += wordWidth;
+          needsSpace = true;
+        }
+      }
+    }
+
+    drawRuns(subscribedTop, right - left, <(String, PdfFont, bool)>[
+      (
+        'SUBSCRIBED AND SWORN to before me this ______ day of ________',
+        regular,
+        false
+      ),
+      (year, boldItalic, true),
+      ('at', regular, false),
+      ('$procuringEntity,', boldItalic, true),
+      (
+        'Philippines. Affiant/s is/are personally known to me and was/were '
+            'identified by me through competent evidence of identity as defined '
+            'in the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). '
+            'Affiant/s exhibited to me his/her',
+        regular,
+        false
+      ),
+      ('National ID,', boldItalic, true),
+      (
+        'with his/her photograph and signature appearing thereon, with no. '
+            '____________________',
+        regular,
+        false
+      ),
+    ]);
 
     final witnessTop = (witnessLine?.bounds.top ?? subscribedTop + 86) - 2;
     graphics.drawRectangle(
       brush: white,
       bounds: Rect.fromLTWH(left - 3, witnessTop - 2, right - left + 6, 22),
     );
-    graphics.drawString(
-      'WITNESS MY HAND AND SEAL this ____ day of ________ $year.',
-      bold,
-      brush: black,
-      bounds: Rect.fromLTWH(left, witnessTop, right - left, 18),
-    );
+    drawRuns(witnessTop, right - left, <(String, PdfFont, bool)>[
+      ('WITNESS MY HAND AND SEAL this ____ day of ________', regular, false),
+      ('$year.', boldItalic, true),
+    ]);
 
     void replaceNotaryDate(TextLine? line, String label) {
       if (line == null) return;
@@ -3270,8 +3322,9 @@ class PdfService {
           line.bounds.height + 3,
         ),
       );
+      final labelWidth = regular.measureString('$label ____, ________').width;
       graphics.drawString(
-        '$label ____, ________ $year',
+        '$label ____, ________',
         regular,
         brush: black,
         bounds: Rect.fromLTWH(
@@ -3280,6 +3333,19 @@ class PdfService {
           line.bounds.width + 30,
           16,
         ),
+      );
+      final yearLeft = line.bounds.left + labelWidth + 3;
+      graphics.drawString(
+        year,
+        boldItalic,
+        brush: black,
+        bounds: Rect.fromLTWH(yearLeft, line.bounds.top, 45, 16),
+      );
+      graphics.drawString(
+        year,
+        boldItalic,
+        brush: black,
+        bounds: Rect.fromLTWH(yearLeft + .3, line.bounds.top, 45, 16),
       );
     }
 
