@@ -3004,16 +3004,51 @@ class PdfService {
       startPageIndex: pageIndex,
       endPageIndex: pageIndex,
     );
+    TextLine? titleLine;
     TextLine? certificationLine;
     TextLine? guaranteeLine;
     TextLine? commitmentLine;
     TextLine? submittedLine;
     for (final line in lines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.contains('CERTIFICATE OF PRODUCT WARRANTY')) titleLine ??= line;
       if (text.contains('THIS IS TO CERTIFY THAT')) certificationLine ??= line;
       if (text.contains('WE GUARANTEE')) guaranteeLine ??= line;
       if (text.contains('REMAINS COMMITTED')) commitmentLine ??= line;
       if (text.contains('SUBMITTED BY')) submittedLine ??= line;
+    }
+    if (titleLine != null) {
+      final titleTop = titleLine.bounds.top - 3;
+      final titleFont = PdfStandardFont(
+        PdfFontFamily.timesRoman,
+        16,
+        style: PdfFontStyle.italic,
+      );
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          70,
+          titleTop - 2,
+          page.getClientSize().width - 140,
+          28,
+        ),
+      );
+      // Multiple close passes reproduce a strong bold-italic title while
+      // retaining the slanted Times Roman style used by the template.
+      for (final offset in const <double>[0, .3, .6]) {
+        graphics.drawString(
+          'CERTIFICATE OF PRODUCT WARRANTY',
+          titleFont,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            70 + offset,
+            titleTop,
+            page.getClientSize().width - 140,
+            24,
+          ),
+          format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        );
+      }
     }
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 13.5);
     final bold = PdfStandardFont(
