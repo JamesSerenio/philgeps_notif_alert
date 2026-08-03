@@ -2548,6 +2548,10 @@ class PdfService {
         }
       }
       if (inquiryLine != null) {
+        final itemProjectTitle = projectTitle.replaceFirst(
+          RegExp(r'^PROCUREMENT\s+OF\s+', caseSensitive: false),
+          '',
+        );
         final top = inquiryLine.bounds.top - 2;
         final left = (inquiryLine.bounds.left - 24).clamp(60, 500).toDouble();
         final right = page.getClientSize().width - 55;
@@ -2556,13 +2560,13 @@ class PdfService {
           bounds: Rect.fromLTWH(left, top, right - left, 43),
         );
         graphics.drawString(
-          'd)     Inquire or secure Supplemental Bid Bulletin(s) issued for the',
+          'd)     Inquire or secure Supplemental Bid Bulletin(s) issued for the Procurement of',
           regular,
           brush: black,
           bounds: Rect.fromLTWH(left, top + 1, right - left, 15),
         );
         graphics.drawString(
-          projectTitle,
+          itemProjectTitle,
           italic,
           brush: black,
           bounds: Rect.fromLTWH(left + 30, top + 16, right - left - 30, 27),
