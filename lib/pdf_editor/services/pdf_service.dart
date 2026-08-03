@@ -1411,7 +1411,9 @@ class PdfService {
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
-    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    // Match the clearly readable body-text size used by the source template.
+    // The compliance value keeps its existing bold styling and size below.
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final boldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       11,
