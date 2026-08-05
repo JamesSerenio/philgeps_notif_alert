@@ -224,8 +224,20 @@ class PdfService {
 
     // Apply this after every optional-page removal because the Omnibus form's
     // source index shifts. It is final output page 53 in the generated file.
-    _drawOmnibusSwornStatementIdentity(document, values);
-    _drawOmnibusSwornStatementLastPage(document, values);
+    // A multi-page bid-price summary shifts every following form. Keep the
+    // Omnibus edits on the actual Omnibus pages instead of drawing them over
+    // the Summary continuation page.
+    final summaryContinuationOffset = bidPriceSummaryPageCount - 1;
+    _drawOmnibusSwornStatementIdentity(
+      document,
+      values,
+      pageIndex: 52 + summaryContinuationOffset,
+    );
+    _drawOmnibusSwornStatementLastPage(
+      document,
+      values,
+      pageIndex: 53 + summaryContinuationOffset,
+    );
     _drawAfterSalesServiceCertificate(document, values);
     _drawProductWarrantyCertificate(document, values);
     _drawJuratPlaceholders(document, values);
@@ -2210,8 +2222,9 @@ class PdfService {
 
   static void _drawOmnibusSwornStatementIdentity(
     PdfDocument document,
-    Map<String, String> values,
-  ) {
+    Map<String, String> values, {
+    required int pageIndex,
+  }) {
     final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
     late final String formalName;
     late final String civilStatus;
@@ -2232,7 +2245,6 @@ class PdfService {
 
     // All optional template pages have already been removed at this point.
     // The Omnibus Sworn Statement is final page 53 (zero-based index 52).
-    const pageIndex = 52;
     if (document.pages.count <= pageIndex) return;
     final page = document.pages[pageIndex];
     final pageWidth = page.getClientSize().width;
@@ -2463,9 +2475,9 @@ class PdfService {
 
   static void _drawOmnibusSwornStatementLastPage(
     PdfDocument document,
-    Map<String, String> values,
-  ) {
-    const pageIndex = 53;
+    Map<String, String> values, {
+    required int pageIndex,
+  }) {
     if (document.pages.count <= pageIndex) return;
     final page = document.pages[pageIndex];
     final graphics = page.graphics;
