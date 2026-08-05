@@ -3113,8 +3113,6 @@ class PdfService {
     final date = (values['date'] ?? '').trim();
     final yearMatch = RegExp(r'\b(\d{4})\b').firstMatch(date);
     final year = yearMatch?.group(1) ?? '2026';
-    final procuringEntity =
-        (values['procuringEntity'] ?? '').trim().toUpperCase();
     final lines = PdfTextExtractor(document).extractTextLines();
     TextLine? subscribedLine;
     TextLine? witnessLine;
@@ -3195,9 +3193,9 @@ class PdfService {
       ),
       (year, boldItalic, true),
       ('at', regular, false),
-      ('$procuringEntity,', boldItalic, true),
+      ('Municipality of __________, __________, Philippines.', boldItalic, true),
       (
-        'Philippines. Affiant/s is/are personally known to me and was/were '
+        'Affiant/s is/are personally known to me and was/were '
             'identified by me through competent evidence of identity as defined '
             'in the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). '
             'Affiant/s exhibited to me his/her',
