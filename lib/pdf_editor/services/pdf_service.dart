@@ -1250,8 +1250,8 @@ class PdfService {
       if (lines.isEmpty) {
         chunks.add(<String>['']);
       } else {
-        for (var start = 0; start < lines.length; start += 12) {
-          chunks.add(lines.skip(start).take(12).toList());
+        for (var start = 0; start < lines.length; start += 16) {
+          chunks.add(lines.skip(start).take(16).toList());
         }
       }
       for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
@@ -1361,10 +1361,8 @@ class PdfService {
           tableTop -
           headerHeight -
           signatureSpace;
-      final forceContinuationPage =
-          renderRows[rowIndex]['_continuation'] == true;
       if (rowsOnCurrentPage > 0 &&
-          (forceContinuationPage || usedHeight + height > availableHeight) &&
+          usedHeight + height > availableHeight &&
           technicalPageForLayout < 2) {
         pageRowCounts.add(rowsOnCurrentPage);
         technicalPageForLayout++;
