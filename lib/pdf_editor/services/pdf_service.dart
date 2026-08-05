@@ -1265,10 +1265,10 @@ class PdfService {
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
     // Match the clearly readable body-text size used by the source template.
     // The compliance value keeps its existing bold styling and size below.
-    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
     final boldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      9,
       style: PdfFontStyle.bold,
     );
     final statementTitleFont = PdfStandardFont(
@@ -1310,7 +1310,7 @@ class PdfService {
               measuredSpecification.height > measuredParameter.height
                   ? measuredSpecification.height
                   : measuredParameter.height;
-          return (contentHeight + 6).clamp(minimumRowHeight, 90).toDouble();
+          return (contentHeight + 6).clamp(minimumRowHeight, 300).toDouble();
         })(),
     ];
     final pageRowCounts = <int>[];
@@ -1693,22 +1693,36 @@ class PdfService {
       return '$grouped.${parts.last}';
     }
 
-    int specificationLineCount(dynamic value) {
+    List<String> priceSpecificationLines(dynamic value) {
       final text = (value ?? '').toString().trim();
-      if (text.isEmpty) return 1;
-      var count = 0;
-      for (final line in text.split(RegExp(r'\r?\n'))) {
-        count += (line.trim().length / 24).ceil().clamp(1, 20).toInt();
+      if (text.isEmpty) return <String>[''];
+      final result = <String>[];
+      for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
+        final words = sourceLine.trim().split(RegExp(r'\s+'));
+        var currentLine = '';
+        for (final word in words) {
+          if (word.isEmpty) continue;
+          final candidate = currentLine.isEmpty ? word : '$currentLine $word';
+          if (currentLine.isNotEmpty && candidate.length > 28) {
+            result.add(currentLine);
+            currentLine = word;
+          } else {
+            currentLine = candidate;
+          }
+        }
+        if (currentLine.isNotEmpty) result.add(currentLine);
       }
-      return count;
+      return result.isEmpty ? <String>[''] : result;
     }
 
     final itemHeights = <double>[
       for (final item in specifications)
-        (specificationLineCount(item is Map ? item['specification'] : '') *
-                14.0 +
+        (priceSpecificationLines(
+                      item is Map ? item['specification'] : '',
+                    ).length *
+                10.5 +
             6.0)
-            .clamp(34.0, 430.0)
+            .clamp(34.0, 260.0)
             .toDouble(),
     ];
     final pageRowCounts = <int>[];
@@ -1718,7 +1732,7 @@ class PdfService {
       var count = 0;
       while (nextItem + count < specifications.length) {
         final height = itemHeights[nextItem + count];
-        if (count > 0 && usedHeight + height > 430) break;
+        if (count > 0 && usedHeight + height > 260) break;
         usedHeight += height;
         count++;
       }
@@ -1746,6 +1760,13 @@ class PdfService {
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final priceDescriptionFont =
+        PdfStandardFont(PdfFontFamily.timesRoman, 8);
+    final priceDescriptionBoldFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      8,
+      style: PdfFontStyle.bold,
+    );
     final priceBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
       11,
@@ -1958,13 +1979,9 @@ class PdfService {
                   wordWrap: PdfWordWrapType.word));
         }
 
-        final descriptionLines = (specification['specification'] ?? '')
-            .toString()
-            .trim()
-            .split(RegExp(r'\r?\n'))
-            .where((line) => line.trim().isNotEmpty)
-            .toList();
-        if (descriptionLines.isEmpty) descriptionLines.add('');
+        final descriptionLines = priceSpecificationLines(
+          specification['specification'],
+        );
         final descriptionLineHeight = rowHeight / descriptionLines.length;
         for (var lineIndex = 0;
             lineIndex < descriptionLines.length;
@@ -1974,7 +1991,9 @@ class PdfService {
               line.toLowerCase() == 'specification';
           page.graphics.drawString(
             line,
-            isSpecificationHeading ? bold : regular,
+            isSpecificationHeading
+                ? priceDescriptionBoldFont
+                : priceDescriptionFont,
             brush: black,
             bounds: Rect.fromLTWH(
               columns[1] + 3,
