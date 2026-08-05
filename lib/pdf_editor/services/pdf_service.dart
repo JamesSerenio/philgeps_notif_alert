@@ -1250,8 +1250,8 @@ class PdfService {
       if (lines.isEmpty) {
         chunks.add(<String>['']);
       } else {
-        for (var start = 0; start < lines.length; start += 1000) {
-          chunks.add(lines.skip(start).take(1000).toList());
+        for (var start = 0; start < lines.length; start += 16) {
+          chunks.add(lines.skip(start).take(16).toList());
         }
       }
       for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
@@ -1301,10 +1301,10 @@ class PdfService {
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
     // Match the clearly readable body-text size used by the source template.
     // The compliance value keeps its existing bold styling and size below.
-    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final boldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      12,
       style: PdfFontStyle.bold,
     );
     final statementTitleFont = PdfStandardFont(
@@ -1346,7 +1346,7 @@ class PdfService {
               measuredSpecification.height > measuredParameter.height
                   ? measuredSpecification.height
                   : measuredParameter.height;
-          return (contentHeight + 8).clamp(minimumRowHeight, 340).toDouble();
+          return (contentHeight + 8).clamp(minimumRowHeight, 245).toDouble();
         })(),
     ];
     final pageRowCounts = <int>[];
@@ -1732,22 +1732,11 @@ class PdfService {
     List<String> priceSpecificationLines(dynamic value) {
       final text = (value ?? '').toString().trim();
       if (text.isEmpty) return <String>[''];
-      final result = <String>[];
-      for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
-        final words = sourceLine.trim().split(RegExp(r'\s+'));
-        var currentLine = '';
-        for (final word in words) {
-          if (word.isEmpty) continue;
-          final candidate = currentLine.isEmpty ? word : '$currentLine $word';
-          if (currentLine.isNotEmpty && candidate.length > 20) {
-            result.add(currentLine);
-            currentLine = word;
-          } else {
-            currentLine = candidate;
-          }
-        }
-        if (currentLine.isNotEmpty) result.add(currentLine);
-      }
+      final result = text
+          .split(RegExp(r'\r?\n'))
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
       return result.isEmpty ? <String>[''] : result;
     }
 
@@ -1759,14 +1748,14 @@ class PdfService {
           ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
           : <String, dynamic>{};
       final lines = priceSpecificationLines(source['specification']);
-      for (var start = 0; start < lines.length; start += 18) {
+      for (var start = 0; start < lines.length; start += 14) {
         final continuation = start > 0;
         priceRows.add(<String, dynamic>{
           ...source,
           '_sourceIndex': sourceIndex,
           '_itemNumber': sourceIndex + 1,
           '_continuation': continuation,
-          '_descriptionLines': lines.skip(start).take(18).toList(),
+          '_descriptionLines': lines.skip(start).take(14).toList(),
           if (continuation) 'quantity': '',
           if (continuation) 'unit': '',
         });
@@ -1775,7 +1764,7 @@ class PdfService {
 
     final itemHeights = <double>[
       for (final row in priceRows)
-        ((row['_descriptionLines'] as List).length * 14.0 + 6.0)
+        ((row['_descriptionLines'] as List).length * 17.0 + 8.0)
             .clamp(34.0, 260.0)
             .toDouble(),
     ];
