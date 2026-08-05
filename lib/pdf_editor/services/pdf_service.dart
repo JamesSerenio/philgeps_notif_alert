@@ -4088,8 +4088,7 @@ class PdfService {
     } on FormatException {
       // Keep the supplied value if it is not in the expected display format.
     }
-    final legalLocation =
-        'Municipality of $municipality, $province, Philippines';
+    const legalLocation = 'Municipality of __________, __________';
 
     final lastPageIndex = document.pages.count - 1;
     TextLine? witnessLine;
