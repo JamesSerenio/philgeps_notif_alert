@@ -105,6 +105,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController submittedByController;
   late final Map<String, TextEditingController> slccControllers;
   late final TextEditingController deliveredWeeksMonthsController;
+  late final TextEditingController afterSalesYearsController;
   final List<_TechnicalSpecificationEntry> technicalSpecifications = [];
   final List<_PriceScheduleEntry> priceScheduleEntries = [];
   late final FocusNode submittedByFocusNode;
@@ -112,6 +113,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   Timer? technicalSpecificationsSaveTimer;
   Timer? priceScheduleSaveTimer;
   Timer? scheduleRequirementsSaveTimer;
+  Timer? afterSalesSaveTimer;
   bool isLoadingSlcc = true;
   bool isSavingSlcc = false;
   bool isLoadingTechnicalSpecifications = true;
@@ -120,6 +122,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isSavingPriceSchedule = false;
   bool isLoadingScheduleRequirements = true;
   bool isSavingScheduleRequirements = false;
+  bool isLoadingAfterSales = true;
+  bool isSavingAfterSales = false;
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
 
   Uint8List? generatedPdf;
@@ -179,6 +183,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     };
     deliveredWeeksMonthsController = TextEditingController();
     deliveredWeeksMonthsController.addListener(_scheduleRequirementsSave);
+    afterSalesYearsController = TextEditingController(text: '1');
+    afterSalesYearsController.addListener(_scheduleAfterSalesSave);
     for (final controller in slccControllers.values) {
       controller.addListener(_scheduleSlccSave);
     }
@@ -186,6 +192,53 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _loadTechnicalSpecifications();
     _loadUnitSuggestions();
     _loadScheduleRequirements();
+    _loadAfterSalesSettings();
+  }
+
+  Future<void> _loadAfterSalesSettings() async {
+    try {
+      final row = await SupabaseConfig.client
+          .from('bid_after_sales_settings')
+          .select('service_years')
+          .eq('reference_number', widget.referenceNumber.trim())
+          .maybeSingle();
+      afterSalesYearsController.text =
+          (row?['service_years'] ?? 1).toString();
+    } catch (error) {
+      debugPrint('After-sales settings load error: $error');
+    } finally {
+      if (mounted) setState(() => isLoadingAfterSales = false);
+    }
+  }
+
+  void _scheduleAfterSalesSave() {
+    if (isLoadingAfterSales) return;
+    afterSalesSaveTimer?.cancel();
+    afterSalesSaveTimer = Timer(
+      const Duration(milliseconds: 700),
+      _saveAfterSalesSettings,
+    );
+  }
+
+  Future<void> _saveAfterSalesSettings() async {
+    if (widget.referenceNumber.trim().isEmpty) return;
+    final years = int.tryParse(afterSalesYearsController.text.trim());
+    if (years == null || years < 1) return;
+    if (mounted) setState(() => isSavingAfterSales = true);
+    try {
+      await SupabaseConfig.client.from('bid_after_sales_settings').upsert(
+        {
+          'reference_number': widget.referenceNumber.trim(),
+          'service_years': years,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        onConflict: 'reference_number',
+      );
+    } catch (error) {
+      debugPrint('After-sales settings save error: $error');
+    } finally {
+      if (mounted) setState(() => isSavingAfterSales = false);
+    }
   }
 
   Future<void> _loadScheduleRequirements() async {
@@ -499,10 +552,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       technicalSpecificationsSaveTimer?.cancel();
       priceScheduleSaveTimer?.cancel();
       scheduleRequirementsSaveTimer?.cancel();
+      afterSalesSaveTimer?.cancel();
       await _saveSlcc();
       await _saveTechnicalSpecifications();
       await _savePriceSchedule();
       await _saveScheduleRequirements();
+      await _saveAfterSalesSettings();
       final bytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
@@ -532,6 +587,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               {'totalPricePerUnit': entry.totalPricePerUnit.text.trim()},
           ]),
           'deliveredWeeksMonths': deliveredWeeksMonthsController.text.trim(),
+          'afterSalesYears': afterSalesYearsController.text.trim(),
         },
       );
 
@@ -1273,6 +1329,50 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  Widget afterSalesServiceFields() {
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      backgroundColor: Colors.white,
+      collapsedBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      leading: const Icon(
+        Icons.handyman_outlined,
+        color: Color(0xFF0B5D3B),
+      ),
+      title: const Text(
+        'AFTER-SALES SERVICE CERTIFICATE',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      ),
+      subtitle: Text(
+        isLoadingAfterSales
+            ? 'Loading saved value...'
+            : isSavingAfterSales
+                ? 'Saving...'
+                : 'Saved automatically',
+      ),
+      children: [
+        formField(
+          label: 'Number of Years',
+          controller: afterSalesYearsController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        ),
+        const Text(
+          'Example: 3 becomes “three (3) years” in the PDF.',
+          style: TextStyle(fontSize: 11.5, color: Color(0xFF68736D)),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     provinceController.dispose();
@@ -1288,8 +1388,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     technicalSpecificationsSaveTimer?.cancel();
     priceScheduleSaveTimer?.cancel();
     scheduleRequirementsSaveTimer?.cancel();
+    afterSalesSaveTimer?.cancel();
     deliveredWeeksMonthsController.removeListener(_scheduleRequirementsSave);
     deliveredWeeksMonthsController.dispose();
+    afterSalesYearsController.removeListener(_scheduleAfterSalesSave);
+    afterSalesYearsController.dispose();
     for (final controller in slccControllers.values) {
       controller.removeListener(_scheduleSlccSave);
       controller.dispose();
@@ -1371,6 +1474,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       priceScheduleFields(),
                       const SizedBox(height: 12),
                       scheduleRequirementsFields(),
+                      const SizedBox(height: 12),
+                      afterSalesServiceFields(),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
                         onPressed: isGenerating ? null : generatePdf,

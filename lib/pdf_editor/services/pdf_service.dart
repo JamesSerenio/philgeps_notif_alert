@@ -2608,6 +2608,15 @@ class PdfService {
     final procuringEntity = (values['procuringEntity'] ?? '').trim();
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final date = (values['date'] ?? '').trim();
+    final parsedAfterSalesYears =
+        int.tryParse((values['afterSalesYears'] ?? '').trim()) ?? 1;
+    final afterSalesYears =
+        parsedAfterSalesYears < 1 ? 1 : parsedAfterSalesYears;
+    final afterSalesYearsInWords =
+        _integerInWords(afterSalesYears).toLowerCase();
+    final afterSalesPeriod =
+        '$afterSalesYearsInWords ($afterSalesYears) '
+        '${afterSalesYears == 1 ? 'year' : 'years'}';
     final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
     final formalName = selectedName.contains('CARLOS RAFAEL A. JAMILO')
         ? 'CARLOS RAFAEL A. JAMILO'
@@ -2732,12 +2741,14 @@ class PdfService {
             'dedicated ',
         bodyRegular
       ),
-      ('one (1) year', bodyBold),
+      (afterSalesPeriod, bodyBold),
       (
         ' period of technical support and after-sales service. We remain at '
             'the full disposal of the municipal end-users to ensure that all '
             'operational needs are met and that our professional assistance is '
-            'readily available throughout the first year of the facility’s '
+            'readily available throughout the first '
+            '${afterSalesYears == 1 ? 'year' : '$afterSalesYearsInWords years'} '
+            'of the facility’s '
             'rehabilitation.',
         bodyRegular
       ),
