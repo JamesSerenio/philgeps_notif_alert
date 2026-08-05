@@ -1802,17 +1802,17 @@ class PdfService {
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
-    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final priceDescriptionFont =
-        PdfStandardFont(PdfFontFamily.timesRoman, 11);
+        PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final priceBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      12,
       style: PdfFontStyle.bold,
     );
     final bold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      11,
+      12,
       style: PdfFontStyle.bold,
     );
     final detailFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
@@ -1992,7 +1992,7 @@ class PdfService {
         final delivered = (quantity * total).roundToDouble();
         if (!isContinuation) grandTotal += delivered;
         final texts = <String>[
-          '${specification['_itemNumber']}',
+          isContinuation ? '' : '${specification['_itemNumber']}',
           '',
           isContinuation ? '' : 'PHL',
           quantityText,
