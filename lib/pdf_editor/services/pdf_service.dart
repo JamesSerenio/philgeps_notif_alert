@@ -1739,7 +1739,7 @@ class PdfService {
         for (final word in words) {
           if (word.isEmpty) continue;
           final candidate = currentLine.isEmpty ? word : '$currentLine $word';
-          if (currentLine.isNotEmpty && candidate.length > 28) {
+          if (currentLine.isNotEmpty && candidate.length > 36) {
             result.add(currentLine);
             currentLine = word;
           } else {
@@ -1756,7 +1756,7 @@ class PdfService {
         (priceSpecificationLines(
                       item is Map ? item['specification'] : '',
                     ).length *
-                10.5 +
+                11.0 +
             6.0)
             .clamp(34.0, 260.0)
             .toDouble(),
@@ -1797,10 +1797,10 @@ class PdfService {
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final priceDescriptionFont =
-        PdfStandardFont(PdfFontFamily.timesRoman, 8);
+        PdfStandardFont(PdfFontFamily.timesRoman, 8.5);
     final priceDescriptionBoldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      8,
+      8.5,
       style: PdfFontStyle.bold,
     );
     final priceBold = PdfStandardFont(
@@ -2033,9 +2033,9 @@ class PdfService {
             brush: black,
             bounds: Rect.fromLTWH(
               columns[1] + 3,
-              y + descriptionLineHeight * lineIndex + 1,
+              y + descriptionLineHeight * lineIndex,
               columns[2] - columns[1] - 6,
-              descriptionLineHeight - 2,
+              descriptionLineHeight,
             ),
             format: PdfStringFormat(
               alignment: isSpecificationHeading
