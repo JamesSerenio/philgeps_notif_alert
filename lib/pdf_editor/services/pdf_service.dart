@@ -1918,12 +1918,6 @@ class PdfService {
             ));
         tableTop = 96;
       }
-      page.graphics.drawString(
-          'Page ${pageNumber + 1} of $pageCount', detailFont,
-          brush: black,
-          bounds: Rect.fromLTWH(size.width - horizontalMargin - 100,
-              pageNumber == 0 ? 58 : 16, 100, 17),
-          format: PdfStringFormat(alignment: PdfTextAlignment.right));
       const headerHeight = 92.0;
       final rowCount = pageRowCounts[pageNumber];
       final pageStartItem = itemIndex;
@@ -4624,11 +4618,52 @@ class PdfService {
       return '$grouped.${parts.last}';
     }
 
-    final pageCount = specifications.length <= 25
-        ? 1
-        : specifications.length <= 52
-            ? 2
-            : 3;
+    final summaryRows = <Map<String, dynamic>>[];
+    for (var sourceIndex = 0;
+        sourceIndex < specifications.length;
+        sourceIndex++) {
+      final source = specifications[sourceIndex] is Map
+          ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
+          : <String, dynamic>{};
+      final lines = (source['specification'] ?? '')
+          .toString()
+          .split(RegExp(r'\r?\n'))
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      final descriptionLines = lines.isEmpty ? <String>[''] : lines;
+      for (var start = 0; start < descriptionLines.length; start += 14) {
+        summaryRows.add(<String, dynamic>{
+          ...source,
+          '_sourceIndex': sourceIndex,
+          '_itemNumber': sourceIndex + 1,
+          '_continuation': start > 0,
+          '_descriptionLines': descriptionLines.skip(start).take(14).toList(),
+        });
+      }
+    }
+    final summaryRowHeights = <double>[
+      for (final row in summaryRows)
+        ((row['_descriptionLines'] as List).length * 17.0 + 8.0)
+            .clamp(34.0, 260.0)
+            .toDouble(),
+    ];
+    final pageRowCounts = <int>[];
+    var nextRow = 0;
+    while (nextRow < summaryRows.length && pageRowCounts.length < 8) {
+      var usedHeight = 0.0;
+      var count = 0;
+      while (nextRow + count < summaryRows.length) {
+        final height = summaryRowHeights[nextRow + count];
+        if (count > 0 && usedHeight + height > 320) break;
+        usedHeight += height;
+        count++;
+      }
+      pageRowCounts.add(count);
+      nextRow += count;
+    }
+    if (pageRowCounts.isEmpty) pageRowCounts.add(0);
+    final pageCount = pageRowCounts.length;
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
@@ -4640,13 +4675,13 @@ class PdfService {
     );
     final headerFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      13,
+      12,
       style: PdfFontStyle.bold,
     );
-    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 13);
+    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final priceFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      13,
+      12,
       style: PdfFontStyle.bold,
     );
     final instructionFont = PdfStandardFont(
@@ -4693,12 +4728,14 @@ class PdfService {
       }
       const headerHeight = 40.0;
       const sectionHeight = 22.0;
-      const rowHeight = 22.0;
-      final remaining = specifications.length - itemIndex;
-      final pageCapacity = pageNumber == 0 ? 25 : 27;
-      final rowsOnPage = remaining.clamp(0, pageCapacity).toInt();
+      final rowsOnPage = pageRowCounts[pageNumber];
+      final pageStartRow = itemIndex;
+      final rowsHeight = summaryRowHeights
+          .skip(pageStartRow)
+          .take(rowsOnPage)
+          .fold<double>(0, (sum, height) => sum + height);
       final dataBottom =
-          tableTop + headerHeight + sectionHeight + rowsOnPage * rowHeight;
+          tableTop + headerHeight + sectionHeight + rowsHeight;
       // Outer borders span the whole table. Internal column dividers skip the
       // merged "Specifications:" row, matching the source template.
       for (final x in <double>[left, right]) {
@@ -4757,21 +4794,22 @@ class PdfService {
       y += sectionHeight;
       page.graphics.drawLine(gridPen, Offset(left, y), Offset(right, y));
       for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
-        final specification = specifications[itemIndex] is Map
-            ? specifications[itemIndex] as Map
-            : const {};
+        final specification = summaryRows[itemIndex];
+        final sourceIndex = specification['_sourceIndex'] as int;
+        final isContinuation = specification['_continuation'] == true;
         final saved =
-            itemIndex < savedPrices.length && savedPrices[itemIndex] is Map
-                ? savedPrices[itemIndex] as Map
+            sourceIndex < savedPrices.length && savedPrices[sourceIndex] is Map
+                ? savedPrices[sourceIndex] as Map
                 : const {};
         final delivered = (number(specification['quantity']) *
                 number(saved['totalPricePerUnit']))
             .roundToDouble();
-        grandTotal += delivered;
+        if (!isContinuation) grandTotal += delivered;
+        final rowHeight = summaryRowHeights[itemIndex];
         final valuesForRow = <String>[
-          '${itemIndex + 1}',
-          (specification['specification'] ?? '').toString(),
-          money(delivered),
+          isContinuation ? '' : '${specification['_itemNumber']}',
+          (specification['_descriptionLines'] as List).join('\n'),
+          isContinuation ? '' : money(delivered),
         ];
         final rowBounds = <Rect>[
           Rect.fromLTWH(left + 2, y + 1, itemRight - left - 4, rowHeight - 2),
