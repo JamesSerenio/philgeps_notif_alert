@@ -1250,8 +1250,8 @@ class PdfService {
       if (lines.isEmpty) {
         chunks.add(<String>['']);
       } else {
-        for (var start = 0; start < lines.length; start += 16) {
-          chunks.add(lines.skip(start).take(16).toList());
+        for (var start = 0; start < lines.length; start += 1000) {
+          chunks.add(lines.skip(start).take(1000).toList());
         }
       }
       for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
@@ -1301,10 +1301,10 @@ class PdfService {
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
     // Match the clearly readable body-text size used by the source template.
     // The compliance value keeps its existing bold styling and size below.
-    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final boldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      12,
+      11,
       style: PdfFontStyle.bold,
     );
     final statementTitleFont = PdfStandardFont(
@@ -1346,7 +1346,7 @@ class PdfService {
               measuredSpecification.height > measuredParameter.height
                   ? measuredSpecification.height
                   : measuredParameter.height;
-          return (contentHeight + 8).clamp(minimumRowHeight, 245).toDouble();
+          return (contentHeight + 8).clamp(minimumRowHeight, 340).toDouble();
         })(),
     ];
     final pageRowCounts = <int>[];
@@ -1816,11 +1816,6 @@ class PdfService {
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final priceDescriptionFont =
         PdfStandardFont(PdfFontFamily.timesRoman, 11);
-    final priceDescriptionBoldFont = PdfStandardFont(
-      PdfFontFamily.timesRoman,
-      11,
-      style: PdfFontStyle.bold,
-    );
     final priceBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
       11,
@@ -2038,42 +2033,22 @@ class PdfService {
 
         final descriptionLines =
             (specification['_descriptionLines'] as List).cast<String>();
-        final descriptionLineHeight = rowHeight / descriptionLines.length;
-        for (var lineIndex = 0;
-            lineIndex < descriptionLines.length;
-            lineIndex++) {
-          final line = descriptionLines[lineIndex].trim();
-          final isSpecificationHeading =
-              line.toLowerCase() == 'specification';
-          page.graphics.drawString(
-            line,
-            isSpecificationHeading
-                ? priceDescriptionBoldFont
-                : priceDescriptionFont,
-            brush: black,
-            bounds: Rect.fromLTWH(
-              columns[1] + 3,
-              y + descriptionLineHeight * lineIndex,
-              columns[2] - columns[1] - 6,
-              descriptionLineHeight,
-            ),
-            format: PdfStringFormat(
-              alignment: isSpecificationHeading
-                  ? PdfTextAlignment.center
-                  : PdfTextAlignment.left,
-              lineAlignment: PdfVerticalAlignment.middle,
-              wordWrap: PdfWordWrapType.word,
-            ),
-          );
-          if (lineIndex > 0) {
-            final dividerY = y + descriptionLineHeight * lineIndex;
-            page.graphics.drawLine(
-              gridPen,
-              Offset(columns[1], dividerY),
-              Offset(columns[2], dividerY),
-            );
-          }
-        }
+        page.graphics.drawString(
+          descriptionLines.join('\n'),
+          priceDescriptionFont,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            columns[1] + 3,
+            y + 3,
+            columns[2] - columns[1] - 6,
+            rowHeight - 6,
+          ),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.left,
+            lineAlignment: PdfVerticalAlignment.middle,
+            wordWrap: PdfWordWrapType.word,
+          ),
+        );
         y += rowHeight;
         page.graphics.drawLine(
             gridPen, Offset(columns.first, y), Offset(columns.last, y));
