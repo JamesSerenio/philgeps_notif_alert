@@ -1693,18 +1693,40 @@ class PdfService {
       return '$grouped.${parts.last}';
     }
 
-    // Seven rows on the first page match the original clean layout; ten fit
-    // on each continuation page. This supports all 72 specification items.
-    final pageRowCounts = <int>[];
-    var remaining = specifications.length;
-    pageRowCounts.add(remaining.clamp(0, 7).toInt());
-    remaining -= pageRowCounts.first;
-    while (remaining > 0) {
-      final count = remaining.clamp(0, 10).toInt();
-      pageRowCounts.add(count);
-      remaining -= count;
+    int specificationLineCount(dynamic value) {
+      final text = (value ?? '').toString().trim();
+      if (text.isEmpty) return 1;
+      var count = 0;
+      for (final line in text.split(RegExp(r'\r?\n'))) {
+        count += (line.trim().length / 24).ceil().clamp(1, 20).toInt();
+      }
+      return count;
     }
-    final pageCount = pageRowCounts.length.clamp(1, 8).toInt();
+
+    final itemHeights = <double>[
+      for (final item in specifications)
+        (specificationLineCount(item is Map ? item['specification'] : '') *
+                14.0 +
+            6.0)
+            .clamp(34.0, 430.0)
+            .toDouble(),
+    ];
+    final pageRowCounts = <int>[];
+    var nextItem = 0;
+    while (nextItem < specifications.length && pageRowCounts.length < 8) {
+      var usedHeight = 0.0;
+      var count = 0;
+      while (nextItem + count < specifications.length) {
+        final height = itemHeights[nextItem + count];
+        if (count > 0 && usedHeight + height > 430) break;
+        usedHeight += height;
+        count++;
+      }
+      pageRowCounts.add(count);
+      nextItem += count;
+    }
+    if (pageRowCounts.isEmpty) pageRowCounts.add(0);
+    final pageCount = pageRowCounts.length;
     const baseColumns = <double>[
       24,
       52,
@@ -1845,13 +1867,14 @@ class PdfService {
           format: PdfStringFormat(alignment: PdfTextAlignment.right));
       const headerHeight = 92.0;
       final rowCount = pageRowCounts[pageNumber];
-      final available = size.height -
-          tableTop -
-          headerHeight -
-          (pageNumber == pageCount - 1 ? 112 : 25);
-      final rowHeight =
-          rowCount == 0 ? 30.0 : (available / rowCount).clamp(30.0, 48.0);
-      final tableBottom = tableTop + headerHeight + rowHeight * rowCount;
+      final pageStartItem = itemIndex;
+      final contentHeight = rowCount == 0
+          ? 30.0
+          : itemHeights
+              .skip(pageStartItem)
+              .take(rowCount)
+              .fold<double>(0, (sum, height) => sum + height);
+      final tableBottom = tableTop + headerHeight + contentHeight;
       for (final x in columns) {
         page.graphics
             .drawLine(gridPen, Offset(x, tableTop), Offset(x, tableBottom));
@@ -1887,6 +1910,7 @@ class PdfService {
       }
       var y = tableTop + headerHeight;
       for (var row = 0; row < rowCount; row++, itemIndex++) {
+        final rowHeight = itemHeights[itemIndex];
         final specification = specifications[itemIndex] is Map
             ? specifications[itemIndex] as Map
             : const {};
@@ -1895,15 +1919,22 @@ class PdfService {
                 ? savedPrices[itemIndex] as Map
                 : const {};
         final total = number(saved['totalPricePerUnit']);
-        final quantity = number(specification['quantity']);
+        final quantityText =
+            (specification['quantity'] ?? '').toString().trim().isEmpty
+                ? '1'
+                : specification['quantity'].toString();
+        final unitText = (specification['unit'] ?? '').toString().trim().isEmpty
+            ? 'unit'
+            : specification['unit'].toString();
+        final quantity = number(quantityText);
         final delivered = (quantity * total).roundToDouble();
         grandTotal += delivered;
         final texts = <String>[
           '${itemIndex + 1}',
-          (specification['specification'] ?? '').toString(),
+          '',
           'PHL',
-          (specification['quantity'] ?? '').toString(),
-          (specification['unit'] ?? '').toString(),
+          quantityText,
+          unitText,
           money(total * .50),
           money(total * .20),
           money(total * .30),
@@ -1912,6 +1943,7 @@ class PdfService {
           money(delivered),
         ];
         for (var column = 0; column < texts.length; column++) {
+          if (column == 1) continue;
           final isPriceColumn = column >= 5;
           page.graphics.drawString(
               texts[column], isPriceColumn ? priceBold : regular,
@@ -1924,6 +1956,48 @@ class PdfService {
                       : PdfTextAlignment.center,
                   lineAlignment: PdfVerticalAlignment.middle,
                   wordWrap: PdfWordWrapType.word));
+        }
+
+        final descriptionLines = (specification['specification'] ?? '')
+            .toString()
+            .trim()
+            .split(RegExp(r'\r?\n'))
+            .where((line) => line.trim().isNotEmpty)
+            .toList();
+        if (descriptionLines.isEmpty) descriptionLines.add('');
+        final descriptionLineHeight = rowHeight / descriptionLines.length;
+        for (var lineIndex = 0;
+            lineIndex < descriptionLines.length;
+            lineIndex++) {
+          final line = descriptionLines[lineIndex].trim();
+          final isSpecificationHeading =
+              line.toLowerCase() == 'specification';
+          page.graphics.drawString(
+            line,
+            isSpecificationHeading ? bold : regular,
+            brush: black,
+            bounds: Rect.fromLTWH(
+              columns[1] + 3,
+              y + descriptionLineHeight * lineIndex + 1,
+              columns[2] - columns[1] - 6,
+              descriptionLineHeight - 2,
+            ),
+            format: PdfStringFormat(
+              alignment: isSpecificationHeading
+                  ? PdfTextAlignment.center
+                  : PdfTextAlignment.left,
+              lineAlignment: PdfVerticalAlignment.middle,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+          if (lineIndex > 0) {
+            final dividerY = y + descriptionLineHeight * lineIndex;
+            page.graphics.drawLine(
+              gridPen,
+              Offset(columns[1], dividerY),
+              Offset(columns[2], dividerY),
+            );
+          }
         }
         y += rowHeight;
         page.graphics.drawLine(

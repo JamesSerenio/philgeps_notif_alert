@@ -317,8 +317,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   void _addTechnicalSpecification({
     String specification = '',
-    String quantity = '',
-    String unit = '',
+    String quantity = '1',
+    String unit = 'unit',
     String parameter = '',
     bool rebuild = true,
   }) {
@@ -365,8 +365,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           if (value is Map) {
             _addTechnicalSpecification(
               specification: (value['specification'] ?? '').toString(),
-              quantity: (value['quantity'] ?? '').toString(),
-              unit: (value['unit'] ?? '').toString(),
+              quantity: (value['quantity'] ?? '').toString().trim().isEmpty
+                  ? '1'
+                  : value['quantity'].toString(),
+              unit: (value['unit'] ?? '').toString().trim().isEmpty
+                  ? 'unit'
+                  : value['unit'].toString(),
               parameter: (value['parameter'] ?? '').toString(),
               rebuild: false,
             );
