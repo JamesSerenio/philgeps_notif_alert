@@ -1265,10 +1265,10 @@ class PdfService {
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
     // Match the clearly readable body-text size used by the source template.
     // The compliance value keeps its existing bold styling and size below.
-    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
     final boldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      10.5,
       style: PdfFontStyle.bold,
     );
     final statementTitleFont = PdfStandardFont(
@@ -1310,7 +1310,7 @@ class PdfService {
               measuredSpecification.height > measuredParameter.height
                   ? measuredSpecification.height
                   : measuredParameter.height;
-          return (contentHeight + 6).clamp(minimumRowHeight, 300).toDouble();
+          return (contentHeight + 6).clamp(minimumRowHeight, 320).toDouble();
         })(),
     ];
     final pageRowCounts = <int>[];
