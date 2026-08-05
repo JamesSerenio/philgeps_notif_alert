@@ -27,6 +27,13 @@ class PdfService {
       inputBytes: templateBytes,
     );
 
+    final ByteData nfccData = await rootBundle.load(
+      'assets/pdf/COMPUTATION OF NET FINANCIAL CONTRACTING CAPACITY.pdf',
+    );
+    final PdfDocument nfccDocument = PdfDocument(
+      inputBytes: nfccData.buffer.asUint8List(),
+    );
+
     // PDF work on Flutter Web shares the UI thread. Yield between the major
     // stages so loading indicators can continue receiving animation frames.
     await Future<void>.delayed(const Duration(milliseconds: 1));
@@ -65,10 +72,18 @@ class PdfService {
       _drawSlccPrivateRow(document.pages[20], values);
     }
 
-    // Page 45 NFCC form must follow the selected bid instead of retaining the
-    // municipality and procuring entity embedded in the PDF template.
-    if (document.pages.count > 44) {
-      _drawNfccHeader(document.pages[44], values);
+    // Replace Page 45 with the separately maintained NFCC document.
+    if (document.pages.count > 44 && nfccDocument.pages.count > 0) {
+      final PdfPage nfccPage = document.pages[44];
+      nfccPage.graphics.drawRectangle(
+        brush: PdfSolidBrush(PdfColor(255, 255, 255)),
+        bounds: Offset.zero & nfccPage.size,
+      );
+      nfccPage.graphics.drawPdfTemplate(
+        nfccDocument.pages[0].createTemplate(),
+        Offset.zero,
+        nfccPage.size,
+      );
     }
 
     // Page 47 technical specifications header follows the current bid data.
@@ -240,6 +255,7 @@ class PdfService {
 
     final List<int> outputBytes = await document.save();
     document.dispose();
+    nfccDocument.dispose();
 
     return Uint8List.fromList(outputBytes);
   }
@@ -809,143 +825,6 @@ class PdfService {
         ),
       );
     }
-  }
-
-  static void _drawNfccHeader(
-    PdfPage page,
-    Map<String, String> values,
-  ) {
-    final municipality = (values['municipality'] ?? '').trim().toUpperCase();
-    final province = (values['province'] ?? '').trim().toUpperCase();
-    final procuringEntity =
-        (values['procuringEntity'] ?? '').trim().toUpperCase();
-    final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
-    final contractTitle =
-        'REBIDDING FOR THE PROCUREMENT OF VARIOUS CONSTRUCTION\n'
-        'MATERIALS FOR DIFFERENT PROJECTS IN BARANGAY $municipality';
-
-    final graphics = page.graphics;
-    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
-    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
-    final valueFont = PdfStandardFont(
-      PdfFontFamily.timesRoman,
-      11,
-      style: PdfFontStyle.bold,
-    );
-    final colonFont = PdfStandardFont(
-      PdfFontFamily.timesRoman,
-      11,
-    );
-    final notaryFont = PdfStandardFont(
-      PdfFontFamily.timesRoman,
-      11,
-      style: PdfFontStyle.bold,
-    );
-    final format = PdfStringFormat(
-      alignment: PdfTextAlignment.left,
-      lineAlignment: PdfVerticalAlignment.top,
-      wordWrap: PdfWordWrapType.word,
-    );
-
-    // Replace the template's fixed CITY OF CAGAYAN DE ORO venue with the
-    // municipality and province selected for the current bid.
-    graphics.drawRectangle(
-      brush: whiteBrush,
-      bounds: const Rect.fromLTWH(30, 80, 410, 22),
-    );
-    graphics.drawString(
-      'MUNICIPALITY OF $municipality, $province  ) S.S.',
-      notaryFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 84, 395, 18),
-    );
-
-    // Clear only the old value column, preserving the NFCC labels and colons.
-    graphics.drawRectangle(
-      brush: whiteBrush,
-      bounds: const Rect.fromLTWH(180, 215, 390, 64),
-    );
-    graphics.drawString(
-      ':',
-      colonFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(180, 218, 10, 16),
-    );
-    graphics.drawString(
-      procuringEntity,
-      valueFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(184, 218, 375, 20),
-      format: format,
-    );
-    graphics.drawString(
-      ':',
-      colonFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(180, 242, 10, 16),
-    );
-    graphics.drawString(
-      contractTitle,
-      valueFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(184, 242, 375, 42),
-      format: format,
-    );
-
-    // The contractor printed in the template is fixed. Keep this row in sync
-    // with the Bidder Name entered in the editor and underline only its text.
-    graphics.drawRectangle(
-      brush: whiteBrush,
-      bounds: const Rect.fromLTWH(180, 278, 390, 22),
-    );
-    graphics.drawString(
-      ':',
-      colonFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(180, 282, 10, 16),
-    );
-    graphics.drawString(
-      bidderName,
-      valueFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(184, 282, 375, 18),
-      format: format,
-    );
-    final bidderNameWidth =
-        valueFont.measureString(bidderName).width.clamp(0, 375).toDouble();
-    graphics.drawLine(
-      PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      const Offset(184, 295),
-      Offset(184 + bidderNameWidth, 295),
-    );
-
-    // Replace the abbreviated former address embedded in the NFCC template.
-    // Keep the original label/value alignment and underline treatment.
-    graphics.drawRectangle(
-      brush: whiteBrush,
-      bounds: const Rect.fromLTWH(180, 314, 390, 40),
-    );
-    graphics.drawString(
-      ':',
-      colonFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(180, 318, 10, 16),
-    );
-    final nfccAddress = _permanentBusinessAddress.toUpperCase();
-    graphics.drawString(
-      nfccAddress,
-      valueFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(184, 318, 410, 20),
-      format: format,
-    );
-    final addressWidth =
-        valueFont.measureString(nfccAddress).width.clamp(0, 410).toDouble();
-    graphics.drawLine(
-      PdfPen(PdfColor(0, 0, 0), width: 0.5),
-      const Offset(184, 331),
-      Offset(184 + addressWidth, 331),
-    );
   }
 
   static void _drawTechnicalSpecificationsHeader(
