@@ -2866,6 +2866,12 @@ class PdfService {
     final municipality = (values['municipality'] ?? '').trim();
     final province = (values['province'] ?? '').trim();
     final date = (values['date'] ?? '').trim();
+    final parsedWarrantyYears =
+        int.tryParse((values['warrantyYears'] ?? '').trim()) ?? 2;
+    final warrantyYears = parsedWarrantyYears < 1 ? 2 : parsedWarrantyYears;
+    final warrantyPeriod =
+        '${_integerInWords(warrantyYears).toLowerCase()} ($warrantyYears) '
+        '${warrantyYears == 1 ? 'year' : 'years'}';
     final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
     final formalName = selectedName.contains('CARLOS RAFAEL A. JAMILO')
         ? 'Carlos Rafael A. Jamilo'
@@ -2995,7 +3001,7 @@ class PdfService {
       ('This is to certify that ', regular),
       (displayBidderName, bold),
       (' provides a ', regular),
-      ('two (2) Year', bold),
+      (warrantyPeriod, bold),
       (' Limited Warranty on all materials supplied for the ', regular),
       (projectTitle, italic),
       (' in ', regular),

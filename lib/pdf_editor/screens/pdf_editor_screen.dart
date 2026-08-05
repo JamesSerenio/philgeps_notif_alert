@@ -106,6 +106,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final Map<String, TextEditingController> slccControllers;
   late final TextEditingController deliveredWeeksMonthsController;
   late final TextEditingController afterSalesYearsController;
+  late final TextEditingController warrantyYearsController;
   final List<_TechnicalSpecificationEntry> technicalSpecifications = [];
   final List<_PriceScheduleEntry> priceScheduleEntries = [];
   late final FocusNode submittedByFocusNode;
@@ -185,6 +186,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     deliveredWeeksMonthsController.addListener(_scheduleRequirementsSave);
     afterSalesYearsController = TextEditingController(text: '1');
     afterSalesYearsController.addListener(_scheduleAfterSalesSave);
+    warrantyYearsController = TextEditingController(text: '2');
+    warrantyYearsController.addListener(_scheduleAfterSalesSave);
     for (final controller in slccControllers.values) {
       controller.addListener(_scheduleSlccSave);
     }
@@ -199,11 +202,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     try {
       final row = await SupabaseConfig.client
           .from('bid_after_sales_settings')
-          .select('service_years')
+          .select('service_years, warranty_years')
           .eq('reference_number', widget.referenceNumber.trim())
           .maybeSingle();
       afterSalesYearsController.text =
           (row?['service_years'] ?? 1).toString();
+      warrantyYearsController.text =
+          (row?['warranty_years'] ?? 2).toString();
     } catch (error) {
       debugPrint('After-sales settings load error: $error');
     } finally {
@@ -223,13 +228,20 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   Future<void> _saveAfterSalesSettings() async {
     if (widget.referenceNumber.trim().isEmpty) return;
     final years = int.tryParse(afterSalesYearsController.text.trim());
-    if (years == null || years < 1) return;
+    final warrantyYears = int.tryParse(warrantyYearsController.text.trim());
+    if (years == null ||
+        years < 1 ||
+        warrantyYears == null ||
+        warrantyYears < 1) {
+      return;
+    }
     if (mounted) setState(() => isSavingAfterSales = true);
     try {
       await SupabaseConfig.client.from('bid_after_sales_settings').upsert(
         {
           'reference_number': widget.referenceNumber.trim(),
           'service_years': years,
+          'warranty_years': warrantyYears,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
         onConflict: 'reference_number',
@@ -588,6 +600,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           ]),
           'deliveredWeeksMonths': deliveredWeeksMonthsController.text.trim(),
           'afterSalesYears': afterSalesYearsController.text.trim(),
+          'warrantyYears': warrantyYearsController.text.trim(),
         },
       );
 
@@ -1373,6 +1386,50 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  Widget productWarrantyFields() {
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      backgroundColor: Colors.white,
+      collapsedBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      leading: const Icon(
+        Icons.verified_outlined,
+        color: Color(0xFF0B5D3B),
+      ),
+      title: const Text(
+        'CERTIFICATE OF PRODUCT WARRANTY',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      ),
+      subtitle: Text(
+        isLoadingAfterSales
+            ? 'Loading saved value...'
+            : isSavingAfterSales
+                ? 'Saving...'
+                : 'Saved automatically',
+      ),
+      children: [
+        formField(
+          label: 'Number of Years',
+          controller: warrantyYearsController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        ),
+        const Text(
+          'Example: 3 becomes “three (3) years” in the PDF.',
+          style: TextStyle(fontSize: 11.5, color: Color(0xFF68736D)),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     provinceController.dispose();
@@ -1393,6 +1450,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     deliveredWeeksMonthsController.dispose();
     afterSalesYearsController.removeListener(_scheduleAfterSalesSave);
     afterSalesYearsController.dispose();
+    warrantyYearsController.removeListener(_scheduleAfterSalesSave);
+    warrantyYearsController.dispose();
     for (final controller in slccControllers.values) {
       controller.removeListener(_scheduleSlccSave);
       controller.dispose();
@@ -1476,6 +1535,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       scheduleRequirementsFields(),
                       const SizedBox(height: 12),
                       afterSalesServiceFields(),
+                      const SizedBox(height: 12),
+                      productWarrantyFields(),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
                         onPressed: isGenerating ? null : generatePdf,
