@@ -1231,6 +1231,42 @@ class PdfService {
       if (decoded is List) specifications = decoded.take(72).toList();
     }
 
+    // A single equipment item may contain many newline-separated details.
+    // Split it into continuation rows so readable text can flow to the next
+    // Technical Specifications page instead of being shrunk or clipped.
+    final renderRows = <Map<String, dynamic>>[];
+    for (var sourceIndex = 0;
+        sourceIndex < specifications.length;
+        sourceIndex++) {
+      final source = specifications[sourceIndex] is Map
+          ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
+          : <String, dynamic>{};
+      final lines = (source['specification'] ?? '')
+          .toString()
+          .split(RegExp(r'\r?\n'))
+          .where((line) => line.trim().isNotEmpty)
+          .toList();
+      final chunks = <List<String>>[];
+      if (lines.isEmpty) {
+        chunks.add(<String>['']);
+      } else {
+        for (var start = 0; start < lines.length; start += 12) {
+          chunks.add(lines.skip(start).take(12).toList());
+        }
+      }
+      for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+        renderRows.add(<String, dynamic>{
+          ...source,
+          'specification': chunks[chunkIndex].join('\n'),
+          '_itemNumber': sourceIndex + 1,
+          '_continuation': chunkIndex > 0,
+          if (chunkIndex > 0) 'quantity': '',
+          if (chunkIndex > 0) 'unit': '',
+          if (chunkIndex > 0) 'parameter': '',
+        });
+      }
+    }
+
     const columns = <double>[36, 94, 270, 335, 400, 490, 576];
     final projectTitle = (values['projectTitle'] ?? '').trim().toUpperCase();
     var currentTitleLine = '';
@@ -1265,10 +1301,10 @@ class PdfService {
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: 0.5);
     // Match the clearly readable body-text size used by the source template.
     // The compliance value keeps its existing bold styling and size below.
-    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final boldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10.5,
+      12,
       style: PdfFontStyle.bold,
     );
     final statementTitleFont = PdfStandardFont(
@@ -1290,7 +1326,7 @@ class PdfService {
     final specificationWidth = columns[2] - columns[1] - 6;
     final parameterWidth = columns[5] - columns[4] - 6;
     final rowHeights = <double>[
-      for (final value in specifications)
+      for (final value in renderRows)
         (() {
           final specification =
               value is Map ? (value['specification'] ?? '').toString() : '';
@@ -1310,22 +1346,25 @@ class PdfService {
               measuredSpecification.height > measuredParameter.height
                   ? measuredSpecification.height
                   : measuredParameter.height;
-          return (contentHeight + 6).clamp(minimumRowHeight, 320).toDouble();
+          return (contentHeight + 8).clamp(minimumRowHeight, 245).toDouble();
         })(),
     ];
     final pageRowCounts = <int>[];
     var rowsOnCurrentPage = 0;
     var usedHeight = 0.0;
     var technicalPageForLayout = 0;
-    for (final height in rowHeights) {
+    for (var rowIndex = 0; rowIndex < rowHeights.length; rowIndex++) {
+      final height = rowHeights[rowIndex];
       final page = document.pages[46 + technicalPageForLayout];
       final tableTop = technicalPageForLayout == 0 ? firstTableTop : 36.0;
       final availableHeight = page.getClientSize().height -
           tableTop -
           headerHeight -
           signatureSpace;
+      final forceContinuationPage =
+          renderRows[rowIndex]['_continuation'] == true;
       if (rowsOnCurrentPage > 0 &&
-          usedHeight + height > availableHeight &&
+          (forceContinuationPage || usedHeight + height > availableHeight) &&
           technicalPageForLayout < 2) {
         pageRowCounts.add(rowsOnCurrentPage);
         technicalPageForLayout++;
@@ -1556,16 +1595,15 @@ class PdfService {
 
       var rowTop = tableTop + headerHeight;
       for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
-        final specification = specifications[itemIndex] is Map
-            ? specifications[itemIndex] as Map
-            : const {};
+        final specification = renderRows[itemIndex];
+        final isContinuation = specification['_continuation'] == true;
         final texts = <String>[
-          '${itemIndex + 1}',
+          '${specification['_itemNumber']}',
           (specification['specification'] ?? '').toString(),
           (specification['quantity'] ?? '').toString(),
           (specification['unit'] ?? '').toString(),
           (specification['parameter'] ?? '').toString(),
-          'COMPLY',
+          isContinuation ? '' : 'COMPLY',
         ];
         final rowHeight = rowHeights[itemIndex];
         for (var column = 0; column < texts.length; column++) {
