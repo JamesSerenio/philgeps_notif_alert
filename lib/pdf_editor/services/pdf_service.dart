@@ -927,11 +927,7 @@ class PdfService {
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
     final municipality = (values['municipality'] ?? '').trim().toUpperCase();
     final province = (values['province'] ?? '').trim().toUpperCase();
-    final procuringEntity =
-        (values['procuringEntity'] ?? '').trim().toUpperCase();
-    final venue = procuringEntity.isEmpty
-        ? 'MUNICIPALITY OF $municipality, $province'
-        : procuringEntity;
+    const venue = 'Municipality of __________, __________';
     final dateParts = (values['date'] ?? '').trim().split(RegExp(r'\s+'));
     final year = dateParts.isEmpty ? '' : dateParts.last;
     final recipient = 'MUNICIPALITY OF $municipality, $province';
@@ -1095,8 +1091,7 @@ class PdfService {
       bounds: Rect.fromLTWH(yearLeft + 0.18, witnessTop + 0.12, 150, 15),
     );
 
-    // Use the complete procuring entity as the venue. It is printed directly
-    // instead of leaving municipality/province blanks in the template.
+    // Keep the notarial venue blank for manual completion.
     witnessGraphics.drawString(
       '$venueRemainder.',
       boldTextFont,
