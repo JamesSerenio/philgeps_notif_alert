@@ -34,6 +34,36 @@ where exists (
     and not (existing.item ? 'parameter')
 );
 
+-- Normalize older items so Qty and Unit use the same defaults as new items.
+update public.bid_technical_specifications
+set specifications = coalesce(
+  (
+    select jsonb_agg(
+      case
+        when jsonb_typeof(item) = 'object' then
+          item || jsonb_build_object(
+            'quantity', coalesce(nullif(btrim(item->>'quantity'), ''), '1'),
+            'unit', coalesce(nullif(btrim(item->>'unit'), ''), 'unit')
+          )
+        else item
+      end
+      order by item_order
+    )
+    from jsonb_array_elements(specifications) with ordinality
+      as saved_items(item, item_order)
+  ),
+  '[]'::jsonb
+)
+where exists (
+  select 1
+  from jsonb_array_elements(specifications) as existing(item)
+  where jsonb_typeof(existing.item) = 'object'
+    and (
+      coalesce(btrim(existing.item->>'quantity'), '') = ''
+      or coalesce(btrim(existing.item->>'unit'), '') = ''
+    )
+);
+
 alter table public.bid_technical_specifications enable row level security;
 
 drop policy if exists "Public can read technical specifications"
