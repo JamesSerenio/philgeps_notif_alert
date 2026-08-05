@@ -27,13 +27,6 @@ class PdfService {
       inputBytes: templateBytes,
     );
 
-    final ByteData nfccData = await rootBundle.load(
-      'assets/pdf/COMPUTATION OF NET FINANCIAL CONTRACTING CAPACITY.pdf',
-    );
-    final PdfDocument nfccDocument = PdfDocument(
-      inputBytes: nfccData.buffer.asUint8List(),
-    );
-
     // PDF work on Flutter Web shares the UI thread. Yield between the major
     // stages so loading indicators can continue receiving animation frames.
     await Future<void>.delayed(const Duration(milliseconds: 1));
@@ -70,20 +63,6 @@ class PdfService {
         businessAddressTop: 176,
       );
       _drawSlccPrivateRow(document.pages[20], values);
-    }
-
-    // Replace Page 45 with the separately maintained NFCC document.
-    if (document.pages.count > 44 && nfccDocument.pages.count > 0) {
-      final PdfPage nfccPage = document.pages[44];
-      nfccPage.graphics.drawRectangle(
-        brush: PdfSolidBrush(PdfColor(255, 255, 255)),
-        bounds: Offset.zero & nfccPage.size,
-      );
-      nfccPage.graphics.drawPdfTemplate(
-        nfccDocument.pages[0].createTemplate(),
-        Offset.zero,
-        nfccPage.size,
-      );
     }
 
     // Page 47 technical specifications header follows the current bid data.
@@ -255,7 +234,6 @@ class PdfService {
 
     final List<int> outputBytes = await document.save();
     document.dispose();
-    nfccDocument.dispose();
 
     return Uint8List.fromList(outputBytes);
   }
