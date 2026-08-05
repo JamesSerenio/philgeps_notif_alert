@@ -1751,22 +1751,40 @@ class PdfService {
       return result.isEmpty ? <String>[''] : result;
     }
 
+    final priceRows = <Map<String, dynamic>>[];
+    for (var sourceIndex = 0;
+        sourceIndex < specifications.length;
+        sourceIndex++) {
+      final source = specifications[sourceIndex] is Map
+          ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
+          : <String, dynamic>{};
+      final lines = priceSpecificationLines(source['specification']);
+      for (var start = 0; start < lines.length; start += 19) {
+        final continuation = start > 0;
+        priceRows.add(<String, dynamic>{
+          ...source,
+          '_sourceIndex': sourceIndex,
+          '_itemNumber': sourceIndex + 1,
+          '_continuation': continuation,
+          '_descriptionLines': lines.skip(start).take(19).toList(),
+          if (continuation) 'quantity': '',
+          if (continuation) 'unit': '',
+        });
+      }
+    }
+
     final itemHeights = <double>[
-      for (final item in specifications)
-        (priceSpecificationLines(
-                      item is Map ? item['specification'] : '',
-                    ).length *
-                11.0 +
-            6.0)
+      for (final row in priceRows)
+        ((row['_descriptionLines'] as List).length * 13.0 + 6.0)
             .clamp(34.0, 260.0)
             .toDouble(),
     ];
     final pageRowCounts = <int>[];
     var nextItem = 0;
-    while (nextItem < specifications.length && pageRowCounts.length < 8) {
+    while (nextItem < priceRows.length && pageRowCounts.length < 8) {
       var usedHeight = 0.0;
       var count = 0;
-      while (nextItem + count < specifications.length) {
+      while (nextItem + count < priceRows.length) {
         final height = itemHeights[nextItem + count];
         if (count > 0 && usedHeight + height > 260) break;
         usedHeight += height;
@@ -1797,10 +1815,10 @@ class PdfService {
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final priceDescriptionFont =
-        PdfStandardFont(PdfFontFamily.timesRoman, 8.5);
+        PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
     final priceDescriptionBoldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      8.5,
+      10.5,
       style: PdfFontStyle.bold,
     );
     final priceBold = PdfStandardFont(
@@ -1968,36 +1986,39 @@ class PdfService {
       var y = tableTop + headerHeight;
       for (var row = 0; row < rowCount; row++, itemIndex++) {
         final rowHeight = itemHeights[itemIndex];
-        final specification = specifications[itemIndex] is Map
-            ? specifications[itemIndex] as Map
-            : const {};
+        final specification = priceRows[itemIndex];
+        final sourceIndex = specification['_sourceIndex'] as int;
+        final isContinuation = specification['_continuation'] == true;
         final saved =
-            itemIndex < savedPrices.length && savedPrices[itemIndex] is Map
-                ? savedPrices[itemIndex] as Map
+            sourceIndex < savedPrices.length && savedPrices[sourceIndex] is Map
+                ? savedPrices[sourceIndex] as Map
                 : const {};
         final total = number(saved['totalPricePerUnit']);
-        final quantityText =
-            (specification['quantity'] ?? '').toString().trim().isEmpty
+        final quantityText = isContinuation
+            ? ''
+            : (specification['quantity'] ?? '').toString().trim().isEmpty
                 ? '1'
                 : specification['quantity'].toString();
-        final unitText = (specification['unit'] ?? '').toString().trim().isEmpty
-            ? 'unit'
-            : specification['unit'].toString();
+        final unitText = isContinuation
+            ? ''
+            : (specification['unit'] ?? '').toString().trim().isEmpty
+                ? 'unit'
+                : specification['unit'].toString();
         final quantity = number(quantityText);
         final delivered = (quantity * total).roundToDouble();
-        grandTotal += delivered;
+        if (!isContinuation) grandTotal += delivered;
         final texts = <String>[
-          '${itemIndex + 1}',
+          '${specification['_itemNumber']}',
           '',
-          'PHL',
+          isContinuation ? '' : 'PHL',
           quantityText,
           unitText,
-          money(total * .50),
-          money(total * .20),
-          money(total * .30),
+          isContinuation ? '' : money(total * .50),
+          isContinuation ? '' : money(total * .20),
+          isContinuation ? '' : money(total * .30),
           '',
-          money(total),
-          money(delivered),
+          isContinuation ? '' : money(total),
+          isContinuation ? '' : money(delivered),
         ];
         for (var column = 0; column < texts.length; column++) {
           if (column == 1) continue;
@@ -2015,9 +2036,8 @@ class PdfService {
                   wordWrap: PdfWordWrapType.word));
         }
 
-        final descriptionLines = priceSpecificationLines(
-          specification['specification'],
-        );
+        final descriptionLines =
+            (specification['_descriptionLines'] as List).cast<String>();
         final descriptionLineHeight = rowHeight / descriptionLines.length;
         for (var lineIndex = 0;
             lineIndex < descriptionLines.length;
