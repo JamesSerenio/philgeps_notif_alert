@@ -3750,9 +3750,7 @@ class PdfService {
 
     if (venueLine != null) {
       final venue = venueLine!;
-      final venueText =
-          'Municipality of ${municipality.isEmpty ? '________' : municipality}, '
-          '${province.isEmpty ? '________' : province}   ) S.S';
+      const venueText = 'Municipality of __________, __________   ) S.S';
       graphics.drawRectangle(
         brush: white,
         bounds: Rect.fromLTWH(
