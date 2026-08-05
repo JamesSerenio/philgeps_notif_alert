@@ -114,11 +114,6 @@ class PdfService {
     }
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
-    // The manpower sheet is a static page in the source template. Replace its
-    // embedded signature details with the values currently entered in the
-    // editor, just like the generated schedules and specification sheets.
-    _drawManpowerSignature(document, values);
-
     // Other mapped pages, excluding Page 1.
     final mappedFields = PageMapper.mapValuesToPages(values);
 
@@ -222,22 +217,24 @@ class PdfService {
       document.pages.removeAt(45);
     }
 
-    // Apply this after every optional-page removal because the Omnibus form's
-    // source index shifts. It is final output page 53 in the generated file.
-    // A multi-page bid-price summary shifts every following form. Keep the
-    // Omnibus edits on the actual Omnibus pages instead of drawing them over
-    // the Summary continuation page.
-    final summaryContinuationOffset = bidPriceSummaryPageCount - 1;
-    _drawOmnibusSwornStatementIdentity(
-      document,
-      values,
-      pageIndex: 52 + summaryContinuationOffset,
-    );
-    _drawOmnibusSwornStatementLastPage(
-      document,
-      values,
-      pageIndex: 53 + summaryContinuationOffset,
-    );
+    // Optional generated pages shift the forms that follow them. Locate the
+    // Omnibus form by its own title instead of relying on a fixed page index.
+    final omnibusPageIndex = _findOmnibusSwornStatementPage(document);
+    if (omnibusPageIndex >= 0) {
+      _drawOmnibusSwornStatementIdentity(
+        document,
+        values,
+        pageIndex: omnibusPageIndex,
+      );
+      _drawOmnibusSwornStatementLastPage(
+        document,
+        values,
+        pageIndex: omnibusPageIndex + 1,
+      );
+    }
+    // Run this after mapped fields and optional-page removals so the old
+    // signature block cannot be drawn back over the cleaned manpower page.
+    _drawManpowerSignature(document, values);
     _drawAfterSalesServiceCertificate(document, values);
     _drawProductWarrantyCertificate(document, values);
     _drawJuratPlaceholders(document, values);
@@ -2220,6 +2217,30 @@ class PdfService {
     drawRow('Date', date, top + 95);
   }
 
+  static int _findPageContaining(
+    PdfDocument document,
+    List<String> phrases,
+  ) {
+    final lines = PdfTextExtractor(document).extractTextLines(
+      startPageIndex: 0,
+      endPageIndex: document.pages.count - 1,
+    );
+    for (final line in lines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (phrases.any((phrase) => text.contains(phrase))) {
+        return line.pageIndex;
+      }
+    }
+    return -1;
+  }
+
+  static int _findOmnibusSwornStatementPage(PdfDocument document) {
+    return _findPageContaining(
+      document,
+      const <String>['OMNIBUS SWORN STATEMENT'],
+    );
+  }
+
   static void _drawOmnibusSwornStatementIdentity(
     PdfDocument document,
     Map<String, String> values, {
@@ -2712,8 +2733,14 @@ class PdfService {
     PdfDocument document,
     Map<String, String> values,
   ) {
-    const pageIndex = 55;
-    if (document.pages.count <= pageIndex) return;
+    final pageIndex = _findPageContaining(
+      document,
+      const <String>[
+        'AFTER-SALES SERVICE CERTIFICATE',
+        'AFTER SALES SERVICE CERTIFICATE',
+      ],
+    );
+    if (pageIndex < 0) return;
     final page = document.pages[pageIndex];
     final graphics = page.graphics;
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
@@ -2963,8 +2990,11 @@ class PdfService {
     PdfDocument document,
     Map<String, String> values,
   ) {
-    const pageIndex = 56;
-    if (document.pages.count <= pageIndex) return;
+    final pageIndex = _findPageContaining(
+      document,
+      const <String>['CERTIFICATE OF PRODUCT WARRANTY'],
+    );
+    if (pageIndex < 0) return;
     final page = document.pages[pageIndex];
     final graphics = page.graphics;
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
