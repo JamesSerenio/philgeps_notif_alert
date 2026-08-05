@@ -1739,7 +1739,7 @@ class PdfService {
         for (final word in words) {
           if (word.isEmpty) continue;
           final candidate = currentLine.isEmpty ? word : '$currentLine $word';
-          if (currentLine.isNotEmpty && candidate.length > 36) {
+          if (currentLine.isNotEmpty && candidate.length > 20) {
             result.add(currentLine);
             currentLine = word;
           } else {
@@ -1759,14 +1759,14 @@ class PdfService {
           ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
           : <String, dynamic>{};
       final lines = priceSpecificationLines(source['specification']);
-      for (var start = 0; start < lines.length; start += 19) {
+      for (var start = 0; start < lines.length; start += 18) {
         final continuation = start > 0;
         priceRows.add(<String, dynamic>{
           ...source,
           '_sourceIndex': sourceIndex,
           '_itemNumber': sourceIndex + 1,
           '_continuation': continuation,
-          '_descriptionLines': lines.skip(start).take(19).toList(),
+          '_descriptionLines': lines.skip(start).take(18).toList(),
           if (continuation) 'quantity': '',
           if (continuation) 'unit': '',
         });
@@ -1775,7 +1775,7 @@ class PdfService {
 
     final itemHeights = <double>[
       for (final row in priceRows)
-        ((row['_descriptionLines'] as List).length * 13.0 + 6.0)
+        ((row['_descriptionLines'] as List).length * 14.0 + 6.0)
             .clamp(34.0, 260.0)
             .toDouble(),
     ];
@@ -1815,10 +1815,10 @@ class PdfService {
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final priceDescriptionFont =
-        PdfStandardFont(PdfFontFamily.timesRoman, 10.5);
+        PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final priceDescriptionBoldFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10.5,
+      11,
       style: PdfFontStyle.bold,
     );
     final priceBold = PdfStandardFont(
