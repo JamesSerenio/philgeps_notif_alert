@@ -1309,7 +1309,7 @@ class PdfService {
     );
     final statementTitleFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      12,
       style: PdfFontStyle.bold,
     );
     final statementBodyFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
@@ -1596,7 +1596,7 @@ class PdfService {
         final specification = renderRows[itemIndex];
         final isContinuation = specification['_continuation'] == true;
         final texts = <String>[
-          '${specification['_itemNumber']}',
+          isContinuation ? '' : '${specification['_itemNumber']}',
           (specification['specification'] ?? '').toString(),
           (specification['quantity'] ?? '').toString(),
           (specification['unit'] ?? '').toString(),
