@@ -123,6 +123,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isSavingPriceSchedule = false;
   bool isLoadingScheduleRequirements = true;
   bool isSavingScheduleRequirements = false;
+  bool includeTotalInScheduleRequirements = false;
   bool isLoadingAfterSales = true;
   bool isSavingAfterSales = false;
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
@@ -205,10 +206,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           .select('service_years, warranty_years')
           .eq('reference_number', widget.referenceNumber.trim())
           .maybeSingle();
-      afterSalesYearsController.text =
-          (row?['service_years'] ?? 1).toString();
-      warrantyYearsController.text =
-          (row?['warranty_years'] ?? 2).toString();
+      afterSalesYearsController.text = (row?['service_years'] ?? 1).toString();
+      warrantyYearsController.text = (row?['warranty_years'] ?? 2).toString();
     } catch (error) {
       debugPrint('After-sales settings load error: $error');
     } finally {
@@ -603,6 +602,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               {'totalPricePerUnit': entry.totalPricePerUnit.text.trim()},
           ]),
           'deliveredWeeksMonths': deliveredWeeksMonthsController.text.trim(),
+          'includeScheduleTotal':
+              includeTotalInScheduleRequirements ? 'true' : 'false',
           'afterSalesYears': afterSalesYearsController.text.trim(),
           'warrantyYears': warrantyYearsController.text.trim(),
         },
@@ -1333,6 +1334,26 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 : 'Saved automatically',
       ),
       children: [
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          controlAffinity: ListTileControlAffinity.leading,
+          activeColor: const Color(0xFF0B5D3B),
+          value: includeTotalInScheduleRequirements,
+          title: const Text(
+            'Include Total column',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: const Text(
+            'Merge Qty and Unit, then show Total Price Delivered Final Destination.',
+            style: TextStyle(fontSize: 11.5),
+          ),
+          onChanged: (value) {
+            setState(() {
+              includeTotalInScheduleRequirements = value ?? false;
+            });
+          },
+        ),
         formField(
           label: 'Delivered Weeks/Months',
           controller: deliveredWeeksMonthsController,

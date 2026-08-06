@@ -4484,6 +4484,26 @@ class PdfService {
       if (decoded is List) specifications = decoded.take(72).toList();
     }
     final delivery = (values['deliveredWeeksMonths'] ?? '').trim();
+    final includeTotal =
+        (values['includeScheduleTotal'] ?? '').toLowerCase() == 'true';
+    List<dynamic> savedPrices = const [];
+    final encodedPrices = values['priceSchedule'] ?? '';
+    if (encodedPrices.isNotEmpty) {
+      final decoded = jsonDecode(encodedPrices);
+      if (decoded is List) savedPrices = decoded.take(72).toList();
+    }
+
+    double number(dynamic value) =>
+        double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ??
+        0;
+    String money(double value) {
+      final parts = value.toStringAsFixed(2).split('.');
+      final grouped = parts.first.replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (_) => ',',
+      );
+      return '$grouped.${parts.last}';
+    }
 
     String scheduleDescription(dynamic value) {
       final specification = value is Map ? value : const {};
@@ -4633,11 +4653,11 @@ class PdfService {
         Offset(left, tableTop + headerHeight),
         Offset(right, tableTop + headerHeight),
       );
-      const headers = <String>[
+      final headers = <String>[
         'Item\nNo.',
         'Specification/s',
-        'Qty',
-        'Unit',
+        includeTotal ? 'Qty/Unit' : 'Qty',
+        includeTotal ? 'Total' : 'Unit',
         'Delivered\nWeeks/Months',
       ];
       for (var column = 0; column < headers.length; column++) {
@@ -4663,11 +4683,23 @@ class PdfService {
         final specification = specifications[itemIndex] is Map
             ? specifications[itemIndex] as Map
             : const {};
+        final quantity = (specification['quantity'] ?? '').toString().trim();
+        final unit = (specification['unit'] ?? '').toString().trim();
+        final saved =
+            itemIndex < savedPrices.length && savedPrices[itemIndex] is Map
+                ? savedPrices[itemIndex] as Map
+                : const {};
+        final deliveredTotal =
+            number(quantity) * number(saved['totalPricePerUnit']);
         final texts = <String>[
           '${itemIndex + 1}',
           scheduleDescription(specification),
-          (specification['quantity'] ?? '').toString(),
-          (specification['unit'] ?? '').toString(),
+          includeTotal
+              ? [quantity, unit].where((value) => value.isNotEmpty).join(' ')
+              : quantity,
+          includeTotal
+              ? (deliveredTotal == 0 ? '' : money(deliveredTotal))
+              : unit,
           delivery,
         ];
         for (var column = 0; column < texts.length; column++) {
