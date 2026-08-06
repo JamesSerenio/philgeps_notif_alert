@@ -9,6 +9,14 @@ void main() {
     final bytes = await PdfService.generateBidDocs(
       values: const {
         'submittedBy': 'CARLOS RAFAEL A. JAMILO',
+        'submittedByFormalName': 'Carlos Rafael A. Jamilo',
+        'submittedByCivilStatus': 'single',
+        'submittedByAddress':
+            'Camaman-an, Cagayan de Oro City, Misamis Oriental',
+        'bidderName': 'MIKATA PRIME CORPORATION',
+        'projectTitle':
+            'PROCUREMENT OF 12-CHANNEL CCTV PACKAGE WITH INCLUSIVE INSTALLATION SERVICES',
+        'procuringEntity': 'MUNICIPALITY OF VILLANUEVA, MISAMIS ORIENTAL',
         'technicalSpecifications': '[]',
         'priceSchedule': '[]',
       },
@@ -16,8 +24,12 @@ void main() {
     final document = PdfDocument(inputBytes: bytes);
     final text = PdfTextExtractor(document).extractText();
     document.dispose();
+    final compactText = text.replaceAll(RegExp(r'\s+'), '');
 
-    expect(text, contains('Carlos Rafael A. Jamilo'));
-    expect(text, contains('Camaman-an, Cagayan de Oro City'));
+    expect(compactText, contains('CarlosRafaelA.Jamilo'));
+    expect(
+        compactText, contains('SitioPuli,Carmen,CagayandeOro.MisamisOriental'));
+    expect(compactText, contains('PROCUREMENTOF12-CHANNELCCTVPACKAGE'));
+    expect(compactText, contains('MUNICIPALITYOFVILLANUEVA,MISAMISORIENTAL'));
   });
 }

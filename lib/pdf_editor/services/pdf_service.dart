@@ -2235,21 +2235,21 @@ class PdfService {
 
   static int _findOmnibusSwornStatementPage(PdfDocument document) {
     final extractor = PdfTextExtractor(document);
-    for (var pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
-      final lines = extractor.extractTextLines(
-        startPageIndex: pageIndex,
-        endPageIndex: pageIndex,
-      );
-      final text = lines
-          .map((line) => line.text)
-          .join(' ')
-          .toUpperCase()
-          .replaceAll(RegExp(r'\s+'), ' ');
-      // Page 1 also lists "Omnibus Sworn Statement" in its table of
-      // contents. Require text unique to the actual sworn-statement form so
-      // editable paragraphs can never be drawn over the checklist page.
-      if (text.contains('OMNIBUS SWORN STATEMENT') &&
-          text.contains('BLACKLISTED')) {
+    // The template has stale Omnibus text embedded on its cover page. The
+    // actual legal form is in the latter half of the document.
+    for (var pageIndex = document.pages.count ~/ 2;
+        pageIndex < document.pages.count;
+        pageIndex++) {
+      final text = extractor
+          .extractText(
+            startPageIndex: pageIndex,
+            endPageIndex: pageIndex,
+          )
+          .toUpperCase();
+      // The source encodes the title as "O MNIBUS S WORN S TATEMENT".
+      // Removing whitespace gives one stable, page-specific marker.
+      final compactText = text.replaceAll(RegExp(r'\s+'), '');
+      if (compactText.contains('OMNIBUSSWORNSTATEMENT')) {
         return pageIndex;
       }
     }
@@ -2262,21 +2262,27 @@ class PdfService {
     required int pageIndex,
   }) {
     final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
-    late final String formalName;
-    late final String civilStatus;
-    late final String address;
+    var formalName = (values['submittedByFormalName'] ?? '').trim();
+    var civilStatus =
+        (values['submittedByCivilStatus'] ?? '').trim().toLowerCase();
+    var address = (values['submittedByAddress'] ?? '').trim();
     if (selectedName.contains('CARLOS RAFAEL A. JAMILO')) {
-      formalName = 'Carlos Rafael A. Jamilo';
-      civilStatus = 'single';
-      address = 'Camaman-an, Cagayan de Oro City, Misamis Oriental';
+      formalName = formalName.isEmpty ? 'Carlos Rafael A. Jamilo' : formalName;
+      civilStatus = civilStatus.isEmpty ? 'single' : civilStatus;
+      address = address.isEmpty
+          ? 'Camaman-an, Cagayan de Oro City, Misamis Oriental'
+          : address;
     } else if (selectedName.contains('MARLJONE BLAIRE B. TINGTING')) {
-      formalName = 'Marljone Blaire B. Tingting';
-      civilStatus = 'single';
-      address = 'Tankulan, Manolo Fortich, Bukidnon';
+      formalName =
+          formalName.isEmpty ? 'Marljone Blaire B. Tingting' : formalName;
+      civilStatus = civilStatus.isEmpty ? 'single' : civilStatus;
+      address =
+          address.isEmpty ? 'Tankulan, Manolo Fortich, Bukidnon' : address;
     } else {
-      formalName = 'Jho Ann Q. Cleopas';
-      civilStatus = 'married';
-      address = 'Tankulan, Manolo Fortich, Bukidnon';
+      formalName = formalName.isEmpty ? 'Jho Ann Q. Cleopas' : formalName;
+      civilStatus = civilStatus.isEmpty ? 'married' : civilStatus;
+      address =
+          address.isEmpty ? 'Tankulan, Manolo Fortich, Bukidnon' : address;
     }
 
     // All optional template pages have already been removed at this point.
@@ -2427,9 +2433,8 @@ class PdfService {
     }
 
     final projectTitle = (values['projectTitle'] ?? '').trim();
-    final municipality = (values['municipality'] ?? '').trim();
-    final province = (values['province'] ?? '').trim();
-    if (projectTitle.isEmpty || municipality.isEmpty || province.isEmpty) {
+    final procuringEntity = (values['procuringEntity'] ?? '').trim();
+    if (projectTitle.isEmpty || procuringEntity.isEmpty) {
       return;
     }
 
@@ -2453,7 +2458,7 @@ class PdfService {
       ),
       (projectTitle, emphasizedFont),
       (' of the ', regularFont),
-      ('Municipality of $municipality, $province', emphasizedFont),
+      (procuringEntity, emphasizedFont),
       (
         ' as supported by the attached duly notarized Special Power of '
             'Attorney, Board/Partnership Resolution, or Secretary’s Certificate, '
