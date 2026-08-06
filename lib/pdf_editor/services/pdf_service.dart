@@ -2234,25 +2234,23 @@ class PdfService {
   }
 
   static int _findOmnibusSwornStatementPage(PdfDocument document) {
-    final lines = PdfTextExtractor(document).extractTextLines(
-      startPageIndex: 0,
-      endPageIndex: document.pages.count - 1,
-    );
-    final textByPage = <int, StringBuffer>{};
-    for (final line in lines) {
-      textByPage.putIfAbsent(line.pageIndex, StringBuffer.new)
-        ..write(' ')
-        ..write(line.text.toUpperCase());
-    }
-    for (final entry in textByPage.entries) {
-      final text = entry.value.toString().replaceAll(RegExp(r'\s+'), ' ');
+    final extractor = PdfTextExtractor(document);
+    for (var pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
+      final lines = extractor.extractTextLines(
+        startPageIndex: pageIndex,
+        endPageIndex: pageIndex,
+      );
+      final text = lines
+          .map((line) => line.text)
+          .join(' ')
+          .toUpperCase()
+          .replaceAll(RegExp(r'\s+'), ' ');
       // Page 1 also lists "Omnibus Sworn Statement" in its table of
       // contents. Require text unique to the actual sworn-statement form so
       // editable paragraphs can never be drawn over the checklist page.
       if (text.contains('OMNIBUS SWORN STATEMENT') &&
-          text.contains('DEPOSE AND STATE THAT') &&
           text.contains('BLACKLISTED')) {
-        return entry.key;
+        return pageIndex;
       }
     }
     return -1;
