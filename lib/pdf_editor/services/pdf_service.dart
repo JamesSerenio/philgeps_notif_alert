@@ -1812,8 +1812,7 @@ class PdfService {
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final regular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
-    final priceDescriptionFont =
-        PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final priceDescriptionFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     final priceBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
       12,
@@ -2755,8 +2754,7 @@ class PdfService {
         parsedAfterSalesYears < 1 ? 1 : parsedAfterSalesYears;
     final afterSalesYearsInWords =
         _integerInWords(afterSalesYears).toLowerCase();
-    final afterSalesPeriod =
-        '$afterSalesYearsInWords ($afterSalesYears) '
+    final afterSalesPeriod = '$afterSalesYearsInWords ($afterSalesYears) '
         '${afterSalesYears == 1 ? 'year' : 'years'}';
     final selectedName = (values['submittedBy'] ?? '').trim().toUpperCase();
     final formalName = selectedName.contains('CARLOS RAFAEL A. JAMILO')
@@ -3354,7 +3352,11 @@ class PdfService {
       ),
       (year, boldItalic, true),
       ('at', regular, false),
-      ('Municipality of __________, __________, Philippines.', boldItalic, true),
+      (
+        'Municipality of __________, __________, Philippines.',
+        boldItalic,
+        true
+      ),
       (
         'Affiant/s is/are personally known to me and was/were '
             'identified by me through competent evidence of identity as defined '
@@ -4247,8 +4249,7 @@ class PdfService {
     } on FormatException {
       // Keep the supplied value if it is not in the expected display format.
     }
-    const legalLocation =
-        'Municipality of __________, __________, Philippines';
+    const legalLocation = 'Municipality of __________, __________, Philippines';
 
     final lastPageIndex = document.pages.count - 1;
     TextLine? witnessLine;
@@ -4462,11 +4463,57 @@ class PdfService {
       if (decoded is List) specifications = decoded.take(72).toList();
     }
     final delivery = (values['deliveredWeeksMonths'] ?? '').trim();
-    final pageCount = specifications.length <= 18
-        ? 1
-        : specifications.length <= 42
-            ? 2
-            : 3;
+
+    String scheduleDescription(dynamic value) {
+      final specification = value is Map ? value : const {};
+      final name = (specification['specification'] ?? '').toString().trim();
+      final details = (specification['parameter'] ?? '').toString().trim();
+      if (details.isEmpty) return name;
+      if (name.isEmpty || details == name) return details;
+      return '$name\n$details';
+    }
+
+    // Schedule rows can contain complete, multi-line technical descriptions.
+    // Size and paginate them by their rendered content instead of forcing every
+    // row into a fixed 23-point box (which clipped everything after line one).
+    int wrappedLineCount(String value) {
+      const approximateCharactersPerLine = 32;
+      final lines = value.split(RegExp(r'\r?\n'));
+      return lines.fold<int>(0, (count, line) {
+        final length = line.trim().length;
+        return count +
+            (length == 0 ? 1 : (length / approximateCharactersPerLine).ceil());
+      });
+    }
+
+    final rowHeights = <double>[
+      for (final value in specifications)
+        (() {
+          final description = scheduleDescription(value);
+          return (wrappedLineCount(description) * 15.0 + 10.0)
+              .clamp(23.0, 500.0)
+              .toDouble();
+        })(),
+    ];
+    final pageRowCounts = <int>[];
+    var nextRow = 0;
+    while (nextRow < specifications.length && pageRowCounts.length < 3) {
+      // The first sheet has the document heading; continuation sheets have
+      // more vertical room. Keep space below the table for the signature.
+      final availableHeight = pageRowCounts.isEmpty ? 410.0 : 545.0;
+      var usedHeight = 0.0;
+      var count = 0;
+      while (nextRow + count < specifications.length) {
+        final height = rowHeights[nextRow + count];
+        if (count > 0 && usedHeight + height > availableHeight) break;
+        usedHeight += height;
+        count++;
+      }
+      pageRowCounts.add(count);
+      nextRow += count;
+    }
+    if (pageRowCounts.isEmpty) pageRowCounts.add(0);
+    final pageCount = pageRowCounts.length;
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final gridPen = PdfPen(PdfColor(0, 0, 0), width: .55);
@@ -4481,7 +4528,7 @@ class PdfService {
       13,
       style: PdfFontStyle.bold,
     );
-    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 13);
+    final rowFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
     var itemIndex = 0;
 
     for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
@@ -4547,13 +4594,13 @@ class PdfService {
         tableTop = 168;
       }
       const headerHeight = 48.0;
-      const rowHeight = 23.0;
-      final remaining = specifications.length - itemIndex;
-      // Larger, more readable text needs fewer rows per sheet. This still
-      // supports the full 72-item limit across the three source templates.
-      final capacity = pageNumber == 0 ? 24 : 24;
-      final rowsOnPage = remaining.clamp(0, capacity).toInt();
-      final tableBottom = tableTop + headerHeight + rowsOnPage * rowHeight;
+      final rowsOnPage = pageRowCounts[pageNumber];
+      final tableBottom = tableTop +
+          headerHeight +
+          rowHeights
+              .skip(itemIndex)
+              .take(rowsOnPage)
+              .fold<double>(0, (sum, height) => sum + height);
       for (final x in columns) {
         page.graphics
             .drawLine(gridPen, Offset(x, tableTop), Offset(x, tableBottom));
@@ -4591,12 +4638,13 @@ class PdfService {
       }
       var y = tableTop + headerHeight;
       for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
+        final rowHeight = rowHeights[itemIndex];
         final specification = specifications[itemIndex] is Map
             ? specifications[itemIndex] as Map
             : const {};
         final texts = <String>[
           '${itemIndex + 1}',
-          (specification['specification'] ?? '').toString(),
+          scheduleDescription(specification),
           (specification['quantity'] ?? '').toString(),
           (specification['unit'] ?? '').toString(),
           delivery,
@@ -4776,8 +4824,7 @@ class PdfService {
           .skip(pageStartRow)
           .take(rowsOnPage)
           .fold<double>(0, (sum, height) => sum + height);
-      final dataBottom =
-          tableTop + headerHeight + sectionHeight + rowsHeight;
+      final dataBottom = tableTop + headerHeight + sectionHeight + rowsHeight;
       // Outer borders span the whole table. Internal column dividers skip the
       // merged "Specifications:" row, matching the source template.
       for (final x in <double>[left, right]) {
