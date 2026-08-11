@@ -995,7 +995,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           contentPadding: EdgeInsets.zero,
           dense: true,
           title: const Text('With table'),
-          subtitle: const Text('Use the new declaration template'),
+          subtitle: const Text('Use the original declaration with table'),
           value: true,
           groupValue: useBidSecuringDeclarationWithTable,
           onChanged: (value) {
@@ -1008,7 +1008,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           contentPadding: EdgeInsets.zero,
           dense: true,
           title: const Text('Without table'),
-          subtitle: const Text('Use the original bid-doc pages 47–48'),
+          subtitle: const Text('Use the new declaration without table'),
           value: false,
           groupValue: useBidSecuringDeclarationWithTable,
           onChanged: (value) {

@@ -33,7 +33,7 @@ void main() {
     expect(compactText, contains('MUNICIPALITYOFVILLANUEVA,MISAMISORIENTAL'));
   });
 
-  test('replaces the bid securing declaration with the table template',
+  test('replaces the bid securing declaration with the no-table template',
       () async {
     final bytes = await PdfService.generateBidDocs(
       values: const {
@@ -47,7 +47,7 @@ void main() {
         'submittedByFormalName': 'Jho Ann Q. Cleopas',
         'technicalSpecifications': '[]',
         'priceSchedule': '[]',
-        'bidSecuringDeclarationWithTable': 'true',
+        'bidSecuringDeclarationWithTable': 'false',
       },
     );
     final document = PdfDocument(inputBytes: bytes);

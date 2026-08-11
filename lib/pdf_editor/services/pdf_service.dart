@@ -209,13 +209,13 @@ class PdfService {
     }
 
     final useDeclarationWithTable =
-        values['bidSecuringDeclarationWithTable'] == 'true';
+        values['bidSecuringDeclarationWithTable'] != 'false';
     if (useDeclarationWithTable) {
-      await _replaceBidSecuringDeclarationWithTable(document, values);
-    } else {
       // Locate the original form by its actual text after optional technical
       // pages have been removed, since its final page index can change.
       _drawBidSecuringDeclarationDetails(document, values);
+    } else {
+      await _replaceBidSecuringDeclarationWithoutTable(document, values);
     }
 
     await Future<void>.delayed(const Duration(milliseconds: 1));
@@ -1202,7 +1202,7 @@ class PdfService {
     return -1;
   }
 
-  static Future<void> _replaceBidSecuringDeclarationWithTable(
+  static Future<void> _replaceBidSecuringDeclarationWithoutTable(
     PdfDocument document,
     Map<String, String> values,
   ) async {
@@ -1323,10 +1323,10 @@ class PdfService {
         // The municipality appears both in the page heading and on the line
         // immediately following "To:". Keep the heading as a place name,
         // while the recipient line must use the complete procuring entity.
-        final replacement = line.pageIndex == startPageIndex &&
-                line.bounds.top < 130
-            ? executionPlace.toUpperCase()
-            : procuringEntity;
+        final replacement =
+            line.pageIndex == startPageIndex && line.bounds.top < 130
+                ? executionPlace.toUpperCase()
+                : procuringEntity;
         replaceLine(line, replacement, font: boldFont);
       } else if (upper.contains('PROJECT IDENTIFICATION NO')) {
         replaceLine(
