@@ -14,6 +14,9 @@ void main() {
         'submittedByAddress':
             'Camaman-an, Cagayan de Oro City, Misamis Oriental',
         'bidderName': 'MIKATA PRIME CORPORATION',
+        'municipality': 'Sumilao',
+        'date': 'August 11, 2026',
+        'bidSecuringDeclarationWithTable': 'true',
         'projectTitle':
             'PROCUREMENT OF 12-CHANNEL CCTV PACKAGE WITH INCLUSIVE INSTALLATION SERVICES',
         'procuringEntity': 'MUNICIPALITY OF VILLANUEVA, MISAMIS ORIENTAL',
@@ -31,6 +34,8 @@ void main() {
         compactText, contains('SitioPuli,Carmen,CagayandeOro.MisamisOriental'));
     expect(compactText, contains('PROCUREMENTOF12-CHANNELCCTVPACKAGE'));
     expect(compactText, contains('MUNICIPALITYOFVILLANUEVA,MISAMISORIENTAL'));
+    expect(compactText, contains('MunicipalityofSumilao'));
+    expect(compactText, contains('August11,2026'));
   });
 
   test('replaces the bid securing declaration with the no-table template',

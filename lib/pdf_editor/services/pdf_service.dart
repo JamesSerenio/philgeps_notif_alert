@@ -1146,7 +1146,9 @@ class PdfService {
     if (signaturePageIndex != null && dulyTop != null) {
       final signatureGraphics = document.pages[signaturePageIndex].graphics;
       final bidderName = (values['bidderName'] ?? '').trim();
-      final submittedBy = (values['submittedBy'] ?? '').trim();
+      final submittedBy =
+          (values['submittedByFormalName'] ?? values['submittedBy'] ?? '')
+              .trim();
       final date = (values['date'] ?? '').trim();
       final signatureFont = PdfStandardFont(
         PdfFontFamily.helvetica,
@@ -1190,6 +1192,76 @@ class PdfService {
         heavy: false,
       );
       drawSignatureValue(date, dulyTop + 113);
+    }
+
+    // Replace the fixed values that are baked into the original declaration
+    // page. Using each extracted line's own bounds is more reliable than one
+    // large signature rectangle because this template has a shifted crop box.
+    final formalRepresentative =
+        (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+    final selectedDate = (values['date'] ?? '').trim();
+    final selectedMunicipality = (values['municipality'] ?? '').trim();
+    final selectedPlace = 'Municipality of $selectedMunicipality';
+    final correctionFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.italic,
+    );
+
+    void replaceExtractedLine(dynamic line, String replacement,
+        {double? height}) {
+      final correctionGraphics = document.pages[line.pageIndex].graphics;
+      final bounds = line.bounds;
+      correctionGraphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: Rect.fromLTWH(
+          bounds.left - 2,
+          bounds.top - 2,
+          document.pages[line.pageIndex].getClientSize().width -
+              bounds.left -
+              18,
+          height ?? bounds.height + 5,
+        ),
+      );
+      correctionGraphics.drawString(
+        replacement,
+        correctionFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(
+          bounds.left,
+          bounds.top,
+          document.pages[line.pageIndex].getClientSize().width -
+              bounds.left -
+              20,
+          height ?? bounds.height + 7,
+        ),
+      );
+    }
+
+    for (final line in allLines) {
+      if (line.pageIndex < declarationPageIndex ||
+          line.pageIndex > declarationPageIndex + 1) {
+        continue;
+      }
+      final text = line.text.trim();
+      final upper = text.toUpperCase();
+      if (selectedMunicipality.isNotEmpty &&
+          upper.contains('MUNICIPALITY OF IMPASUGONG')) {
+        replaceExtractedLine(
+          line,
+          text.replaceAll(
+            RegExp('Municipality of Impasugong', caseSensitive: false),
+            selectedPlace,
+          ),
+          height: upper.startsWith('SUBSCRIBED AND SWORN') ? 30 : null,
+        );
+      } else if (upper.contains('JHO ANN Q. CLEOPAS')) {
+        replaceExtractedLine(line, formalRepresentative);
+      } else if (upper == 'AUTHORIZED REPRESENTATIVE') {
+        replaceExtractedLine(line, 'Authorized Representative');
+      } else if (selectedDate.isNotEmpty && upper == 'JULY 20, 2026') {
+        replaceExtractedLine(line, selectedDate);
+      }
     }
   }
 
