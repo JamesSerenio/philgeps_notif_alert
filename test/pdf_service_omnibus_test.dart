@@ -53,8 +53,10 @@ void main() {
     final document = PdfDocument(inputBytes: bytes);
     final compactText =
         PdfTextExtractor(document).extractText().replaceAll(RegExp(r'\s+'), '');
+    final pageCount = document.pages.count;
     document.dispose();
 
+    expect(pageCount, 61);
     expect(compactText, contains('ProjectIdentificationNo.:13118796'));
     // Covered template text remains in the PDF extraction stream even though
     // it is no longer visible, so verify the newly drawn recipient separately.

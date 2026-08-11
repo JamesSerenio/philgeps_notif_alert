@@ -1220,6 +1220,20 @@ class PdfService {
     // destination document until after saving and reopening it.
     final List<dynamic> templateLines =
         PdfTextExtractor(templateDocument).extractTextLines();
+    // This declaration uses only its first two sheets. The third sheet in the
+    // supplied file is blank and must not be inserted into the bid documents.
+    final declarationPageCount = templateDocument.pages.count.clamp(0, 2);
+
+    // Replace placeholders on the source pages before turning them into PDF
+    // templates. This keeps the extractor coordinates and the drawn content
+    // in the same crop box, preventing duplicated/misaligned overlay text.
+    _drawBidSecuringDeclarationTableDetails(
+      templateDocument,
+      values,
+      startPageIndex: 0,
+      pageCount: declarationPageCount,
+      templateLines: templateLines,
+    );
 
     // The original declaration occupies two sheets. Replace those sheets at
     // the same location so the remaining bid-document order is unchanged.
@@ -1229,7 +1243,7 @@ class PdfService {
     }
 
     for (var templateIndex = 0;
-        templateIndex < templateDocument.pages.count;
+        templateIndex < declarationPageCount;
         templateIndex++) {
       final sourcePage = templateDocument.pages[templateIndex];
       final margins = PdfMargins()..all = 0;
@@ -1245,13 +1259,6 @@ class PdfService {
       );
     }
 
-    _drawBidSecuringDeclarationTableDetails(
-      document,
-      values,
-      startPageIndex: declarationIndex,
-      pageCount: templateDocument.pages.count,
-      templateLines: templateLines,
-    );
     templateDocument.dispose();
   }
 
@@ -1292,6 +1299,8 @@ class PdfService {
       String replacement, {
       PdfFont? font,
       double extraWidth = 8,
+      double? coverHeight,
+      double? drawHeight,
     }) {
       final page = document.pages[startPageIndex + line.pageIndex as int];
       final bounds = line.bounds;
@@ -1303,7 +1312,7 @@ class PdfService {
           (page.getClientSize().width - bounds.left - 20)
               .clamp(bounds.width + extraWidth, 560)
               .toDouble(),
-          bounds.height + 5,
+          coverHeight ?? bounds.height + 5,
         ),
       );
       page.graphics.drawString(
@@ -1314,7 +1323,7 @@ class PdfService {
           bounds.left,
           bounds.top,
           page.getClientSize().width - bounds.left - 20,
-          bounds.height + 7,
+          drawHeight ?? bounds.height + 7,
         ),
       );
     }
@@ -1346,6 +1355,8 @@ class PdfService {
           'IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s '
           'this $date at $executionPlace.',
           font: boldFont,
+          coverHeight: 38,
+          drawHeight: 36,
         );
       } else if (upper.startsWith('SUBSCRIBED AND SWORN') &&
           upper.contains('MUNICIPALITY OF IMPASUGONG')) {
