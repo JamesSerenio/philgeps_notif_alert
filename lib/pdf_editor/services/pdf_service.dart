@@ -1542,7 +1542,9 @@ class PdfService {
           brush: black,
           bounds: Rect.fromLTWH(currentLeft, top, width + 2, 16),
         );
-        currentLeft += width;
+        // PdfStandardFont can omit a trailing space from its measured width.
+        // Keep a small visual gap between adjacent styled runs.
+        currentLeft += width + 1;
       }
       return currentLeft;
     }
@@ -1583,11 +1585,11 @@ class PdfService {
     );
     final juratLeft = drawRuns(55, 292, <(String, PdfFont)>[
       ('SUBSCRIBED AND SWORN', bold),
-      (' to before me this ____ ', regular),
+      ('to before me this ____', regular),
       ('day of', bold),
-      (' ____ ', regular),
+      ('____', regular),
       (year, bold),
-      (' at ', regular),
+      ('at', regular),
     ]);
     emphasized(
       'Municipality of $municipality,',
@@ -1595,15 +1597,28 @@ class PdfService {
     );
     graphics.drawString(
       'Philippines. Affiant/s is/are personally known to me and was/were '
-      'identified by me through competent evidence of identity as defined in '
-      'the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). Affiant/s '
-      'exhibited to me his/her',
+      'identified by me through competent',
       regular,
       brush: black,
-      bounds: const Rect.fromLTWH(55, 308, 500, 42),
+      bounds: const Rect.fromLTWH(55, 308, 500, 16),
     );
-    drawRuns(55, 346, <(String, PdfFont)>[
-      ('National ID', bold),
+    drawRuns(55, 324, <(String, PdfFont)>[
+      ('evidence of identity ', regular),
+      ('as defined', bold),
+      (
+        ' in the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). Affiant/s',
+        regular
+      ),
+    ]);
+    final nationalIdLeft = drawRuns(55, 340, <(String, PdfFont)>[
+      ('exhibited to me his/her', regular),
+    ]);
+    emphasized(
+      'National ID',
+      Rect.fromLTWH(nationalIdLeft, 340, 70, 16),
+    );
+    drawRuns(nationalIdLeft + bold.measureString('National ID').width + 2,
+        340, <(String, PdfFont)>[
       (
         ' with his/her photograph and signature appearing thereon, with',
         regular,
