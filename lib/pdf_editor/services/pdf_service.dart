@@ -1383,9 +1383,7 @@ class PdfService {
     }) {
       final page = document.pages[startPageIndex + line.pageIndex as int];
       final bounds = line.bounds;
-      // The supplied Word-exported template has a crop-box origin around
-      // 18pt below its extracted text coordinates.
-      final correctedTop = bounds.top - 18;
+      final correctedTop = bounds.top;
       page.graphics.drawRectangle(
         brush: whiteBrush,
         bounds: Rect.fromLTWH(
@@ -1419,16 +1417,19 @@ class PdfService {
         // The municipality appears both in the page heading and on the line
         // immediately following "To:". Keep the heading as a place name,
         // while the recipient line must use the complete procuring entity.
-        final replacement = line.pageIndex == 0 && line.bounds.top < 130
+        final isHeading = line.pageIndex == 0 && line.bounds.top < 130;
+        final replacement = isHeading
             ? executionPlace.toUpperCase()
-            : procuringEntity;
+            : line.pageIndex == 0
+                ? procuringEntity
+                : executionPlace;
         replaceLine(
           line,
           replacement,
           font: boldFont,
           // Do not cover the closing parenthesis and "S.S." at the right of
           // the municipality heading.
-          coverWidth: line.pageIndex == 0 && line.bounds.top < 130 ? 260 : null,
+          coverWidth: isHeading ? 260 : null,
         );
       } else if (upper.contains('PROJECT IDENTIFICATION NO')) {
         replaceLine(
@@ -1440,16 +1441,9 @@ class PdfService {
           upper.contains('MUNICIPALITY OF IMPASUGONG')) {
         replaceLine(line, 'To: $procuringEntity', font: boldFont);
       } else if (upper.startsWith('IN WITNESS WHEREOF')) {
-        replaceLine(
-          line,
-          text.replaceAll(
-            RegExp('Municipality of Impasugong', caseSensitive: false),
-            executionPlace,
-          ),
-          font: boldFont,
-          coverHeight: 38,
-          drawHeight: 36,
-        );
+        // Preserve the original witness sentence and writing lines. Its
+        // municipality is a separate extracted line and is handled above.
+        continue;
       } else if (upper.startsWith('SUBSCRIBED AND SWORN') &&
           upper.contains('MUNICIPALITY OF IMPASUGONG')) {
         replaceLine(
@@ -1471,10 +1465,10 @@ class PdfService {
     }
     if (dulyLine != null) {
       final page = document.pages[startPageIndex + dulyLine.pageIndex as int];
-      final top = dulyLine.bounds.top + 6;
+      final top = dulyLine.bounds.top + 24;
       page.graphics.drawRectangle(
         brush: whiteBrush,
-        bounds: Rect.fromLTWH(45, top - 3, 360, 105),
+        bounds: Rect.fromLTWH(45, top - 12, 360, 125),
       );
       page.graphics.drawString(
         bidderName,
