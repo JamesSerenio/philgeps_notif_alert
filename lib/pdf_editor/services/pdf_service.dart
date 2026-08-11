@@ -1269,6 +1269,82 @@ class PdfService {
         replaceExtractedLine(line, selectedDate);
       }
     }
+
+    if (declarationPageIndex + 1 < document.pages.count) {
+      _drawBidSecuringDeclarationFixedLastPage(
+        document.pages[declarationPageIndex + 1],
+        values,
+      );
+    }
+  }
+
+  static void _drawBidSecuringDeclarationFixedLastPage(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
+    final graphics = page.graphics;
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final italicFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.italic,
+    );
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final representative =
+        (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+    final date = (values['date'] ?? '').trim();
+    final municipality = (values['municipality'] ?? '').trim();
+
+    if (municipality.isNotEmpty) {
+      graphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: const Rect.fromLTWH(68, 42, 300, 20),
+      );
+      graphics.drawString(
+        'Municipality of $municipality.',
+        italicFont,
+        brush: blackBrush,
+        bounds: const Rect.fromLTWH(70, 44, 300, 16),
+      );
+    }
+
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(65, 136, 330, 58),
+    );
+    graphics.drawString(
+      representative,
+      italicFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(70, 140, 320, 15),
+    );
+    graphics.drawString(
+      'Authorized Representative',
+      italicFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(70, 155, 320, 15),
+    );
+    graphics.drawString(
+      date,
+      italicFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(70, 170, 320, 15),
+    );
+
+    if (municipality.isNotEmpty) {
+      graphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: const Rect.fromLTWH(65, 244, 485, 22),
+      );
+      graphics.drawString(
+        'SUBSCRIBED AND SWORN to before me this ____ day of ____ 2026 at '
+        'Municipality of $municipality,',
+        regularFont,
+        brush: blackBrush,
+        bounds: const Rect.fromLTWH(70, 247, 475, 18),
+      );
+    }
   }
 
   static int _findBidSecuringDeclarationPage(PdfDocument document) {
