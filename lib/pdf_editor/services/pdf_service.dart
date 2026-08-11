@@ -262,7 +262,10 @@ class PdfService {
   static String _pdfSafeText(String value) => value
       .replaceAll('\u2713', '[x]')
       .replaceAll('\u2714', '[x]')
-      .replaceAll('\u221A', '[x]');
+      .replaceAll('\u221A', '[x]')
+      .replaceAll('○', 'o')
+      .replaceAll('■', '[]')
+      .replaceAll('➢', '>');
 
   static void _drawPageOne(
     PdfPage page,

@@ -372,6 +372,32 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _scheduleTechnicalSpecificationsSave();
   }
 
+  void _applySpecificationMarker(
+    _TechnicalSpecificationEntry entry,
+    String marker,
+  ) {
+    final controller = entry.specification;
+    final text = controller.text;
+    final caret = controller.selection.isValid
+        ? controller.selection.baseOffset.clamp(0, text.length).toInt()
+        : text.length;
+    final lineStart = text.lastIndexOf('\n', caret == 0 ? 0 : caret - 1) + 1;
+    final lineEndIndex = text.indexOf('\n', caret);
+    final lineEnd = lineEndIndex < 0 ? text.length : lineEndIndex;
+    final line = text.substring(lineStart, lineEnd);
+    final markerMatch =
+        _SpecificationListFormatter.markerPattern.firstMatch(line);
+    final content =
+        markerMatch == null ? line : line.substring(markerMatch.end);
+    final replacement = marker.isEmpty ? content : '$marker $content';
+    controller.value = TextEditingValue(
+      text: text.replaceRange(lineStart, lineEnd, replacement),
+      selection: TextSelection.collapsed(
+        offset: lineStart + replacement.length,
+      ),
+    );
+  }
+
   Future<void> _loadTechnicalSpecifications() async {
     try {
       final row = await SupabaseConfig.client
@@ -1104,8 +1130,39 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                   formField(
                     label: 'Specification',
                     controller: technicalSpecifications[index].specification,
-                    maxLines: 2,
+                    maxLines: 5,
+                    inputFormatters: const <TextInputFormatter>[
+                      _SpecificationListFormatter(),
+                    ],
                   ),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (final option in const <(String, String)>[
+                        ('', 'None'),
+                        ('•', '•'),
+                        ('○', '○'),
+                        ('■', '■'),
+                        ('➢', '➢'),
+                        ('✓', '✓'),
+                      ])
+                        OutlinedButton(
+                          onPressed: () => _applySpecificationMarker(
+                            technicalSpecifications[index],
+                            option.$1,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(38, 32),
+                            padding: const EdgeInsets.symmetric(horizontal: 9),
+                            foregroundColor: const Color(0xFF0B5D3B),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: Text(option.$2),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
@@ -1948,6 +2005,60 @@ class _SubmittedByMenuIcon extends StatelessWidget {
             )
             .toList();
       },
+    );
+  }
+}
+
+class _SpecificationListFormatter extends TextInputFormatter {
+  const _SpecificationListFormatter();
+
+  static final RegExp markerPattern = RegExp(
+    r'^\s*(?:✓|•|○|■|➢|-|\[x\])\s*',
+  );
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (!newValue.selection.isValid ||
+        newValue.text.length != oldValue.text.length + 1) {
+      return newValue;
+    }
+    final insertedAt = newValue.selection.baseOffset - 1;
+    if (insertedAt < 0 || newValue.text[insertedAt] != '\n') return newValue;
+
+    final previousLineStart =
+        newValue.text.lastIndexOf('\n', insertedAt - 1) + 1;
+    final previousLine = newValue.text.substring(previousLineStart, insertedAt);
+    final match = markerPattern.firstMatch(previousLine);
+    if (match == null) return newValue;
+
+    final markerText = match.group(0)!.trim();
+    final previousContent = previousLine.substring(match.end).trim();
+    if (previousContent.isEmpty) {
+      final cleaned = newValue.text.replaceRange(
+        previousLineStart,
+        insertedAt,
+        '',
+      );
+      return TextEditingValue(
+        text: cleaned,
+        selection: TextSelection.collapsed(offset: previousLineStart + 1),
+      );
+    }
+
+    final continuation = '$markerText ';
+    final continuedText = newValue.text.replaceRange(
+      insertedAt + 1,
+      insertedAt + 1,
+      continuation,
+    );
+    return TextEditingValue(
+      text: continuedText,
+      selection: TextSelection.collapsed(
+        offset: insertedAt + 1 + continuation.length,
+      ),
     );
   }
 }
