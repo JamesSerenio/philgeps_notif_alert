@@ -1025,16 +1025,19 @@ class PdfService {
       ),
     );
 
-    // Cover the complete original sentence, including the fixed "May",
-    // "Sumilao" and "Bukidnon" values in the source template.
-    graphics.drawRectangle(
+    // Keep the template's original witness sentence and its writing lines.
+    // The scratch canvas absorbs the legacy redraw operations below; only the
+    // municipality is corrected later using the original line bounds.
+    final witnessScratch = PdfTemplate(600, 100);
+    final scratchGraphics = witnessScratch.graphics!;
+    scratchGraphics.drawRectangle(
       brush: whiteBrush,
       bounds: Rect.fromLTWH(33, witnessTop - 2, 545, 42),
     );
 
     // Move the witness statement to the signature page, directly above the
     // "Duly authorized" caption.
-    var witnessGraphics = graphics;
+    var witnessGraphics = scratchGraphics;
     double? dulyTop;
     int? signaturePageIndex;
     for (final line in allLines) {
@@ -1045,7 +1048,6 @@ class PdfService {
       }
     }
     if (signaturePageIndex != null && dulyTop != null) {
-      witnessGraphics = document.pages[signaturePageIndex].graphics;
       witnessTop = dulyTop - 44;
       witnessGraphics.drawRectangle(
         brush: whiteBrush,
@@ -1162,9 +1164,9 @@ class PdfService {
         brush: whiteBrush,
         bounds: Rect.fromLTWH(
           0,
-          dulyTop + 25,
+          dulyTop + 10,
           document.pages[signaturePageIndex].getClientSize().width,
-          108,
+          140,
         ),
       );
       void drawSignatureValue(String text, double top, {bool heavy = true}) {
@@ -1212,14 +1214,18 @@ class PdfService {
         {double? height}) {
       final correctionGraphics = document.pages[line.pageIndex].graphics;
       final bounds = line.bounds;
+      final isMunicipalityHeading = line.pageIndex == declarationPageIndex &&
+          line.text.trim().toUpperCase().startsWith('MUNICIPALITY OF');
       correctionGraphics.drawRectangle(
         brush: whiteBrush,
         bounds: Rect.fromLTWH(
           bounds.left - 2,
           bounds.top - 2,
-          document.pages[line.pageIndex].getClientSize().width -
-              bounds.left -
-              18,
+          isMunicipalityHeading
+              ? 260
+              : document.pages[line.pageIndex].getClientSize().width -
+                  bounds.left -
+                  18,
           height ?? bounds.height + 5,
         ),
       );
@@ -1373,17 +1379,22 @@ class PdfService {
       double extraWidth = 8,
       double? coverHeight,
       double? drawHeight,
+      double? coverWidth,
     }) {
       final page = document.pages[startPageIndex + line.pageIndex as int];
       final bounds = line.bounds;
+      // The supplied Word-exported template has a crop-box origin around
+      // 18pt below its extracted text coordinates.
+      final correctedTop = bounds.top - 18;
       page.graphics.drawRectangle(
         brush: whiteBrush,
         bounds: Rect.fromLTWH(
           bounds.left - 2,
-          bounds.top - 2,
-          (page.getClientSize().width - bounds.left - 20)
-              .clamp(bounds.width + extraWidth, 560)
-              .toDouble(),
+          correctedTop - 2,
+          coverWidth ??
+              (page.getClientSize().width - bounds.left - 20)
+                  .clamp(bounds.width + extraWidth, 560)
+                  .toDouble(),
           coverHeight ?? bounds.height + 5,
         ),
       );
@@ -1393,7 +1404,7 @@ class PdfService {
         brush: blackBrush,
         bounds: Rect.fromLTWH(
           bounds.left,
-          bounds.top,
+          correctedTop,
           page.getClientSize().width - bounds.left - 20,
           drawHeight ?? bounds.height + 7,
         ),
@@ -1411,7 +1422,14 @@ class PdfService {
         final replacement = line.pageIndex == 0 && line.bounds.top < 130
             ? executionPlace.toUpperCase()
             : procuringEntity;
-        replaceLine(line, replacement, font: boldFont);
+        replaceLine(
+          line,
+          replacement,
+          font: boldFont,
+          // Do not cover the closing parenthesis and "S.S." at the right of
+          // the municipality heading.
+          coverWidth: line.pageIndex == 0 && line.bounds.top < 130 ? 260 : null,
+        );
       } else if (upper.contains('PROJECT IDENTIFICATION NO')) {
         replaceLine(
           line,
@@ -1424,8 +1442,10 @@ class PdfService {
       } else if (upper.startsWith('IN WITNESS WHEREOF')) {
         replaceLine(
           line,
-          'IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s '
-          'this $date at $executionPlace.',
+          text.replaceAll(
+            RegExp('Municipality of Impasugong', caseSensitive: false),
+            executionPlace,
+          ),
           font: boldFont,
           coverHeight: 38,
           drawHeight: 36,
@@ -1451,7 +1471,7 @@ class PdfService {
     }
     if (dulyLine != null) {
       final page = document.pages[startPageIndex + dulyLine.pageIndex as int];
-      final top = dulyLine.bounds.top + 24;
+      final top = dulyLine.bounds.top + 6;
       page.graphics.drawRectangle(
         brush: whiteBrush,
         bounds: Rect.fromLTWH(45, top - 3, 360, 105),
