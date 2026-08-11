@@ -52,6 +52,7 @@ void main() {
     expect(declarationSignatureText, contains('CarlosRafaelA.Jamilo'));
     expect(declarationSignatureText, contains('August11,2026'));
     expect(declarationSignatureText, contains('MunicipalityofSumilao'));
+    expect(declarationSignatureText.toUpperCase(), isNot(contains('JURAT')));
   });
 
   test('replaces the bid securing declaration with the no-table template',
@@ -72,8 +73,23 @@ void main() {
       },
     );
     final document = PdfDocument(inputBytes: bytes);
+    final extractor = PdfTextExtractor(document);
     final compactText =
-        PdfTextExtractor(document).extractText().replaceAll(RegExp(r'\s+'), '');
+        extractor.extractText().replaceAll(RegExp(r'\s+'), '');
+    final declarationPageIndex = extractor
+        .extractTextLines()
+        .firstWhere(
+          (line) =>
+              line.text.toUpperCase().contains('BID SECURING DECLARATION'),
+        )
+        .pageIndex;
+    final declarationSignatureText = extractor
+        .extractText(
+          startPageIndex: declarationPageIndex + 1,
+          endPageIndex: declarationPageIndex + 1,
+        )
+        .replaceAll(RegExp(r'\s+'), '')
+        .toUpperCase();
     final pageCount = document.pages.count;
     document.dispose();
 
@@ -85,5 +101,6 @@ void main() {
     expect(compactText, contains('MunicipalityofImpasugong'));
     expect(compactText, contains('JhoAnnQ.Cleopas'));
     expect(compactText, contains('July20,2026'));
+    expect(declarationSignatureText, contains('JURAT'));
   });
 }

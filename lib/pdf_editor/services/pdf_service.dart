@@ -1308,12 +1308,41 @@ class PdfService {
       10,
       style: PdfFontStyle.italic,
     );
-    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 10);
     final representative =
         (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
     final date = (values['date'] ?? '').trim();
     final municipality = (values['municipality'] ?? '').trim();
     final bidderName = (values['bidderName'] ?? '').trim();
+
+    // Syncfusion's standard fonts do not expose a combined bold-italic style.
+    // Repeating the italic glyphs with tiny offsets matches the emphasized,
+    // slanted values in the source declaration.
+    void drawBoldItalic(
+      String text,
+      Rect bounds, {
+      PdfTextAlignment alignment = PdfTextAlignment.left,
+    }) {
+      final format = PdfStringFormat(alignment: alignment);
+      for (final offset in const <Offset>[
+        Offset.zero,
+        Offset(0.18, 0),
+        Offset(0.36, 0),
+        Offset(0.18, 0.12),
+      ]) {
+        graphics.drawString(
+          text,
+          italicFont,
+          brush: blackBrush,
+          bounds: Rect.fromLTWH(
+            bounds.left + offset.dx,
+            bounds.top + offset.dy,
+            bounds.width,
+            bounds.height,
+          ),
+          format: format,
+        );
+      }
+    }
 
     // Rebuild this page completely so none of the hardcoded Word-template
     // values can survive in a separate content stream.
@@ -1345,11 +1374,9 @@ class PdfService {
         brush: whiteBrush,
         bounds: const Rect.fromLTWH(25, 40, 360, 24),
       );
-      graphics.drawString(
+      drawBoldItalic(
         'Municipality of $municipality.',
-        italicFont,
-        brush: blackBrush,
-        bounds: const Rect.fromLTWH(36, 44, 340, 16),
+        const Rect.fromLTWH(36, 44, 340, 16),
       );
     }
 
@@ -1359,22 +1386,18 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(36, 78, 360, 16),
     );
-    graphics.drawString(
+    drawBoldItalic(
       bidderName,
-      italicFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 94, 360, 16),
+      const Rect.fromLTWH(36, 94, 360, 16),
     );
 
     graphics.drawRectangle(
       brush: whiteBrush,
       bounds: const Rect.fromLTWH(25, 120, 370, 65),
     );
-    graphics.drawString(
+    drawBoldItalic(
       representative,
-      italicFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 126, 350, 15),
+      const Rect.fromLTWH(36, 126, 350, 15),
     );
     graphics.drawString(
       'Authorized Representative',
@@ -1382,90 +1405,10 @@ class PdfService {
       brush: blackBrush,
       bounds: const Rect.fromLTWH(36, 141, 350, 15),
     );
-    graphics.drawString(
+    drawBoldItalic(
       date,
-      italicFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 156, 350, 15),
+      const Rect.fromLTWH(36, 156, 350, 15),
     );
-
-    graphics.drawString(
-      'JURAT',
-      boldFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(250, 200, 100, 18),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
-    );
-
-    if (municipality.isNotEmpty) {
-      graphics.drawRectangle(
-        brush: whiteBrush,
-        bounds: const Rect.fromLTWH(25, 242, 540, 24),
-      );
-      graphics.drawString(
-        'SUBSCRIBED AND SWORN to before me this ____ day of ____ 2026 at '
-        'Municipality of $municipality,',
-        regularFont,
-        brush: blackBrush,
-        bounds: const Rect.fromLTWH(36, 247, 525, 18),
-      );
-    }
-
-    graphics.drawString(
-      'Philippines. Affiant/s is/are personally known to me and was/were '
-      'identified by me through competent evidence of identity as defined in '
-      'the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). Affiant/s '
-      'exhibited to me his/her National ID with his/her photograph and '
-      'signature appearing thereon, with',
-      regularFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 265, 525, 58),
-    );
-    graphics.drawString(
-      'no. ________________________________.',
-      regularFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 330, 350, 16),
-    );
-    graphics.drawString(
-      'WITNESS MY HAND AND SEAL this ____ day of ________ 2026.',
-      boldFont,
-      brush: blackBrush,
-      bounds: const Rect.fromLTWH(36, 372, 430, 16),
-    );
-
-    const left = 36.0;
-    const right = 385.0;
-    const notaryTop = 438.0;
-    final notaryFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
-    for (final entry in <(String, double)>[
-      ('NAME OF NOTARY PUBLIC', notaryTop),
-      ('Notarial Commission No. __________', notaryTop + 24),
-      ('Notary Public for ______ until ______', notaryTop + 48),
-      ('Roll of Attorneys No. ______', notaryTop + 72),
-      ('PTR No. ___,', notaryTop + 96),
-      ('IBP No. ___,', notaryTop + 120),
-    ]) {
-      graphics.drawString(
-        entry.$1,
-        entry.$2 == notaryTop ? boldFont : notaryFont,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(right, entry.$2, 190, 15),
-      );
-    }
-    for (final entry in <(String, double)>[
-      ('Doc. No. ________', notaryTop + 118),
-      ('Page No. ________', notaryTop + 142),
-      ('Book No. ________', notaryTop + 166),
-      ('Series of ________', notaryTop + 190),
-    ]) {
-      graphics.drawString(
-        entry.$1,
-        notaryFont,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(left, entry.$2, 180, 15),
-      );
-    }
   }
 
   static int _findBidSecuringDeclarationPage(PdfDocument document) {
