@@ -1470,18 +1470,14 @@ class PdfService {
         sourcePage.size,
         margins,
       );
-      if (templateIndex == 1) {
-        // Draw directly on the destination. Calling createTemplate() on a
-        // newly rebuilt blank page can trigger Syncfusion's web-only
-        // "Unexpected null value" and leave the previous PDF in the viewer.
-        _drawBidSecuringDeclarationWithoutTableLastPage(targetPage, values);
-      } else {
-        targetPage.graphics.drawPdfTemplate(
-          sourcePage.createTemplate(),
-          Offset.zero,
-          sourcePage.size,
-        );
-      }
+      // Import the original sheets after their variable values have been
+      // replaced. This preserves the template's exact typography, selective
+      // bold text, spacing, writing lines, and notarial layout.
+      targetPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        Offset.zero,
+        sourcePage.size,
+      );
     }
 
     templateDocument.dispose();
@@ -1655,6 +1651,27 @@ class PdfService {
     final date = (values['date'] ?? '').trim();
     final executionPlace = 'Municipality of $municipality';
 
+    void drawEmphasized(PdfPage page, String text, Rect bounds) {
+      for (final offset in const <Offset>[
+        Offset.zero,
+        Offset(0.18, 0),
+        Offset(0.36, 0),
+        Offset(0.18, 0.12),
+      ]) {
+        page.graphics.drawString(
+          text,
+          italicFont,
+          brush: blackBrush,
+          bounds: Rect.fromLTWH(
+            bounds.left + offset.dx,
+            bounds.top + offset.dy,
+            bounds.width,
+            bounds.height,
+          ),
+        );
+      }
+    }
+
     void replaceLine(
       dynamic line,
       String replacement, {
@@ -1663,6 +1680,7 @@ class PdfService {
       double? coverHeight,
       double? drawHeight,
       double? coverWidth,
+      bool emphasized = false,
     }) {
       final page = document.pages[startPageIndex + line.pageIndex as int];
       final bounds = line.bounds;
@@ -1679,17 +1697,22 @@ class PdfService {
           coverHeight ?? bounds.height + 5,
         ),
       );
-      page.graphics.drawString(
-        replacement,
-        font ?? regularFont,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(
-          bounds.left,
-          correctedTop,
-          page.getClientSize().width - bounds.left - 20,
-          drawHeight ?? bounds.height + 7,
-        ),
+      final drawBounds = Rect.fromLTWH(
+        bounds.left,
+        correctedTop,
+        page.getClientSize().width - bounds.left - 20,
+        drawHeight ?? bounds.height + 7,
       );
+      if (emphasized) {
+        drawEmphasized(page, replacement, drawBounds);
+      } else {
+        page.graphics.drawString(
+          replacement,
+          font ?? regularFont,
+          brush: blackBrush,
+          bounds: drawBounds,
+        );
+      }
     }
 
     for (final line in lines) {
@@ -1710,6 +1733,7 @@ class PdfService {
           line,
           replacement,
           font: boldFont,
+          emphasized: !isHeading && line.pageIndex == 1,
           // Do not cover the closing parenthesis and "S.S." at the right of
           // the municipality heading.
           coverWidth: isHeading ? 260 : null,
@@ -1729,11 +1753,37 @@ class PdfService {
         continue;
       } else if (upper.startsWith('SUBSCRIBED AND SWORN') &&
           upper.contains('MUNICIPALITY OF IMPASUGONG')) {
-        replaceLine(
-          line,
-          text.replaceAll(
-            RegExp('Municipality of Impasugong', caseSensitive: false),
-            executionPlace,
+        // Preserve every original font run on the jurat sentence. Cover and
+        // replace only its municipality, which is the sole variable phrase.
+        final match = RegExp(
+          'Municipality of Impasugong',
+          caseSensitive: false,
+        ).firstMatch(text)!;
+        final page = document.pages[startPageIndex + line.pageIndex as int];
+        final oldPlace = text.substring(match.start, match.end);
+        final oldWidth = italicFont.measureString(oldPlace).width;
+        // The municipality is the last phrase before the comma on this line;
+        // anchor from the extracted right edge so earlier mixed bold runs do
+        // not introduce horizontal measurement drift.
+        final placeLeft =
+            line.bounds.right - regularFont.measureString(',').width - oldWidth;
+        page.graphics.drawRectangle(
+          brush: whiteBrush,
+          bounds: Rect.fromLTWH(
+            placeLeft - 1,
+            line.bounds.top - 2,
+            oldWidth + 5,
+            line.bounds.height + 5,
+          ),
+        );
+        drawEmphasized(
+          page,
+          executionPlace,
+          Rect.fromLTWH(
+            placeLeft,
+            line.bounds.top,
+            page.getClientSize().width - placeLeft - 20,
+            line.bounds.height + 7,
           ),
         );
       }
@@ -1753,17 +1803,11 @@ class PdfService {
         brush: whiteBrush,
         bounds: Rect.fromLTWH(45, top - 12, 360, 125),
       );
-      page.graphics.drawString(
-        bidderName,
-        italicFont,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(55, top, 330, 17),
-      );
-      page.graphics.drawString(
+      drawEmphasized(page, bidderName, Rect.fromLTWH(55, top, 330, 17));
+      drawEmphasized(
+        page,
         representative,
-        italicFont,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(55, top + 50, 330, 17),
+        Rect.fromLTWH(55, top + 50, 330, 17),
       );
       page.graphics.drawString(
         'Authorized Representative',
@@ -1771,12 +1815,7 @@ class PdfService {
         brush: blackBrush,
         bounds: Rect.fromLTWH(55, top + 67, 330, 17),
       );
-      page.graphics.drawString(
-        date,
-        italicFont,
-        brush: blackBrush,
-        bounds: Rect.fromLTWH(55, top + 84, 330, 17),
-      );
+      drawEmphasized(page, date, Rect.fromLTWH(55, top + 84, 330, 17));
     }
   }
 
