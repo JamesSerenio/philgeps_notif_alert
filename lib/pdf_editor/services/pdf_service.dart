@@ -2144,7 +2144,10 @@ class PdfService {
           final parameter =
               value is Map ? (value['parameter'] ?? '').toString() : '';
           final measuredSpecification = regularFont.measureString(
-            specification.replaceAll(RegExp(r'(?m)^\s*[✓•○■➢]\s*'), '  '),
+            specification.replaceAll(
+              RegExp(r'^\s*[✓•○■➢]\s*', multiLine: true),
+              '  ',
+            ),
             layoutArea: Size(specificationWidth, 500),
             format: specificationFormat,
           );
