@@ -361,6 +361,17 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _scheduleTechnicalSpecificationsSave();
   }
 
+  void _addTechnicalSpecificationParameter(int index) {
+    setState(() => technicalSpecifications[index].hasParameter = true);
+  }
+
+  void _removeTechnicalSpecificationParameter(int index) {
+    final entry = technicalSpecifications[index];
+    entry.parameter.clear();
+    setState(() => entry.hasParameter = false);
+    _scheduleTechnicalSpecificationsSave();
+  }
+
   Future<void> _loadTechnicalSpecifications() async {
     try {
       final row = await SupabaseConfig.client
@@ -1109,11 +1120,41 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       ),
                     ],
                   ),
-                  formField(
-                    label: 'Parameter',
-                    controller: technicalSpecifications[index].parameter,
-                    maxLines: 2,
-                  ),
+                  if (technicalSpecifications[index].hasParameter) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: formField(
+                            label: 'Parameter',
+                            controller:
+                                technicalSpecifications[index].parameter,
+                            maxLines: 2,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          tooltip: 'Remove parameter',
+                          onPressed: () =>
+                              _removeTechnicalSpecificationParameter(index),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ] else
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            _addTechnicalSpecificationParameter(index),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add parameter'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF0B5D3B),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        ),
+                      ),
+                    ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Container(
@@ -1920,12 +1961,14 @@ class _TechnicalSpecificationEntry {
   })  : specification = TextEditingController(text: specification),
         quantity = TextEditingController(text: quantity),
         unit = TextEditingController(text: unit),
-        parameter = TextEditingController(text: parameter);
+        parameter = TextEditingController(text: parameter),
+        hasParameter = parameter.trim().isNotEmpty;
 
   final TextEditingController specification;
   final TextEditingController quantity;
   final TextEditingController unit;
   final TextEditingController parameter;
+  bool hasParameter;
   final FocusNode unitFocusNode = FocusNode();
 
   List<TextEditingController> get controllers =>
