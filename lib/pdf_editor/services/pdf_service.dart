@@ -1470,14 +1470,17 @@ class PdfService {
         sourcePage.size,
         margins,
       );
-      // Import the original sheets after their variable values have been
-      // replaced. This preserves the template's exact typography, selective
-      // bold text, spacing, writing lines, and notarial layout.
-      targetPage.graphics.drawPdfTemplate(
-        sourcePage.createTemplate(),
-        Offset.zero,
-        sourcePage.size,
-      );
+      if (templateIndex == 1) {
+        // Keep the compact generated layout used by the no-table signature
+        // sheet; only its selective emphasis follows the source template.
+        _drawBidSecuringDeclarationWithoutTableLastPage(targetPage, values);
+      } else {
+        targetPage.graphics.drawPdfTemplate(
+          sourcePage.createTemplate(),
+          Offset.zero,
+          sourcePage.size,
+        );
+      }
     }
 
     templateDocument.dispose();
@@ -1529,6 +1532,21 @@ class PdfService {
       }
     }
 
+    double drawRuns(double left, double top, List<(String, PdfFont)> runs) {
+      var currentLeft = left;
+      for (final run in runs) {
+        final width = run.$2.measureString(run.$1).width;
+        graphics.drawString(
+          run.$1,
+          run.$2,
+          brush: black,
+          bounds: Rect.fromLTWH(currentLeft, top, width + 2, 16),
+        );
+        currentLeft += width;
+      }
+      return currentLeft;
+    }
+
     graphics.drawString(
       'IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s this ____ '
       'day of ________ $year at',
@@ -1563,17 +1581,34 @@ class PdfService {
       bounds: const Rect.fromLTWH(250, 245, 100, 18),
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
     );
+    final juratLeft = drawRuns(55, 292, <(String, PdfFont)>[
+      ('SUBSCRIBED AND SWORN', bold),
+      (' to before me this ____ ', regular),
+      ('day of', bold),
+      (' ____ ', regular),
+      (year, bold),
+      (' at ', regular),
+    ]);
+    emphasized(
+      'Municipality of $municipality,',
+      Rect.fromLTWH(juratLeft, 292, 555 - juratLeft, 16),
+    );
     graphics.drawString(
-      'SUBSCRIBED AND SWORN to before me this ____ day of ____ $year at '
-      'Municipality of $municipality, Philippines. Affiant/s is/are personally '
-      'known to me and was/were identified by me through competent evidence '
-      'of identity as defined in the 2004 Rules on Notarial Practice '
-      '(A.M. No. 02-8-13-SC). Affiant/s exhibited to me his/her National ID '
-      'with his/her photograph and signature appearing thereon, with',
+      'Philippines. Affiant/s is/are personally known to me and was/were '
+      'identified by me through competent evidence of identity as defined in '
+      'the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). Affiant/s '
+      'exhibited to me his/her',
       regular,
       brush: black,
-      bounds: const Rect.fromLTWH(55, 292, 500, 68),
+      bounds: const Rect.fromLTWH(55, 308, 500, 42),
     );
+    drawRuns(55, 346, <(String, PdfFont)>[
+      ('National ID', bold),
+      (
+        ' with his/her photograph and signature appearing thereon, with',
+        regular,
+      ),
+    ]);
     graphics.drawString(
       'no. ________________________________.',
       regular,
@@ -1588,7 +1623,11 @@ class PdfService {
     );
 
     const notaryTop = 500.0;
-    final notary = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    final notaryBold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      9,
+      style: PdfFontStyle.bold,
+    );
     for (final entry in <(String, double)>[
       ('NAME OF NOTARY PUBLIC', notaryTop),
       ('Notarial Commission No. __________', notaryTop + 24),
@@ -1599,7 +1638,7 @@ class PdfService {
     ]) {
       graphics.drawString(
         entry.$1,
-        entry.$2 == notaryTop ? bold : notary,
+        entry.$2 == notaryTop ? bold : notaryBold,
         brush: black,
         bounds: Rect.fromLTWH(385, entry.$2, 190, 15),
       );
@@ -1612,7 +1651,7 @@ class PdfService {
     ]) {
       graphics.drawString(
         entry.$1,
-        notary,
+        notaryBold,
         brush: black,
         bounds: Rect.fromLTWH(55, entry.$2, 180, 15),
       );
