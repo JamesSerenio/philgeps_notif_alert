@@ -1534,6 +1534,7 @@ class PdfService {
 
     double drawRuns(double left, double top, List<(String, PdfFont)> runs) {
       var currentLeft = left;
+      const wordGap = 4.0;
       for (final run in runs) {
         final width = run.$2.measureString(run.$1).width;
         graphics.drawString(
@@ -1542,9 +1543,9 @@ class PdfService {
           brush: black,
           bounds: Rect.fromLTWH(currentLeft, top, width + 2, 16),
         );
-        // PdfStandardFont omits trailing spaces from measured widths. Add one
-        // explicitly so adjacent runs never render as joined words.
-        currentLeft += width + regular.measureString(' ').width;
+        // A standalone space can measure as zero in Syncfusion standard PDF
+        // fonts. Use an explicit gap between differently styled word runs.
+        currentLeft += width + wordGap;
       }
       return currentLeft;
     }
@@ -1617,17 +1618,13 @@ class PdfService {
       'National ID',
       Rect.fromLTWH(nationalIdLeft, 340, 70, 16),
     );
-    drawRuns(
-        nationalIdLeft +
-            bold.measureString('National ID').width +
-            regular.measureString(' ').width,
-        340,
-        <(String, PdfFont)>[
-          (
-            'with his/her photograph and signature appearing thereon, with',
-            regular,
-          ),
-        ]);
+    drawRuns(nationalIdLeft + bold.measureString('National ID').width + 4,
+        340, <(String, PdfFont)>[
+      (
+        'with his/her photograph and signature appearing thereon, with',
+        regular,
+      ),
+    ]);
     graphics.drawString(
       'no. ________________________________.',
       regular,
