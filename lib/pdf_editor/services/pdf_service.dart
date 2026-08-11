@@ -1542,9 +1542,9 @@ class PdfService {
           brush: black,
           bounds: Rect.fromLTWH(currentLeft, top, width + 2, 16),
         );
-        // PdfStandardFont can omit a trailing space from its measured width.
-        // Keep a small visual gap between adjacent styled runs.
-        currentLeft += width + 1;
+        // PdfStandardFont omits trailing spaces from measured widths. Add one
+        // explicitly so adjacent runs never render as joined words.
+        currentLeft += width + regular.measureString(' ').width;
       }
       return currentLeft;
     }
@@ -1584,7 +1584,7 @@ class PdfService {
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
     );
     final juratLeft = drawRuns(55, 292, <(String, PdfFont)>[
-      ('SUBSCRIBED AND SWORN', bold),
+      ('SUBSCRIBED AND SWORN', regular),
       ('to before me this ____', regular),
       ('day of', bold),
       ('____', regular),
@@ -1603,10 +1603,10 @@ class PdfService {
       bounds: const Rect.fromLTWH(55, 308, 500, 16),
     );
     drawRuns(55, 324, <(String, PdfFont)>[
-      ('evidence of identity ', regular),
-      ('as defined', bold),
+      ('evidence of identity', regular),
+      ('as defined', regular),
       (
-        ' in the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). Affiant/s',
+        'in the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). Affiant/s',
         regular
       ),
     ]);
@@ -1617,13 +1617,17 @@ class PdfService {
       'National ID',
       Rect.fromLTWH(nationalIdLeft, 340, 70, 16),
     );
-    drawRuns(nationalIdLeft + bold.measureString('National ID').width + 2,
-        340, <(String, PdfFont)>[
-      (
-        ' with his/her photograph and signature appearing thereon, with',
-        regular,
-      ),
-    ]);
+    drawRuns(
+        nationalIdLeft +
+            bold.measureString('National ID').width +
+            regular.measureString(' ').width,
+        340,
+        <(String, PdfFont)>[
+          (
+            'with his/her photograph and signature appearing thereon, with',
+            regular,
+          ),
+        ]);
     graphics.drawString(
       'no. ________________________________.',
       regular,
