@@ -1453,21 +1453,6 @@ class PdfService {
       templateLines: templateLines,
     );
 
-    // The supplied no-table template has fixed sample values baked into its
-    // second page. Recreate that sheet so the current editor values are used
-    // and the JURAT remains exclusive to this declaration variant.
-    if (declarationPageCount > 1) {
-      final signatureSize = templateDocument.pages[1].size;
-      templateDocument.pages.removeAt(1);
-      final zeroMargins = PdfMargins()..all = 0;
-      final signaturePage = templateDocument.pages.insert(
-        1,
-        signatureSize,
-        zeroMargins,
-      );
-      _drawBidSecuringDeclarationWithoutTableLastPage(signaturePage, values);
-    }
-
     // The original declaration occupies two sheets. Replace those sheets at
     // the same location so the remaining bid-document order is unchanged.
     document.pages.removeAt(declarationIndex);
@@ -1485,11 +1470,18 @@ class PdfService {
         sourcePage.size,
         margins,
       );
-      targetPage.graphics.drawPdfTemplate(
-        sourcePage.createTemplate(),
-        Offset.zero,
-        sourcePage.size,
-      );
+      if (templateIndex == 1) {
+        // Draw directly on the destination. Calling createTemplate() on a
+        // newly rebuilt blank page can trigger Syncfusion's web-only
+        // "Unexpected null value" and leave the previous PDF in the viewer.
+        _drawBidSecuringDeclarationWithoutTableLastPage(targetPage, values);
+      } else {
+        targetPage.graphics.drawPdfTemplate(
+          sourcePage.createTemplate(),
+          Offset.zero,
+          sourcePage.size,
+        );
+      }
     }
 
     templateDocument.dispose();
