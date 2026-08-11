@@ -932,6 +932,30 @@ class PdfService {
     }
     if (declarationPageIndex == null) return;
 
+    // Rebuild the signature/Jurat sheet on a fresh page. Syncfusion can append
+    // edits behind the existing content streams of a loaded PDF page, and
+    // Chrome then keeps showing the hardcoded template values. Drawing the
+    // original sheet first on a new page guarantees all corrections that
+    // follow are visually on top.
+    final signatureSheetIndex = declarationPageIndex + 1;
+    if (signatureSheetIndex < document.pages.count) {
+      final originalSignaturePage = document.pages[signatureSheetIndex];
+      final signatureSize = originalSignaturePage.size;
+      final signatureTemplate = originalSignaturePage.createTemplate();
+      document.pages.removeAt(signatureSheetIndex);
+      final zeroMargins = PdfMargins()..all = 0;
+      final rebuiltSignaturePage = document.pages.insert(
+        signatureSheetIndex,
+        signatureSize,
+        zeroMargins,
+      );
+      rebuiltSignaturePage.graphics.drawPdfTemplate(
+        signatureTemplate,
+        Offset.zero,
+        signatureSize,
+      );
+    }
+
     final page = document.pages[declarationPageIndex];
     final pageLines = allLines
         .where((line) => line.pageIndex == declarationPageIndex)
@@ -1282,12 +1306,9 @@ class PdfService {
     PdfPage page,
     Map<String, String> values,
   ) {
-    // Loaded-template page graphics can be saved behind the original content.
-    // A page layer added last is guaranteed to render the white covers and
-    // corrected values in the foreground.
-    final graphics = page.layers
-        .add(name: 'Bid Securing Declaration corrections', visible: true)
-        .graphics;
+    // This is a freshly rebuilt page: its template was drawn first, so normal
+    // page graphics now append the covers and corrected values in front.
+    final graphics = page.graphics;
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final italicFont = PdfStandardFont(
