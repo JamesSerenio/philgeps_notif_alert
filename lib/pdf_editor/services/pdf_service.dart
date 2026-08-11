@@ -1492,15 +1492,15 @@ class PdfService {
   ) {
     final graphics = page.graphics;
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
-    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 11);
     final bold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      11,
       style: PdfFontStyle.bold,
     );
     final italic = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      10,
+      11,
       style: PdfFontStyle.italic,
     );
     final municipality = (values['municipality'] ?? '').trim();
@@ -1640,7 +1640,7 @@ class PdfService {
     const notaryTop = 500.0;
     final notaryBold = PdfStandardFont(
       PdfFontFamily.timesRoman,
-      9,
+      10,
       style: PdfFontStyle.bold,
     );
     for (final entry in <(String, double)>[
