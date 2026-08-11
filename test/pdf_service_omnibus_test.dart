@@ -25,6 +25,19 @@ void main() {
       },
     );
     final document = PdfDocument(inputBytes: bytes);
+    final declarationPageIndex = PdfTextExtractor(document)
+        .extractTextLines()
+        .firstWhere(
+          (line) =>
+              line.text.toUpperCase().contains('BID SECURING DECLARATION'),
+        )
+        .pageIndex;
+    final declarationSignatureText = PdfTextExtractor(document)
+        .extractText(
+          startPageIndex: declarationPageIndex + 1,
+          endPageIndex: declarationPageIndex + 1,
+        )
+        .replaceAll(RegExp(r'\s+'), '');
     final text = PdfTextExtractor(document).extractText();
     document.dispose();
     final compactText = text.replaceAll(RegExp(r'\s+'), '');
@@ -36,6 +49,9 @@ void main() {
     expect(compactText, contains('MUNICIPALITYOFVILLANUEVA,MISAMISORIENTAL'));
     expect(compactText, contains('MunicipalityofSumilao'));
     expect(compactText, contains('August11,2026'));
+    expect(declarationSignatureText, contains('CarlosRafaelA.Jamilo'));
+    expect(declarationSignatureText, contains('August11,2026'));
+    expect(declarationSignatureText, contains('MunicipalityofSumilao'));
   });
 
   test('replaces the bid securing declaration with the no-table template',

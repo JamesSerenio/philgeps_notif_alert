@@ -1299,50 +1299,50 @@ class PdfService {
     if (municipality.isNotEmpty) {
       graphics.drawRectangle(
         brush: whiteBrush,
-        bounds: const Rect.fromLTWH(68, 42, 300, 20),
+        bounds: const Rect.fromLTWH(25, 40, 360, 24),
       );
       graphics.drawString(
         'Municipality of $municipality.',
         italicFont,
         brush: blackBrush,
-        bounds: const Rect.fromLTWH(70, 44, 300, 16),
+        bounds: const Rect.fromLTWH(31.5, 44, 340, 16),
       );
     }
 
     graphics.drawRectangle(
       brush: whiteBrush,
-      bounds: const Rect.fromLTWH(65, 136, 330, 58),
+      bounds: const Rect.fromLTWH(25, 120, 370, 65),
     );
     graphics.drawString(
       representative,
       italicFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(70, 140, 320, 15),
+      bounds: const Rect.fromLTWH(31.5, 126, 350, 15),
     );
     graphics.drawString(
       'Authorized Representative',
       italicFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(70, 155, 320, 15),
+      bounds: const Rect.fromLTWH(31.5, 141, 350, 15),
     );
     graphics.drawString(
       date,
       italicFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(70, 170, 320, 15),
+      bounds: const Rect.fromLTWH(31.5, 156, 350, 15),
     );
 
     if (municipality.isNotEmpty) {
       graphics.drawRectangle(
         brush: whiteBrush,
-        bounds: const Rect.fromLTWH(65, 244, 485, 22),
+        bounds: const Rect.fromLTWH(25, 242, 540, 24),
       );
       graphics.drawString(
         'SUBSCRIBED AND SWORN to before me this ____ day of ____ 2026 at '
         'Municipality of $municipality,',
         regularFont,
         brush: blackBrush,
-        bounds: const Rect.fromLTWH(70, 247, 475, 18),
+        bounds: const Rect.fromLTWH(31.5, 247, 525, 18),
       );
     }
   }
