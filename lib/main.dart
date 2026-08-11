@@ -179,6 +179,7 @@ class ProjectPost {
   final String referenceNumber;
   final String procuringEntity;
   final String areaOfDelivery;
+  final String deliveryPeriod;
   final String classification;
   final double abc;
   final String budgetType;
@@ -198,6 +199,7 @@ class ProjectPost {
     required this.referenceNumber,
     required this.procuringEntity,
     required this.areaOfDelivery,
+    required this.deliveryPeriod,
     required this.classification,
     required this.abc,
     required this.budgetType,
@@ -218,6 +220,9 @@ class ProjectPost {
           '',
       areaOfDelivery: json['area_of_delivery']?.toString() ??
           json['areaOfDelivery']?.toString() ??
+          '',
+      deliveryPeriod: json['delivery_period']?.toString() ??
+          json['deliveryPeriod']?.toString() ??
           '',
       classification: json['classification']?.toString() ?? '',
       abc: (json['abc'] ?? 0).toDouble(),
@@ -317,6 +322,7 @@ class _HomePageState extends State<HomePage> {
             referenceNumber: post.referenceNumber,
             procuringEntity: post.procuringEntity,
             areaOfDelivery: post.areaOfDelivery,
+            deliveryPeriod: post.deliveryPeriod,
             classification: post.classification,
             abc: post.abc,
             budgetType: post.budgetType,
@@ -1142,6 +1148,7 @@ ${post.abc}
                             projectTitle: post.title.trim(),
                             referenceNumber: post.referenceNumber.trim(),
                             procuringEntity: post.procuringEntity.trim(),
+                            deliveryPeriod: post.deliveryPeriod.trim(),
                             date: DateFormat('MMMM d, yyyy')
                                 .format(DateTime.now()),
                             bidderName: 'MIKATA PRIME CORPORATION',

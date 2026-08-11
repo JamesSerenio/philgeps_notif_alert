@@ -17,6 +17,9 @@ class PdfService {
   static Future<Uint8List> generateBidDocs({
     required Map<String, String> values,
   }) async {
+    values = values.map(
+      (key, value) => MapEntry(key, _pdfSafeText(value)),
+    );
     final ByteData templateData = await rootBundle.load(
       'assets/pdf/bidocs_template.pdf',
     );
@@ -246,6 +249,14 @@ class PdfService {
 
     return Uint8List.fromList(outputBytes);
   }
+
+  /// Standard PDF fonts do not contain Unicode checkmark glyphs. Normalize
+  /// common pasted checkmarks before any page is drawn so one specification
+  /// cannot abort the entire document with "character 9971".
+  static String _pdfSafeText(String value) => value
+      .replaceAll('\u2713', '[x]')
+      .replaceAll('\u2714', '[x]')
+      .replaceAll('\u221A', '[x]');
 
   static void _drawPageOne(
     PdfPage page,

@@ -19,6 +19,7 @@ class PdfEditorScreen extends StatefulWidget {
   final String date;
   final String bidderName;
   final String procuringEntity;
+  final String deliveryPeriod;
 
   const PdfEditorScreen({
     super.key,
@@ -29,6 +30,7 @@ class PdfEditorScreen extends StatefulWidget {
     required this.date,
     required this.bidderName,
     required this.procuringEntity,
+    required this.deliveryPeriod,
   });
 
   @override
@@ -183,7 +185,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       'slccContractEffectivity': TextEditingController(),
       'slccDateCompleted': TextEditingController(),
     };
-    deliveredWeeksMonthsController = TextEditingController();
+    deliveredWeeksMonthsController = TextEditingController(
+      text: widget.deliveryPeriod.trim(),
+    );
     deliveredWeeksMonthsController.addListener(_scheduleRequirementsSave);
     afterSalesYearsController = TextEditingController(text: '1');
     afterSalesYearsController.addListener(_scheduleAfterSalesSave);
@@ -259,8 +263,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           .select('delivery_weeks_months')
           .eq('reference_number', widget.referenceNumber.trim())
           .maybeSingle();
-      deliveredWeeksMonthsController.text =
-          (row?['delivery_weeks_months'] ?? '').toString();
+      final savedDelivery =
+          (row?['delivery_weeks_months'] ?? '').toString().trim();
+      // A user's saved override wins; otherwise use the period scraped from
+      // the PhilGEPS Bid Notice Abstract (for example, "15 Day/s").
+      deliveredWeeksMonthsController.text = savedDelivery.isNotEmpty
+          ? savedDelivery
+          : widget.deliveryPeriod.trim();
     } catch (error) {
       debugPrint('Schedule requirements load error: $error');
     } finally {

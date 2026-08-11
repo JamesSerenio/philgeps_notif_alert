@@ -452,6 +452,12 @@ async function getBidDetails(page, url) {
           "Area of Delivery:"
         ),
 
+      deliveryPeriod:
+        getValueAfterLabel(
+          "Delivery Period",
+          "Delivery Period:"
+        ),
+
       classification:
         getValueAfterLabel(
           "Classification",
@@ -612,6 +618,7 @@ async function searchPhilgepsByKeyword(
       procuringEntity: "",
       title: item.title,
       areaOfDelivery: "",
+      deliveryPeriod: "",
       classification: "",
       budgetLabel: "ABC",
       abc: "",
@@ -678,6 +685,11 @@ async function searchPhilgepsByKeyword(
 
       areaOfDelivery:
         cleanArea,
+
+      deliveryPeriod:
+        cleanText(
+          bidDetails.deliveryPeriod
+        ),
 
       classification:
         cleanText(
@@ -991,6 +1003,9 @@ async function savePostAndNotify(post) {
 
     area_of_delivery:
       post.areaOfDelivery,
+
+    delivery_period:
+      post.deliveryPeriod,
 
     classification:
       post.classification,
@@ -1468,6 +1483,9 @@ async function runChecker({
 
           area_of_delivery:
             post.areaOfDelivery,
+
+          delivery_period:
+            post.deliveryPeriod,
 
           classification:
             post.classification,
