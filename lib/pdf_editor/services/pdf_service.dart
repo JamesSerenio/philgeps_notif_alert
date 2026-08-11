@@ -941,18 +941,12 @@ class PdfService {
     if (signatureSheetIndex < document.pages.count) {
       final originalSignaturePage = document.pages[signatureSheetIndex];
       final signatureSize = originalSignaturePage.size;
-      final signatureTemplate = originalSignaturePage.createTemplate();
       document.pages.removeAt(signatureSheetIndex);
       final zeroMargins = PdfMargins()..all = 0;
-      final rebuiltSignaturePage = document.pages.insert(
+      document.pages.insert(
         signatureSheetIndex,
         signatureSize,
         zeroMargins,
-      );
-      rebuiltSignaturePage.graphics.drawPdfTemplate(
-        signatureTemplate,
-        Offset.zero,
-        signatureSize,
       );
     }
 
@@ -1306,8 +1300,6 @@ class PdfService {
     PdfPage page,
     Map<String, String> values,
   ) {
-    // This is a freshly rebuilt page: its template was drawn first, so normal
-    // page graphics now append the covers and corrected values in front.
     final graphics = page.graphics;
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
@@ -1321,6 +1313,32 @@ class PdfService {
         (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
     final date = (values['date'] ?? '').trim();
     final municipality = (values['municipality'] ?? '').trim();
+    final bidderName = (values['bidderName'] ?? '').trim();
+
+    // Rebuild this page completely so none of the hardcoded Word-template
+    // values can survive in a separate content stream.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: Rect.fromLTWH(
+        0,
+        0,
+        page.getClientSize().width,
+        page.getClientSize().height,
+      ),
+    );
+
+    final boldFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.bold,
+    );
+    graphics.drawString(
+      'IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s this ____ '
+      'day of ________ 2026 at',
+      boldFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 28, 540, 16),
+    );
 
     if (municipality.isNotEmpty) {
       graphics.drawRectangle(
@@ -1331,9 +1349,22 @@ class PdfService {
         'Municipality of $municipality.',
         italicFont,
         brush: blackBrush,
-        bounds: const Rect.fromLTWH(31.5, 44, 340, 16),
+        bounds: const Rect.fromLTWH(36, 44, 340, 16),
       );
     }
+
+    graphics.drawString(
+      'Duly authorized to sign the Bid for and behalf of:',
+      italicFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 78, 360, 16),
+    );
+    graphics.drawString(
+      bidderName,
+      italicFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 94, 360, 16),
+    );
 
     graphics.drawRectangle(
       brush: whiteBrush,
@@ -1343,19 +1374,27 @@ class PdfService {
       representative,
       italicFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(31.5, 126, 350, 15),
+      bounds: const Rect.fromLTWH(36, 126, 350, 15),
     );
     graphics.drawString(
       'Authorized Representative',
       italicFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(31.5, 141, 350, 15),
+      bounds: const Rect.fromLTWH(36, 141, 350, 15),
     );
     graphics.drawString(
       date,
       italicFont,
       brush: blackBrush,
-      bounds: const Rect.fromLTWH(31.5, 156, 350, 15),
+      bounds: const Rect.fromLTWH(36, 156, 350, 15),
+    );
+
+    graphics.drawString(
+      'JURAT',
+      boldFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(250, 200, 100, 18),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center),
     );
 
     if (municipality.isNotEmpty) {
@@ -1368,7 +1407,63 @@ class PdfService {
         'Municipality of $municipality,',
         regularFont,
         brush: blackBrush,
-        bounds: const Rect.fromLTWH(31.5, 247, 525, 18),
+        bounds: const Rect.fromLTWH(36, 247, 525, 18),
+      );
+    }
+
+    graphics.drawString(
+      'Philippines. Affiant/s is/are personally known to me and was/were '
+      'identified by me through competent evidence of identity as defined in '
+      'the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). Affiant/s '
+      'exhibited to me his/her National ID with his/her photograph and '
+      'signature appearing thereon, with',
+      regularFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 265, 525, 58),
+    );
+    graphics.drawString(
+      'no. ________________________________.',
+      regularFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 330, 350, 16),
+    );
+    graphics.drawString(
+      'WITNESS MY HAND AND SEAL this ____ day of ________ 2026.',
+      boldFont,
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(36, 372, 430, 16),
+    );
+
+    const left = 36.0;
+    const right = 385.0;
+    const notaryTop = 438.0;
+    final notaryFont = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    for (final entry in <(String, double)>[
+      ('NAME OF NOTARY PUBLIC', notaryTop),
+      ('Notarial Commission No. __________', notaryTop + 24),
+      ('Notary Public for ______ until ______', notaryTop + 48),
+      ('Roll of Attorneys No. ______', notaryTop + 72),
+      ('PTR No. ___,', notaryTop + 96),
+      ('IBP No. ___,', notaryTop + 120),
+    ]) {
+      graphics.drawString(
+        entry.$1,
+        entry.$2 == notaryTop ? boldFont : notaryFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(right, entry.$2, 190, 15),
+      );
+    }
+    for (final entry in <(String, double)>[
+      ('Doc. No. ________', notaryTop + 118),
+      ('Page No. ________', notaryTop + 142),
+      ('Book No. ________', notaryTop + 166),
+      ('Series of ________', notaryTop + 190),
+    ]) {
+      graphics.drawString(
+        entry.$1,
+        notaryFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(left, entry.$2, 180, 15),
       );
     }
   }
