@@ -259,13 +259,107 @@ class PdfService {
   /// Standard PDF fonts do not contain Unicode checkmark glyphs. Normalize
   /// common pasted checkmarks before any page is drawn so one specification
   /// cannot abort the entire document with "character 9971".
-  static String _pdfSafeText(String value) => value
-      .replaceAll('\u2713', '[x]')
-      .replaceAll('\u2714', '[x]')
-      .replaceAll('\u221A', '[x]')
-      .replaceAll('○', 'o')
-      .replaceAll('■', '[]')
-      .replaceAll('➢', '>');
+  static String _pdfSafeText(String value) =>
+      value.replaceAll('\u2714', '\u2713').replaceAll('\u221A', '\u2713');
+
+  static void _drawMarkedSpecificationText(
+    PdfGraphics graphics,
+    String text,
+    PdfFont font,
+    PdfBrush brush,
+    Rect bounds,
+  ) {
+    final markerPattern = RegExp(r'^\s*(✓|•|○|■|➢)\s*');
+    final entries = <({String? marker, String content, double height})>[];
+    for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
+      final match = markerPattern.firstMatch(sourceLine);
+      final marker = match?.group(1);
+      final content =
+          match == null ? sourceLine : sourceLine.substring(match.end);
+      final contentWidth = bounds.width - (marker == null ? 0 : 14);
+      final measured = font.measureString(
+        content.isEmpty ? ' ' : content,
+        layoutArea: Size(contentWidth, bounds.height),
+        format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      );
+      entries.add((
+        marker: marker,
+        content: content,
+        height: measured.height.clamp(font.size + 2, bounds.height).toDouble(),
+      ));
+    }
+    final totalHeight = entries.fold<double>(0, (sum, row) => sum + row.height);
+    var top = bounds.top +
+        ((bounds.height - totalHeight) / 2).clamp(0, bounds.height).toDouble();
+    final markerPen = PdfPen(PdfColor(0, 0, 0), width: 1.15);
+    final markerBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+
+    for (final entry in entries) {
+      final marker = entry.marker;
+      var textLeft = bounds.left;
+      if (marker != null) {
+        final markerTop = top + (entry.height - 9) / 2;
+        switch (marker) {
+          case '✓':
+            graphics.drawLine(
+              markerPen,
+              Offset(bounds.left + 1, markerTop + 5),
+              Offset(bounds.left + 4, markerTop + 8),
+            );
+            graphics.drawLine(
+              markerPen,
+              Offset(bounds.left + 4, markerTop + 8),
+              Offset(bounds.left + 10, markerTop + 1),
+            );
+            break;
+          case '•':
+            graphics.drawEllipse(
+              Rect.fromLTWH(bounds.left + 3, markerTop + 3, 5, 5),
+              brush: markerBrush,
+            );
+            break;
+          case '○':
+            graphics.drawEllipse(
+              Rect.fromLTWH(bounds.left + 2, markerTop + 2, 7, 7),
+              pen: markerPen,
+            );
+            break;
+          case '■':
+            graphics.drawRectangle(
+              brush: markerBrush,
+              bounds: Rect.fromLTWH(bounds.left + 2, markerTop + 2, 7, 7),
+            );
+            break;
+          case '➢':
+            graphics.drawLine(
+              markerPen,
+              Offset(bounds.left + 1, markerTop + 1),
+              Offset(bounds.left + 10, markerTop + 5),
+            );
+            graphics.drawLine(
+              markerPen,
+              Offset(bounds.left + 10, markerTop + 5),
+              Offset(bounds.left + 1, markerTop + 9),
+            );
+            break;
+        }
+        textLeft += 14;
+      }
+      graphics.drawString(
+        entry.content,
+        font,
+        brush: brush,
+        bounds: Rect.fromLTWH(
+          textLeft,
+          top,
+          bounds.right - textLeft,
+          entry.height,
+        ),
+        format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      );
+      top += entry.height;
+    }
+  }
 
   static void _drawPageOne(
     PdfPage page,
@@ -2050,7 +2144,7 @@ class PdfService {
           final parameter =
               value is Map ? (value['parameter'] ?? '').toString() : '';
           final measuredSpecification = regularFont.measureString(
-            specification,
+            specification.replaceAll(RegExp(r'(?m)^\s*[✓•○■➢]\s*'), '  '),
             layoutArea: Size(specificationWidth, 500),
             format: specificationFormat,
           );
@@ -2324,23 +2418,33 @@ class PdfService {
         ];
         final rowHeight = rowHeights[itemIndex];
         for (var column = 0; column < texts.length; column++) {
-          page.graphics.drawString(
-            texts[column],
-            column == texts.length - 1 ? boldFont : regularFont,
-            brush: blackBrush,
-            bounds: Rect.fromLTWH(
-              columns[column] + 3,
-              rowTop + 1,
-              columns[column + 1] - columns[column] - 6,
-              rowHeight - 2,
-            ),
-            format: PdfStringFormat(
-              alignment:
-                  column == 1 ? PdfTextAlignment.left : PdfTextAlignment.center,
-              lineAlignment: PdfVerticalAlignment.middle,
-              wordWrap: PdfWordWrapType.word,
-            ),
+          final cellBounds = Rect.fromLTWH(
+            columns[column] + 3,
+            rowTop + 1,
+            columns[column + 1] - columns[column] - 6,
+            rowHeight - 2,
           );
+          if (column == 1) {
+            _drawMarkedSpecificationText(
+              page.graphics,
+              texts[column],
+              regularFont,
+              blackBrush,
+              cellBounds,
+            );
+          } else {
+            page.graphics.drawString(
+              texts[column],
+              column == texts.length - 1 ? boldFont : regularFont,
+              brush: blackBrush,
+              bounds: cellBounds,
+              format: PdfStringFormat(
+                alignment: PdfTextAlignment.center,
+                lineAlignment: PdfVerticalAlignment.middle,
+                wordWrap: PdfWordWrapType.word,
+              ),
+            );
+          }
         }
         rowTop += rowHeight;
       }
@@ -2734,20 +2838,16 @@ class PdfService {
 
         final descriptionLines =
             (specification['_descriptionLines'] as List).cast<String>();
-        page.graphics.drawString(
+        _drawMarkedSpecificationText(
+          page.graphics,
           descriptionLines.join('\n'),
           priceDescriptionFont,
-          brush: black,
-          bounds: Rect.fromLTWH(
+          black,
+          Rect.fromLTWH(
             columns[1] + 3,
             y + 3,
             columns[2] - columns[1] - 6,
             rowHeight - 6,
-          ),
-          format: PdfStringFormat(
-            alignment: PdfTextAlignment.left,
-            lineAlignment: PdfVerticalAlignment.middle,
-            wordWrap: PdfWordWrapType.word,
           ),
         );
         y += rowHeight;
@@ -5413,23 +5513,33 @@ class PdfService {
           delivery,
         ];
         for (var column = 0; column < texts.length; column++) {
-          page.graphics.drawString(
-            texts[column],
-            column == 4 ? valueFont : rowFont,
-            brush: black,
-            bounds: Rect.fromLTWH(
-              columns[column] + 3,
-              y + 1,
-              columns[column + 1] - columns[column] - 6,
-              rowHeight - 2,
-            ),
-            format: PdfStringFormat(
-              alignment:
-                  column == 1 ? PdfTextAlignment.left : PdfTextAlignment.center,
-              lineAlignment: PdfVerticalAlignment.middle,
-              wordWrap: PdfWordWrapType.word,
-            ),
+          final cellBounds = Rect.fromLTWH(
+            columns[column] + 3,
+            y + 1,
+            columns[column + 1] - columns[column] - 6,
+            rowHeight - 2,
           );
+          if (column == 1) {
+            _drawMarkedSpecificationText(
+              page.graphics,
+              texts[column],
+              rowFont,
+              black,
+              cellBounds,
+            );
+          } else {
+            page.graphics.drawString(
+              texts[column],
+              column == 4 ? valueFont : rowFont,
+              brush: black,
+              bounds: cellBounds,
+              format: PdfStringFormat(
+                alignment: PdfTextAlignment.center,
+                lineAlignment: PdfVerticalAlignment.middle,
+                wordWrap: PdfWordWrapType.word,
+              ),
+            );
+          }
         }
         y += rowHeight;
         page.graphics.drawLine(gridPen, Offset(left, y), Offset(right, y));
@@ -5671,18 +5781,27 @@ class PdfService {
               right - descriptionRight - 8, rowHeight - 2),
         ];
         for (var column = 0; column < valuesForRow.length; column++) {
-          page.graphics.drawString(
-            valuesForRow[column],
-            column == 2 ? priceFont : rowFont,
-            brush: column == 2 ? red : black,
-            bounds: rowBounds[column],
-            format: PdfStringFormat(
-              alignment:
-                  column == 1 ? PdfTextAlignment.left : PdfTextAlignment.center,
-              lineAlignment: PdfVerticalAlignment.middle,
-              wordWrap: PdfWordWrapType.word,
-            ),
-          );
+          if (column == 1) {
+            _drawMarkedSpecificationText(
+              page.graphics,
+              valuesForRow[column],
+              rowFont,
+              black,
+              rowBounds[column],
+            );
+          } else {
+            page.graphics.drawString(
+              valuesForRow[column],
+              column == 2 ? priceFont : rowFont,
+              brush: column == 2 ? red : black,
+              bounds: rowBounds[column],
+              format: PdfStringFormat(
+                alignment: PdfTextAlignment.center,
+                lineAlignment: PdfVerticalAlignment.middle,
+                wordWrap: PdfWordWrapType.word,
+              ),
+            );
+          }
         }
         y += rowHeight;
         page.graphics.drawLine(gridPen, Offset(left, y), Offset(right, y));
