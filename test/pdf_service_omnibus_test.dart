@@ -102,5 +102,7 @@ void main() {
     expect(compactText, contains('JhoAnnQ.Cleopas'));
     expect(compactText, contains('July20,2026'));
     expect(declarationSignatureText, contains('JURAT'));
+    expect(declarationSignatureText, contains('JHOANNQ.CLEOPAS'));
+    expect(declarationSignatureText, contains('JULY20,2026'));
   });
 }

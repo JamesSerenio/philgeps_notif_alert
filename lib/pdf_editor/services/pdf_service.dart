@@ -1453,6 +1453,21 @@ class PdfService {
       templateLines: templateLines,
     );
 
+    // The supplied no-table template has fixed sample values baked into its
+    // second page. Recreate that sheet so the current editor values are used
+    // and the JURAT remains exclusive to this declaration variant.
+    if (declarationPageCount > 1) {
+      final signatureSize = templateDocument.pages[1].size;
+      templateDocument.pages.removeAt(1);
+      final zeroMargins = PdfMargins()..all = 0;
+      final signaturePage = templateDocument.pages.insert(
+        1,
+        signatureSize,
+        zeroMargins,
+      );
+      _drawBidSecuringDeclarationWithoutTableLastPage(signaturePage, values);
+    }
+
     // The original declaration occupies two sheets. Replace those sheets at
     // the same location so the remaining bid-document order is unchanged.
     document.pages.removeAt(declarationIndex);
@@ -1478,6 +1493,142 @@ class PdfService {
     }
 
     templateDocument.dispose();
+  }
+
+  static void _drawBidSecuringDeclarationWithoutTableLastPage(
+    PdfPage page,
+    Map<String, String> values,
+  ) {
+    final graphics = page.graphics;
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final regular = PdfStandardFont(PdfFontFamily.timesRoman, 10);
+    final bold = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.bold,
+    );
+    final italic = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      10,
+      style: PdfFontStyle.italic,
+    );
+    final municipality = (values['municipality'] ?? '').trim();
+    final bidder = (values['bidderName'] ?? '').trim();
+    final representative =
+        (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+    final date = (values['date'] ?? '').trim();
+    final yearParts = date.split(RegExp(r'\s+'));
+    final year = yearParts.isEmpty ? '' : yearParts.last;
+
+    void emphasized(String text, Rect bounds) {
+      for (final offset in const <Offset>[
+        Offset.zero,
+        Offset(0.18, 0),
+        Offset(0.36, 0),
+        Offset(0.18, 0.12),
+      ]) {
+        graphics.drawString(
+          text,
+          italic,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            bounds.left + offset.dx,
+            bounds.top + offset.dy,
+            bounds.width,
+            bounds.height,
+          ),
+        );
+      }
+    }
+
+    graphics.drawString(
+      'IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s this ____ '
+      'day of ________ $year at',
+      bold,
+      brush: black,
+      bounds: const Rect.fromLTWH(55, 45, 500, 16),
+    );
+    emphasized(
+      'Municipality of $municipality.',
+      const Rect.fromLTWH(55, 61, 350, 16),
+    );
+    graphics.drawString(
+      'Duly authorized to sign the Bid for and behalf of:',
+      italic,
+      brush: black,
+      bounds: const Rect.fromLTWH(55, 105, 360, 16),
+    );
+    emphasized(bidder, const Rect.fromLTWH(55, 121, 360, 16));
+    emphasized(representative, const Rect.fromLTWH(55, 169, 350, 16));
+    graphics.drawString(
+      'Authorized Representative',
+      italic,
+      brush: black,
+      bounds: const Rect.fromLTWH(55, 185, 350, 16),
+    );
+    emphasized(date, const Rect.fromLTWH(55, 201, 350, 16));
+
+    graphics.drawString(
+      'JURAT',
+      bold,
+      brush: black,
+      bounds: const Rect.fromLTWH(250, 245, 100, 18),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+    );
+    graphics.drawString(
+      'SUBSCRIBED AND SWORN to before me this ____ day of ____ $year at '
+      'Municipality of $municipality, Philippines. Affiant/s is/are personally '
+      'known to me and was/were identified by me through competent evidence '
+      'of identity as defined in the 2004 Rules on Notarial Practice '
+      '(A.M. No. 02-8-13-SC). Affiant/s exhibited to me his/her National ID '
+      'with his/her photograph and signature appearing thereon, with',
+      regular,
+      brush: black,
+      bounds: const Rect.fromLTWH(55, 292, 500, 68),
+    );
+    graphics.drawString(
+      'no. ________________________________.',
+      regular,
+      brush: black,
+      bounds: const Rect.fromLTWH(55, 365, 350, 16),
+    );
+    graphics.drawString(
+      'WITNESS MY HAND AND SEAL this ____ day of ________ $year.',
+      bold,
+      brush: black,
+      bounds: const Rect.fromLTWH(55, 413, 430, 16),
+    );
+
+    const notaryTop = 500.0;
+    final notary = PdfStandardFont(PdfFontFamily.timesRoman, 9);
+    for (final entry in <(String, double)>[
+      ('NAME OF NOTARY PUBLIC', notaryTop),
+      ('Notarial Commission No. __________', notaryTop + 24),
+      ('Notary Public for ______ until ______', notaryTop + 48),
+      ('Roll of Attorneys No. ______', notaryTop + 72),
+      ('PTR No. ___,', notaryTop + 96),
+      ('IBP No. ___,', notaryTop + 120),
+    ]) {
+      graphics.drawString(
+        entry.$1,
+        entry.$2 == notaryTop ? bold : notary,
+        brush: black,
+        bounds: Rect.fromLTWH(385, entry.$2, 190, 15),
+      );
+    }
+    for (final entry in <(String, double)>[
+      ('Doc. No. ________', notaryTop + 118),
+      ('Page No. ________', notaryTop + 142),
+      ('Book No. ________', notaryTop + 166),
+      ('Series of ________', notaryTop + 190),
+    ]) {
+      graphics.drawString(
+        entry.$1,
+        notary,
+        brush: black,
+        bounds: Rect.fromLTWH(55, entry.$2, 180, 15),
+      );
+    }
   }
 
   static void _drawBidSecuringDeclarationTableDetails(
