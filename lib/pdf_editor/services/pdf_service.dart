@@ -1974,7 +1974,14 @@ class PdfService {
       }
     }
 
-    const columns = <double>[36, 94, 270, 335, 400, 490, 576];
+    final hasAnyParameter = renderRows.any(
+      (row) => (row['parameter'] ?? '').toString().trim().isNotEmpty,
+    );
+    // When no item has an optional parameter, remove that column completely
+    // and share its width between Specification and Statement of Compliance.
+    final columns = hasAnyParameter
+        ? <double>[36, 94, 270, 335, 400, 490, 576]
+        : <double>[36, 94, 325, 390, 455, 576];
     final projectTitle = (values['projectTitle'] ?? '').trim().toUpperCase();
     var currentTitleLine = '';
     var titleLineCount = 0;
@@ -1999,7 +2006,7 @@ class PdfService {
     const statementBodyHeight = 165.0;
     final firstTableTop =
         statementTop + statementTitleHeight + statementBodyHeight;
-    const headerHeight = 44.0;
+    const headerHeight = 50.0;
     const minimumRowHeight = 18.0;
     const signatureSpace = 125.0;
     final firstPage = document.pages[46];
@@ -2031,7 +2038,7 @@ class PdfService {
       wordWrap: PdfWordWrapType.word,
     );
     final specificationWidth = columns[2] - columns[1] - 6;
-    final parameterWidth = columns[5] - columns[4] - 6;
+    final parameterWidth = hasAnyParameter ? columns[5] - columns[4] - 6 : 0.0;
     final rowHeights = <double>[
       for (final value in renderRows)
         (() {
@@ -2044,11 +2051,13 @@ class PdfService {
             layoutArea: Size(specificationWidth, 500),
             format: specificationFormat,
           );
-          final measuredParameter = regularFont.measureString(
-            parameter,
-            layoutArea: Size(parameterWidth, 500),
-            format: specificationFormat,
-          );
+          final measuredParameter = hasAnyParameter
+              ? regularFont.measureString(
+                  parameter,
+                  layoutArea: Size(parameterWidth, 500),
+                  format: specificationFormat,
+                )
+              : Size.zero;
           final contentHeight =
               measuredSpecification.height > measuredParameter.height
                   ? measuredSpecification.height
@@ -2271,12 +2280,12 @@ class PdfService {
         );
       }
 
-      const headers = <String>[
+      final headers = <String>[
         'Item\nNo.',
         'Specification/s',
         'Qty',
         'Unit',
-        'Parameter',
+        if (hasAnyParameter) 'Parameter',
         'Statement\nof\nCompliance',
       ];
       for (var column = 0; column < headers.length; column++) {
@@ -2307,14 +2316,14 @@ class PdfService {
           (specification['specification'] ?? '').toString(),
           (specification['quantity'] ?? '').toString(),
           (specification['unit'] ?? '').toString(),
-          (specification['parameter'] ?? '').toString(),
+          if (hasAnyParameter) (specification['parameter'] ?? '').toString(),
           isContinuation ? '' : 'COMPLY',
         ];
         final rowHeight = rowHeights[itemIndex];
         for (var column = 0; column < texts.length; column++) {
           page.graphics.drawString(
             texts[column],
-            column == 5 ? boldFont : regularFont,
+            column == texts.length - 1 ? boldFont : regularFont,
             brush: blackBrush,
             bounds: Rect.fromLTWH(
               columns[column] + 3,
