@@ -208,9 +208,15 @@ class PdfService {
       document.pages.removeAt(47);
     }
 
-    // Locate this form by its actual text after optional technical pages have
-    // been removed, since its final page index can change.
-    _drawBidSecuringDeclarationDetails(document, values);
+    final useDeclarationWithTable =
+        values['bidSecuringDeclarationWithTable'] == 'true';
+    if (useDeclarationWithTable) {
+      await _replaceBidSecuringDeclarationWithTable(document, values);
+    } else {
+      // Locate the original form by its actual text after optional technical
+      // pages have been removed, since its final page index can change.
+      _drawBidSecuringDeclarationDetails(document, values);
+    }
 
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
@@ -1184,6 +1190,210 @@ class PdfService {
         heavy: false,
       );
       drawSignatureValue(date, dulyTop + 113);
+    }
+  }
+
+  static int _findBidSecuringDeclarationPage(PdfDocument document) {
+    for (final line in PdfTextExtractor(document).extractTextLines()) {
+      if (line.text.toUpperCase().contains('BID SECURING DECLARATION')) {
+        return line.pageIndex;
+      }
+    }
+    return -1;
+  }
+
+  static Future<void> _replaceBidSecuringDeclarationWithTable(
+    PdfDocument document,
+    Map<String, String> values,
+  ) async {
+    final declarationIndex = _findBidSecuringDeclarationPage(document);
+    if (declarationIndex < 0) return;
+
+    final templateData = await rootBundle.load(
+      'assets/pdf/BID SECURING DECLARATION_impasugong_template.pdf',
+    );
+    final templateDocument = PdfDocument(
+      inputBytes: templateData.buffer.asUint8List(),
+    );
+
+    // The original declaration occupies two sheets. Replace those sheets at
+    // the same location so the remaining bid-document order is unchanged.
+    document.pages.removeAt(declarationIndex);
+    if (declarationIndex < document.pages.count) {
+      document.pages.removeAt(declarationIndex);
+    }
+
+    for (var templateIndex = 0;
+        templateIndex < templateDocument.pages.count;
+        templateIndex++) {
+      final sourcePage = templateDocument.pages[templateIndex];
+      final margins = PdfMargins()..all = 0;
+      final targetPage = document.pages.insert(
+        declarationIndex + templateIndex,
+        sourcePage.size,
+        margins,
+      );
+      targetPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        Offset.zero,
+        sourcePage.size,
+      );
+    }
+
+    _drawBidSecuringDeclarationTableDetails(
+      document,
+      values,
+      startPageIndex: declarationIndex,
+      pageCount: templateDocument.pages.count,
+    );
+    templateDocument.dispose();
+  }
+
+  static void _drawBidSecuringDeclarationTableDetails(
+    PdfDocument document,
+    Map<String, String> values, {
+    required int startPageIndex,
+    required int pageCount,
+  }) {
+    final lines = PdfTextExtractor(document)
+        .extractTextLines()
+        .where((line) =>
+            line.pageIndex >= startPageIndex &&
+            line.pageIndex < startPageIndex + pageCount)
+        .toList();
+    final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    final regularFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final italicFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      11,
+      style: PdfFontStyle.italic,
+    );
+    final boldFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      11,
+      style: PdfFontStyle.bold,
+    );
+    final referenceNumber = (values['referenceNumber'] ?? '').trim();
+    final procuringEntity = (values['procuringEntity'] ?? '').trim();
+    final municipality = (values['municipality'] ?? '').trim();
+    final bidderName = (values['bidderName'] ?? '').trim();
+    final representative =
+        (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
+    final date = (values['date'] ?? '').trim();
+    final executionPlace = 'Municipality of $municipality';
+
+    void replaceLine(
+      dynamic line,
+      String replacement, {
+      PdfFont? font,
+      double extraWidth = 8,
+    }) {
+      final page = document.pages[line.pageIndex];
+      final bounds = line.bounds;
+      page.graphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: Rect.fromLTWH(
+          bounds.left - 2,
+          bounds.top - 2,
+          (page.getClientSize().width - bounds.left - 20)
+              .clamp(bounds.width + extraWidth, 560)
+              .toDouble(),
+          bounds.height + 5,
+        ),
+      );
+      page.graphics.drawString(
+        replacement,
+        font ?? regularFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(
+          bounds.left,
+          bounds.top,
+          page.getClientSize().width - bounds.left - 20,
+          bounds.height + 7,
+        ),
+      );
+    }
+
+    for (final line in lines) {
+      final text = line.text.trim();
+      final upper = text.toUpperCase();
+      if (upper.contains('MUNICIPALITY OF IMPASUGONG') &&
+          upper.startsWith('MUNICIPALITY')) {
+        // The municipality appears both in the page heading and on the line
+        // immediately following "To:". Keep the heading as a place name,
+        // while the recipient line must use the complete procuring entity.
+        final replacement = line.pageIndex == startPageIndex &&
+                line.bounds.top < 130
+            ? executionPlace.toUpperCase()
+            : procuringEntity;
+        replaceLine(line, replacement, font: boldFont);
+      } else if (upper.contains('PROJECT IDENTIFICATION NO')) {
+        replaceLine(
+          line,
+          'Project Identification No.: $referenceNumber',
+          font: italicFont,
+        );
+      } else if (upper.startsWith('TO:') &&
+          upper.contains('MUNICIPALITY OF IMPASUGONG')) {
+        replaceLine(line, 'To: $procuringEntity', font: boldFont);
+      } else if (upper.startsWith('IN WITNESS WHEREOF')) {
+        replaceLine(
+          line,
+          'IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s '
+          'this $date at $executionPlace.',
+          font: boldFont,
+        );
+      } else if (upper.startsWith('SUBSCRIBED AND SWORN') &&
+          upper.contains('MUNICIPALITY OF IMPASUGONG')) {
+        replaceLine(
+          line,
+          text.replaceAll(
+            RegExp('Municipality of Impasugong', caseSensitive: false),
+            executionPlace,
+          ),
+        );
+      }
+    }
+
+    dynamic dulyLine;
+    for (final line in lines) {
+      if (line.text.toUpperCase().contains('DULY AUTHORIZED TO SIGN THE BID')) {
+        dulyLine = line;
+        break;
+      }
+    }
+    if (dulyLine != null) {
+      final page = document.pages[dulyLine.pageIndex];
+      final top = dulyLine.bounds.top + 24;
+      page.graphics.drawRectangle(
+        brush: whiteBrush,
+        bounds: Rect.fromLTWH(45, top - 3, 360, 105),
+      );
+      page.graphics.drawString(
+        bidderName,
+        italicFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(55, top, 330, 17),
+      );
+      page.graphics.drawString(
+        representative,
+        italicFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(55, top + 50, 330, 17),
+      );
+      page.graphics.drawString(
+        'Authorized Representative',
+        italicFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(55, top + 67, 330, 17),
+      );
+      page.graphics.drawString(
+        date,
+        italicFont,
+        brush: blackBrush,
+        bounds: Rect.fromLTWH(55, top + 84, 330, 17),
+      );
     }
   }
 

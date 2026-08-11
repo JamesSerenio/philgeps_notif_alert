@@ -32,4 +32,35 @@ void main() {
     expect(compactText, contains('PROCUREMENTOF12-CHANNELCCTVPACKAGE'));
     expect(compactText, contains('MUNICIPALITYOFVILLANUEVA,MISAMISORIENTAL'));
   });
+
+  test('replaces the bid securing declaration with the table template',
+      () async {
+    final bytes = await PdfService.generateBidDocs(
+      values: const {
+        'province': 'Bukidnon',
+        'municipality': 'Impasugong',
+        'referenceNumber': '13118796',
+        'procuringEntity': 'MUNICIPALITY OF IMPASUGONG, BUKIDNON',
+        'date': 'July 20, 2026',
+        'bidderName': 'MIKATA PRIME CORPORATION',
+        'submittedBy': 'JHO ANN Q, CLEOPAS',
+        'submittedByFormalName': 'Jho Ann Q. Cleopas',
+        'technicalSpecifications': '[]',
+        'priceSchedule': '[]',
+        'bidSecuringDeclarationWithTable': 'true',
+      },
+    );
+    final document = PdfDocument(inputBytes: bytes);
+    final compactText =
+        PdfTextExtractor(document).extractText().replaceAll(RegExp(r'\s+'), '');
+    document.dispose();
+
+    expect(compactText, contains('ProjectIdentificationNo.:13118796'));
+    // Covered template text remains in the PDF extraction stream even though
+    // it is no longer visible, so verify the newly drawn recipient separately.
+    expect(compactText, contains('MUNICIPALITYOFIMPASUGONG,BUKIDNON'));
+    expect(compactText, contains('MunicipalityofImpasugong'));
+    expect(compactText, contains('JhoAnnQ.Cleopas'));
+    expect(compactText, contains('July20,2026'));
+  });
 }

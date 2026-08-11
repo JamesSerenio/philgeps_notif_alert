@@ -126,6 +126,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isLoadingScheduleRequirements = true;
   bool isSavingScheduleRequirements = false;
   bool includeTotalInScheduleRequirements = false;
+  bool useBidSecuringDeclarationWithTable = true;
   bool isLoadingAfterSales = true;
   bool isSavingAfterSales = false;
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
@@ -615,6 +616,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               includeTotalInScheduleRequirements ? 'true' : 'false',
           'afterSalesYears': afterSalesYearsController.text.trim(),
           'warrantyYears': warrantyYearsController.text.trim(),
+          'bidSecuringDeclarationWithTable':
+              useBidSecuringDeclarationWithTable ? 'true' : 'false',
         },
       );
 
@@ -958,6 +961,62 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             maxLines: field.$3,
             readOnly: field.$1 == 'slccPercent',
           ),
+      ],
+    );
+  }
+
+  Widget bidSecuringDeclarationFields() {
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      backgroundColor: Colors.white,
+      collapsedBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      leading: const Icon(
+        Icons.security_outlined,
+        color: Color(0xFF0B5D3B),
+      ),
+      title: const Text(
+        'BID SECURING DECLARATION',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      ),
+      subtitle: Text(
+        useBidSecuringDeclarationWithTable ? 'With table' : 'Without table',
+      ),
+      children: [
+        RadioListTile<bool>(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: const Text('With table'),
+          subtitle: const Text('Use the new declaration template'),
+          value: true,
+          groupValue: useBidSecuringDeclarationWithTable,
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => useBidSecuringDeclarationWithTable = value);
+            }
+          },
+        ),
+        RadioListTile<bool>(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: const Text('Without table'),
+          subtitle: const Text('Use the original bid-doc pages 47–48'),
+          value: false,
+          groupValue: useBidSecuringDeclarationWithTable,
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => useBidSecuringDeclarationWithTable = value);
+            }
+          },
+        ),
       ],
     );
   }
@@ -1560,6 +1619,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       ),
                       submittedByField(),
                       const SizedBox(height: 4),
+                      bidSecuringDeclarationFields(),
+                      const SizedBox(height: 12),
                       slccFields(),
                       const SizedBox(height: 12),
                       technicalSpecificationsFields(),
