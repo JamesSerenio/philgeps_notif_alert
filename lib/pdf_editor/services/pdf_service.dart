@@ -1215,6 +1215,11 @@ class PdfService {
     final templateDocument = PdfDocument(
       inputBytes: templateData.buffer.asUint8List(),
     );
+    // Extract placeholder positions before importing. Imported PDF pages are
+    // drawn as templates, so their original text is not discoverable from the
+    // destination document until after saving and reopening it.
+    final List<dynamic> templateLines =
+        PdfTextExtractor(templateDocument).extractTextLines();
 
     // The original declaration occupies two sheets. Replace those sheets at
     // the same location so the remaining bid-document order is unchanged.
@@ -1245,6 +1250,7 @@ class PdfService {
       values,
       startPageIndex: declarationIndex,
       pageCount: templateDocument.pages.count,
+      templateLines: templateLines,
     );
     templateDocument.dispose();
   }
@@ -1254,12 +1260,10 @@ class PdfService {
     Map<String, String> values, {
     required int startPageIndex,
     required int pageCount,
+    required List<dynamic> templateLines,
   }) {
-    final lines = PdfTextExtractor(document)
-        .extractTextLines()
-        .where((line) =>
-            line.pageIndex >= startPageIndex &&
-            line.pageIndex < startPageIndex + pageCount)
+    final lines = templateLines
+        .where((line) => line.pageIndex >= 0 && line.pageIndex < pageCount)
         .toList();
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
@@ -1289,7 +1293,7 @@ class PdfService {
       PdfFont? font,
       double extraWidth = 8,
     }) {
-      final page = document.pages[line.pageIndex];
+      final page = document.pages[startPageIndex + line.pageIndex as int];
       final bounds = line.bounds;
       page.graphics.drawRectangle(
         brush: whiteBrush,
@@ -1323,10 +1327,9 @@ class PdfService {
         // The municipality appears both in the page heading and on the line
         // immediately following "To:". Keep the heading as a place name,
         // while the recipient line must use the complete procuring entity.
-        final replacement =
-            line.pageIndex == startPageIndex && line.bounds.top < 130
-                ? executionPlace.toUpperCase()
-                : procuringEntity;
+        final replacement = line.pageIndex == 0 && line.bounds.top < 130
+            ? executionPlace.toUpperCase()
+            : procuringEntity;
         replaceLine(line, replacement, font: boldFont);
       } else if (upper.contains('PROJECT IDENTIFICATION NO')) {
         replaceLine(
@@ -1364,7 +1367,7 @@ class PdfService {
       }
     }
     if (dulyLine != null) {
-      final page = document.pages[dulyLine.pageIndex];
+      final page = document.pages[startPageIndex + dulyLine.pageIndex as int];
       final top = dulyLine.bounds.top + 24;
       page.graphics.drawRectangle(
         brush: whiteBrush,
