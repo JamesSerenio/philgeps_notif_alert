@@ -1282,7 +1282,12 @@ class PdfService {
     PdfPage page,
     Map<String, String> values,
   ) {
-    final graphics = page.graphics;
+    // Loaded-template page graphics can be saved behind the original content.
+    // A page layer added last is guaranteed to render the white covers and
+    // corrected values in the foreground.
+    final graphics = page.layers
+        .add(name: 'Bid Securing Declaration corrections', visible: true)
+        .graphics;
     final whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
     final blackBrush = PdfSolidBrush(PdfColor(0, 0, 0));
     final italicFont = PdfStandardFont(
