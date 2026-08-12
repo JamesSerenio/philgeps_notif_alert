@@ -4851,7 +4851,7 @@ class PdfService {
     try {
       final parsedDate = DateFormat('MMMM d, yyyy').parseStrict(documentDate);
       meetingDate = DateFormat('MMMM d, yyyy').format(
-        parsedDate.add(const Duration(days: 3)),
+        parsedDate.subtract(const Duration(days: 3)),
       );
     } on FormatException {
       // Keep the supplied value if it is not in the expected display format.
