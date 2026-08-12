@@ -254,6 +254,7 @@ class PdfService {
     // page mapping is complete. This keeps all following section indexes
     // stable while the document is being prepared.
     await _replaceSlccSection(document, values);
+    await _replaceAfsSection(document);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -265,9 +266,8 @@ class PdfService {
     PdfDocument document,
     Map<String, String> values,
   ) async {
-    final templateType = values['slccTemplateType'] == 'streetlight'
-        ? 'streetlight'
-        : 'cctv';
+    final templateType =
+        values['slccTemplateType'] == 'streetlight' ? 'streetlight' : 'cctv';
     final assetPath = templateType == 'streetlight'
         ? 'assets/pdf/SLCC_Streetlight_template.pdf'
         : 'assets/pdf/SLCC_CCTV_template.pdf';
@@ -285,7 +285,9 @@ class PdfService {
     // The legacy SLCC occupies PDF pages 21-23 (three consecutive pages).
     // Remove only those sheets and insert the selected replacement at the
     // exact same location.
-    for (var page = 0; page < 3 && slccPageIndex < document.pages.count; page++) {
+    for (var page = 0;
+        page < 3 && slccPageIndex < document.pages.count;
+        page++) {
       document.pages.removeAt(slccPageIndex);
     }
 
@@ -312,6 +314,52 @@ class PdfService {
       targetPage.graphics.drawPdfTemplate(
         sourcePage.createTemplate(),
         offset,
+        fittedSize,
+      );
+    }
+    sourceDocument.dispose();
+  }
+
+  static Future<void> _replaceAfsSection(PdfDocument document) async {
+    // After the selected SLCC template has been inserted, the legacy Audited
+    // Financial Statements occupy PDF pages 29-46 inclusive.
+    const afsPageIndex = 28;
+    const legacyAfsPageCount = 18;
+    if (afsPageIndex >= document.pages.count) return;
+
+    final data = await rootBundle.load('assets/pdf/AFS_template.pdf');
+    final sourceDocument = PdfDocument(
+      inputBytes: data.buffer.asUint8List(),
+    );
+
+    for (var page = 0;
+        page < legacyAfsPageCount && afsPageIndex < document.pages.count;
+        page++) {
+      document.pages.removeAt(afsPageIndex);
+    }
+
+    const a4Size = Size(595.28, 841.89);
+    for (var index = 0; index < sourceDocument.pages.count; index++) {
+      final sourcePage = sourceDocument.pages[index];
+      final sourceSize = sourcePage.size;
+      final scale = (a4Size.width / sourceSize.width)
+          .clamp(0.0, a4Size.height / sourceSize.height)
+          .toDouble();
+      final fittedSize = Size(
+        sourceSize.width * scale,
+        sourceSize.height * scale,
+      );
+      final targetPage = document.pages.insert(
+        afsPageIndex + index,
+        a4Size,
+        PdfMargins()..all = 0,
+      );
+      targetPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        Offset(
+          (a4Size.width - fittedSize.width) / 2,
+          (a4Size.height - fittedSize.height) / 2,
+        ),
         fittedSize,
       );
     }

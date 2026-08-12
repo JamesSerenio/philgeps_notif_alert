@@ -40,13 +40,13 @@ class PdfEditorScreen extends StatefulWidget {
 
 class _PdfEditorScreenState extends State<PdfEditorScreen> {
   static const List<String> submittedByNames = [
-    'JHO ANN Q, CLEOPAS',
+    'JHO ANN Q. CLEOPAS',
     'CARLOS RAFAEL A. JAMILO',
     'MARLJONE BLAIRE B. TINGTING',
   ];
   static const Map<String, ({String name, String civilStatus, String address})>
       submittedByProfiles = {
-    'JHO ANN Q, CLEOPAS': (
+    'JHO ANN Q. CLEOPAS': (
       name: 'Jho Ann Q. Cleopas',
       civilStatus: 'married',
       address: 'Tankulan, Manolo Fortich, Bukidnon',
