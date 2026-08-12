@@ -106,7 +106,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController bidderNameController;
   late final TextEditingController procuringEntityController;
   late final TextEditingController submittedByController;
-  late final Map<String, TextEditingController> slccControllers;
+  String selectedSlccTemplate = 'cctv';
   late final TextEditingController deliveredWeeksMonthsController;
   late final TextEditingController afterSalesYearsController;
   late final TextEditingController warrantyYearsController;
@@ -175,19 +175,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
     submittedByFocusNode = FocusNode();
 
-    slccControllers = {
-      'slccOwnerName': TextEditingController(),
-      'slccAddressTelephone': TextEditingController(),
-      'slccNumber': TextEditingController(),
-      'slccNatureOfWork': TextEditingController(),
-      'slccDescription': TextEditingController(),
-      'slccPercent': TextEditingController(text: '100%'),
-      'slccAmountOfAward': TextEditingController(),
-      'slccCompletionDuration': TextEditingController(),
-      'slccDateAwarded': TextEditingController(),
-      'slccContractEffectivity': TextEditingController(),
-      'slccDateCompleted': TextEditingController(),
-    };
+    selectedSlccTemplate = widget.projectTitle.toUpperCase().contains('STREET')
+        ? 'streetlight'
+        : 'cctv';
     deliveredWeeksMonthsController = TextEditingController(
       text: widget.deliveryPeriod.trim(),
     );
@@ -196,9 +186,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     afterSalesYearsController.addListener(_scheduleAfterSalesSave);
     warrantyYearsController = TextEditingController(text: '2');
     warrantyYearsController.addListener(_scheduleAfterSalesSave);
-    for (final controller in slccControllers.values) {
-      controller.addListener(_scheduleSlccSave);
-    }
     _loadSlcc();
     _loadTechnicalSpecifications();
     _loadUnitSuggestions();
@@ -609,36 +596,21 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     try {
       final row = await SupabaseConfig.client
           .from('bid_slcc_entries')
-          .select()
+          .select('template_type')
           .eq('reference_number', widget.referenceNumber.trim())
           .maybeSingle();
       if (row != null) {
-        for (final entry in slccControllers.entries) {
-          if (entry.key == 'slccPercent') continue;
-          entry.value.text = (row[_slccColumn(entry.key)] ?? '').toString();
+        final savedTemplate = (row['template_type'] ?? '').toString();
+        if (savedTemplate == 'cctv' || savedTemplate == 'streetlight') {
+          selectedSlccTemplate = savedTemplate;
         }
       }
-      slccControllers['slccPercent']!.text = '100%';
     } catch (error) {
       debugPrint('SLCC load error: $error');
     } finally {
       if (mounted) setState(() => isLoadingSlcc = false);
     }
   }
-
-  String _slccColumn(String key) => {
-        'slccOwnerName': 'owner_name',
-        'slccAddressTelephone': 'address_telephone',
-        'slccNumber': 'contact_number',
-        'slccNatureOfWork': 'nature_of_work',
-        'slccDescription': 'role_description',
-        'slccPercent': 'role_percent',
-        'slccAmountOfAward': 'amount_of_award',
-        'slccCompletionDuration': 'completion_duration',
-        'slccDateAwarded': 'date_awarded',
-        'slccContractEffectivity': 'contract_effectivity',
-        'slccDateCompleted': 'date_completed',
-      }[key]!;
 
   void _scheduleSlccSave() {
     if (isLoadingSlcc) return;
@@ -652,11 +624,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     try {
       final data = <String, dynamic>{
         'reference_number': widget.referenceNumber.trim(),
+        'template_type': selectedSlccTemplate,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
-      for (final entry in slccControllers.entries) {
-        data[_slccColumn(entry.key)] = entry.value.text.trim();
-      }
       await SupabaseConfig.client.from('bid_slcc_entries').upsert(
             data,
             onConflict: 'reference_number',
@@ -705,8 +675,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'submittedByFormalName': submittedByProfile?.name ?? submittedBy,
           'submittedByCivilStatus': submittedByProfile?.civilStatus ?? '',
           'submittedByAddress': submittedByProfile?.address ?? '',
-          for (final entry in slccControllers.entries)
-            entry.key: entry.value.text.trim(),
+          'slccTemplateType': selectedSlccTemplate,
           'technicalSpecifications': jsonEncode([
             for (final entry in technicalSpecifications)
               {
@@ -1026,19 +995,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   Widget slccFields() {
-    const fields = <(String, String, int)>[
-      ('slccOwnerName', "a. Owner's Name", 2),
-      ('slccAddressTelephone', 'b. Address / Telephone', 3),
-      ('slccNumber', 'c. Number', 1),
-      ('slccNatureOfWork', 'Nature of Work', 2),
-      ('slccDescription', "Bidder's Role - Description", 4),
-      ('slccPercent', "Bidder's Role - %", 1),
-      ('slccAmountOfAward', 'a. Amount of Award', 1),
-      ('slccCompletionDuration', 'b. Completion Duration', 1),
-      ('slccDateAwarded', 'a. Date Awarded', 1),
-      ('slccContractEffectivity', 'b. Contract Effectivity', 1),
-      ('slccDateCompleted', 'c. Date Completed', 1),
-    ];
     return ExpansionTile(
       initiallyExpanded: false,
       tilePadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1066,13 +1022,23 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 : 'Saved automatically',
       ),
       children: [
-        for (final field in fields)
-          formField(
-            label: field.$2,
-            controller: slccControllers[field.$1]!,
-            maxLines: field.$3,
-            readOnly: field.$1 == 'slccPercent',
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'cctv', label: Text('CCTV')),
+              ButtonSegment(
+                value: 'streetlight',
+                label: Text('Street Lights'),
+              ),
+            ],
+            selected: {selectedSlccTemplate},
+            onSelectionChanged: (selection) {
+              setState(() => selectedSlccTemplate = selection.first);
+              _scheduleSlccSave();
+            },
           ),
+        ),
       ],
     );
   }
@@ -1744,10 +1710,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     afterSalesYearsController.dispose();
     warrantyYearsController.removeListener(_scheduleAfterSalesSave);
     warrantyYearsController.dispose();
-    for (final controller in slccControllers.values) {
-      controller.removeListener(_scheduleSlccSave);
-      controller.dispose();
-    }
     for (final entry in technicalSpecifications) {
       for (final controller in entry.controllers) {
         controller.removeListener(_scheduleTechnicalSpecificationsSave);

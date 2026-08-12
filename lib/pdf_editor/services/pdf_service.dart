@@ -250,10 +250,72 @@ class PdfService {
     _drawBidForm(document, values);
     _drawSecretaryCertificate(document, values);
 
+    // Replace the two legacy editable SLCC sheets only after every original
+    // page mapping is complete. This keeps all following section indexes
+    // stable while the document is being prepared.
+    await _replaceSlccSection(document, values);
+
     final List<int> outputBytes = await document.save();
     document.dispose();
 
     return Uint8List.fromList(outputBytes);
+  }
+
+  static Future<void> _replaceSlccSection(
+    PdfDocument document,
+    Map<String, String> values,
+  ) async {
+    final templateType = values['slccTemplateType'] == 'streetlight'
+        ? 'streetlight'
+        : 'cctv';
+    final assetPath = templateType == 'streetlight'
+        ? 'assets/pdf/SLCC_Streetlight_template.pdf'
+        : 'assets/pdf/SLCC_CCTV_template.pdf';
+
+    // The source bid document keeps the replaceable SLCC sheets specifically
+    // on PDF pages 21-23. Keep page 20 untouched.
+    const slccPageIndex = 20;
+    if (slccPageIndex >= document.pages.count) return;
+
+    final data = await rootBundle.load(assetPath);
+    final sourceDocument = PdfDocument(
+      inputBytes: data.buffer.asUint8List(),
+    );
+
+    // The legacy SLCC occupies PDF pages 21-23 (three consecutive pages).
+    // Remove only those sheets and insert the selected replacement at the
+    // exact same location.
+    for (var page = 0; page < 3 && slccPageIndex < document.pages.count; page++) {
+      document.pages.removeAt(slccPageIndex);
+    }
+
+    const a4Size = Size(595.28, 841.89);
+    for (var index = 0; index < sourceDocument.pages.count; index++) {
+      final sourcePage = sourceDocument.pages[index];
+      final sourceSize = sourcePage.size;
+      final scale = (a4Size.width / sourceSize.width)
+          .clamp(0.0, a4Size.height / sourceSize.height)
+          .toDouble();
+      final fittedSize = Size(
+        sourceSize.width * scale,
+        sourceSize.height * scale,
+      );
+      final offset = Offset(
+        (a4Size.width - fittedSize.width) / 2,
+        (a4Size.height - fittedSize.height) / 2,
+      );
+      final targetPage = document.pages.insert(
+        slccPageIndex + index,
+        a4Size,
+        PdfMargins()..all = 0,
+      );
+      targetPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        offset,
+        fittedSize,
+      );
+    }
+    sourceDocument.dispose();
   }
 
   /// Standard PDF fonts do not contain Unicode checkmark glyphs. Normalize

@@ -31,3 +31,5 @@ flutter:
   assets:
     - assets/pdf/bidocs_template.pdf
     - assets/pdf/BID SECURING DECLARATION_impasugong_template.pdf
+    - assets/pdf/SLCC_CCTV_template.pdf
+    - assets/pdf/SLCC_Streetlight_template.pdf
