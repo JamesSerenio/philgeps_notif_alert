@@ -288,7 +288,7 @@ function parseBudgetAmount(value = "") {
 async function getExistingPostIds() {
   const { data, error } = await supabase
     .from("philgeps_posts")
-    .select("id")
+    .select("id,delivery_period")
     .limit(5000);
 
   if (error) {
@@ -302,6 +302,13 @@ async function getExistingPostIds() {
 
   return new Set(
     (data || [])
+      // Existing rows created before delivery_period was added must be
+      // revisited once so their PhilGEPS detail value can be backfilled.
+      .filter((item) =>
+        cleanText(
+          item.delivery_period || ""
+        ).length > 0
+      )
       .map((item) =>
         String(item.id || "").trim()
       )

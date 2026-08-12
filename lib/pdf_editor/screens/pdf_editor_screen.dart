@@ -196,7 +196,25 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _loadSlcc();
     _loadTechnicalSpecifications();
     _loadUnitSuggestions();
+    _loadPhilgepsDeliveryPeriod();
     _loadAfterSalesSettings();
+  }
+
+  Future<void> _loadPhilgepsDeliveryPeriod() async {
+    final referenceNumber = widget.referenceNumber.trim();
+    if (referenceNumber.isEmpty) return;
+    try {
+      final row = await SupabaseConfig.client
+          .from('philgeps_posts')
+          .select('delivery_period')
+          .eq('reference_number', referenceNumber)
+          .maybeSingle();
+      final deliveryPeriod = (row?['delivery_period'] ?? '').toString().trim();
+      if (!mounted || deliveryPeriod.isEmpty) return;
+      setState(() => deliveredWeeksMonthsController.text = deliveryPeriod);
+    } catch (error) {
+      debugPrint('PhilGEPS delivery period load error: $error');
+    }
   }
 
   Future<void> _loadAfterSalesSettings() async {
@@ -1437,7 +1455,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(
-        widget.deliveryPeriod.trim().isEmpty
+        deliveredWeeksMonthsController.text.trim().isEmpty
             ? 'No Delivery Period found in PhilGEPS'
             : 'Auto-filled from PhilGEPS',
       ),
