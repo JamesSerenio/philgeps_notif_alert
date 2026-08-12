@@ -2796,7 +2796,10 @@ class PdfService {
             sourceIndex < savedPrices.length && savedPrices[sourceIndex] is Map
                 ? savedPrices[sourceIndex] as Map
                 : const {};
-        final total = number(saved['totalPricePerUnit']);
+        final total =
+            (number(saved['totalPricePerUnit']) - number(saved['deduction']))
+                .clamp(0, double.infinity)
+                .toDouble();
         final quantityText = isContinuation
             ? ''
             : (specification['quantity'] ?? '').toString().trim().isEmpty
@@ -4324,8 +4327,11 @@ class PdfService {
       final price = index < prices.length && prices[index] is Map
           ? prices[index] as Map
           : const {};
-      total += (number(specification['quantity']) *
-              number(price['totalPricePerUnit']))
+      final adjustedUnitPrice =
+          (number(price['totalPricePerUnit']) - number(price['deduction']))
+              .clamp(0, double.infinity)
+              .toDouble();
+      total += (number(specification['quantity']) * adjustedUnitPrice)
           .roundToDouble();
     }
 
@@ -5502,8 +5508,11 @@ class PdfService {
             itemIndex < savedPrices.length && savedPrices[itemIndex] is Map
                 ? savedPrices[itemIndex] as Map
                 : const {};
-        final deliveredTotal =
-            number(quantity) * number(saved['totalPricePerUnit']);
+        final adjustedUnitPrice =
+            (number(saved['totalPricePerUnit']) - number(saved['deduction']))
+                .clamp(0, double.infinity)
+                .toDouble();
+        final deliveredTotal = number(quantity) * adjustedUnitPrice;
         final texts = <String>[
           '${itemIndex + 1}',
           scheduleDescription(specification),
@@ -5766,9 +5775,13 @@ class PdfService {
             sourceIndex < savedPrices.length && savedPrices[sourceIndex] is Map
                 ? savedPrices[sourceIndex] as Map
                 : const {};
-        final delivered = (number(specification['quantity']) *
-                number(saved['totalPricePerUnit']))
-            .roundToDouble();
+        final adjustedUnitPrice =
+            (number(saved['totalPricePerUnit']) - number(saved['deduction']))
+                .clamp(0, double.infinity)
+                .toDouble();
+        final delivered =
+            (number(specification['quantity']) * adjustedUnitPrice)
+                .roundToDouble();
         if (!isContinuation) grandTotal += delivered;
         final rowHeight = summaryRowHeights[itemIndex];
         final valuesForRow = <String>[

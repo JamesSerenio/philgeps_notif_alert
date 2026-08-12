@@ -400,6 +400,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     technicalSpecifications.add(entry);
     final priceEntry = _PriceScheduleEntry();
     priceEntry.totalPricePerUnit.addListener(_schedulePriceScheduleSave);
+    priceEntry.deduction.addListener(_schedulePriceScheduleSave);
     priceScheduleEntries.add(priceEntry);
     if (rebuild && mounted) setState(() {});
   }
@@ -412,6 +413,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     entry.dispose();
     final priceEntry = priceScheduleEntries.removeAt(index);
     priceEntry.totalPricePerUnit.removeListener(_schedulePriceScheduleSave);
+    priceEntry.deduction.removeListener(_schedulePriceScheduleSave);
     priceEntry.dispose();
     setState(() {});
     _scheduleTechnicalSpecificationsSave();
@@ -512,6 +514,15 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                     TextEditingValue(text: savedValue),
                   )
                   .text;
+          final deduction =
+              value is Map ? (value['deduction'] ?? '').toString() : '';
+          priceScheduleEntries[index].deduction.text =
+              const _ThousandsSeparatorInputFormatter()
+                  .formatEditUpdate(
+                    const TextEditingValue(),
+                    TextEditingValue(text: deduction),
+                  )
+                  .text;
         }
       }
     } catch (error) {
@@ -540,7 +551,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'reference_number': widget.referenceNumber.trim(),
           'total_prices_per_unit': [
             for (final entry in priceScheduleEntries)
-              {'totalPricePerUnit': entry.totalPricePerUnit.text.trim()},
+              {
+                'totalPricePerUnit': entry.totalPricePerUnit.text.trim(),
+                'deduction': entry.deduction.text.trim(),
+              },
           ],
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
@@ -704,7 +718,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           ]),
           'priceSchedule': jsonEncode([
             for (final entry in priceScheduleEntries)
-              {'totalPricePerUnit': entry.totalPricePerUnit.text.trim()},
+              {
+                'totalPricePerUnit': entry.totalPricePerUnit.text.trim(),
+                'deduction': entry.deduction.text.trim(),
+              },
           ]),
           'deliveredWeeksMonths': deliveredWeeksMonthsController.text.trim(),
           'includeScheduleTotal':
@@ -1366,7 +1383,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           Builder(builder: (context) {
             final specification = technicalSpecifications[index];
             final price = priceScheduleEntries[index];
-            final total = _number(price.totalPricePerUnit.text);
+            final enteredTotal = _number(price.totalPricePerUnit.text);
+            final deduction = _number(price.deduction.text);
+            final total =
+                (enteredTotal - deduction).clamp(0, double.infinity).toDouble();
             final quantity = _number(specification.quantity.text);
             Widget priceRow(String label, String value) {
               return Padding(
@@ -1478,6 +1498,27 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
+                    TextField(
+                      controller: price.deduction,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: const [
+                        _ThousandsSeparatorInputFormatter(),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'Deduction',
+                        prefixText: '− ₱ ',
+                        helperText: 'Optional amount deducted from unit price',
+                        filled: true,
+                        fillColor: const Color(0xFFFFF7F2),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    priceRow('Adjusted Total Price per Unit', _money(total)),
                     priceRow('Unit Price/Item (50%)', _money(total * .50)),
                     priceRow(
                       'Transportation & Insurance (20%)',
@@ -1715,6 +1756,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
     for (final entry in priceScheduleEntries) {
       entry.totalPricePerUnit.removeListener(_schedulePriceScheduleSave);
+      entry.deduction.removeListener(_schedulePriceScheduleSave);
       entry.dispose();
     }
 
@@ -2155,12 +2197,17 @@ class _TechnicalSpecificationEntry {
 }
 
 class _PriceScheduleEntry {
-  _PriceScheduleEntry({String totalPricePerUnit = ''})
-      : totalPricePerUnit = TextEditingController(text: totalPricePerUnit);
+  _PriceScheduleEntry({String totalPricePerUnit = '', String deduction = ''})
+      : totalPricePerUnit = TextEditingController(text: totalPricePerUnit),
+        deduction = TextEditingController(text: deduction);
 
   final TextEditingController totalPricePerUnit;
+  final TextEditingController deduction;
 
-  void dispose() => totalPricePerUnit.dispose();
+  void dispose() {
+    totalPricePerUnit.dispose();
+    deduction.dispose();
+  }
 }
 
 class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
