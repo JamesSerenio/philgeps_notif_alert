@@ -5,6 +5,11 @@ create table if not exists public.bid_schedule_requirements (
   updated_at timestamptz not null default now()
 );
 
+-- Existing rows predate automatic PhilGEPS delivery periods and must not be
+-- treated as deliberate corrections until the user edits the field again.
+alter table public.bid_schedule_requirements
+  add column if not exists is_manual_override boolean not null default false;
+
 alter table public.bid_schedule_requirements enable row level security;
 
 drop policy if exists "Public can read schedule requirements"

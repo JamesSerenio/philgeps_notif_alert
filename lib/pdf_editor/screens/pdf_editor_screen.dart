@@ -116,6 +116,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   Timer? slccSaveTimer;
   Timer? technicalSpecificationsSaveTimer;
   Timer? priceScheduleSaveTimer;
+  Timer? scheduleRequirementsSaveTimer;
   Timer? afterSalesSaveTimer;
   bool isLoadingSlcc = true;
   bool isSavingSlcc = false;
@@ -123,6 +124,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isSavingTechnicalSpecifications = false;
   bool isLoadingPriceSchedule = true;
   bool isSavingPriceSchedule = false;
+  bool isLoadingScheduleRequirements = true;
+  bool isSavingScheduleRequirements = false;
+  bool hasPendingDeliveryPeriodOverride = false;
   bool includeTotalInScheduleRequirements = false;
   bool useBidSecuringDeclarationWithTable = true;
   bool isLoadingAfterSales = true;
@@ -187,6 +191,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     deliveredWeeksMonthsController = TextEditingController(
       text: widget.deliveryPeriod.trim(),
     );
+    deliveredWeeksMonthsController.addListener(_scheduleRequirementsSave);
     afterSalesYearsController = TextEditingController(text: '1');
     afterSalesYearsController.addListener(_scheduleAfterSalesSave);
     warrantyYearsController = TextEditingController(text: '2');
@@ -214,12 +219,66 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       if (deliveryPeriod.isNotEmpty) {
         if (!mounted) return;
         setState(() => deliveredWeeksMonthsController.text = deliveryPeriod);
-        return;
+      } else {
+        await _refreshPhilgepsDeliveryPeriod(referenceNumber);
       }
-      await _refreshPhilgepsDeliveryPeriod(referenceNumber);
     } catch (error) {
       debugPrint('PhilGEPS delivery period load error: $error');
       await _refreshPhilgepsDeliveryPeriod(referenceNumber);
+    } finally {
+      await _loadManualDeliveryOverride(referenceNumber);
+    }
+  }
+
+  Future<void> _loadManualDeliveryOverride(String referenceNumber) async {
+    try {
+      final row = await SupabaseConfig.client
+          .from('bid_schedule_requirements')
+          .select('delivery_weeks_months,is_manual_override')
+          .eq('reference_number', referenceNumber)
+          .maybeSingle();
+      final isManualOverride = row?['is_manual_override'] == true;
+      final saved = (row?['delivery_weeks_months'] ?? '').toString().trim();
+      if (mounted && isManualOverride && saved.isNotEmpty) {
+        setState(() => deliveredWeeksMonthsController.text = saved);
+      }
+    } catch (error) {
+      debugPrint('Delivery Period override load error: $error');
+    } finally {
+      isLoadingScheduleRequirements = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _scheduleRequirementsSave() {
+    if (isLoadingScheduleRequirements) return;
+    hasPendingDeliveryPeriodOverride = true;
+    scheduleRequirementsSaveTimer?.cancel();
+    scheduleRequirementsSaveTimer = Timer(
+      const Duration(milliseconds: 700),
+      _saveScheduleRequirements,
+    );
+  }
+
+  Future<void> _saveScheduleRequirements() async {
+    final referenceNumber = widget.referenceNumber.trim();
+    if (referenceNumber.isEmpty) return;
+    if (mounted) setState(() => isSavingScheduleRequirements = true);
+    try {
+      await SupabaseConfig.client.from('bid_schedule_requirements').upsert(
+        {
+          'reference_number': referenceNumber,
+          'delivery_weeks_months': deliveredWeeksMonthsController.text.trim(),
+          'is_manual_override': true,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        onConflict: 'reference_number',
+      );
+      hasPendingDeliveryPeriodOverride = false;
+    } catch (error) {
+      debugPrint('Delivery Period override save error: $error');
+    } finally {
+      if (mounted) setState(() => isSavingScheduleRequirements = false);
     }
   }
 
@@ -610,10 +669,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       slccSaveTimer?.cancel();
       technicalSpecificationsSaveTimer?.cancel();
       priceScheduleSaveTimer?.cancel();
+      scheduleRequirementsSaveTimer?.cancel();
       afterSalesSaveTimer?.cancel();
       await _saveSlcc();
       await _saveTechnicalSpecifications();
       await _savePriceSchedule();
+      if (hasPendingDeliveryPeriodOverride) {
+        await _saveScheduleRequirements();
+      }
       await _saveAfterSalesSettings();
       final bytes = await PdfService.generateBidDocs(
         values: {
@@ -1488,9 +1551,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(
-        deliveredWeeksMonthsController.text.trim().isEmpty
-            ? 'No Delivery Period found in PhilGEPS'
-            : 'Auto-filled from PhilGEPS',
+        isLoadingScheduleRequirements
+            ? 'Loading from PhilGEPS...'
+            : isSavingScheduleRequirements
+                ? 'Saving manual correction...'
+                : deliveredWeeksMonthsController.text.trim().isEmpty
+                    ? 'No Delivery Period found in PhilGEPS'
+                    : 'Auto-filled from PhilGEPS • Editable',
       ),
       children: [
         CheckboxListTile(
@@ -1517,7 +1584,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           label: 'Delivery Period (PhilGEPS)',
           controller: deliveredWeeksMonthsController,
           maxLines: 2,
-          readOnly: true,
         ),
         const Text(
           'This delivery schedule applies to all Technical Specification items.',
@@ -1629,7 +1695,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     slccSaveTimer?.cancel();
     technicalSpecificationsSaveTimer?.cancel();
     priceScheduleSaveTimer?.cancel();
+    scheduleRequirementsSaveTimer?.cancel();
     afterSalesSaveTimer?.cancel();
+    deliveredWeeksMonthsController.removeListener(_scheduleRequirementsSave);
     deliveredWeeksMonthsController.dispose();
     afterSalesYearsController.removeListener(_scheduleAfterSalesSave);
     afterSalesYearsController.dispose();
