@@ -7,6 +7,7 @@ import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import '../services/pdf_service.dart';
 import '../../utils/supabase_client.dart';
@@ -210,10 +211,42 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           .eq('reference_number', referenceNumber)
           .maybeSingle();
       final deliveryPeriod = (row?['delivery_period'] ?? '').toString().trim();
+      if (deliveryPeriod.isNotEmpty) {
+        if (!mounted) return;
+        setState(() => deliveredWeeksMonthsController.text = deliveryPeriod);
+        return;
+      }
+      await _refreshPhilgepsDeliveryPeriod(referenceNumber);
+    } catch (error) {
+      debugPrint('PhilGEPS delivery period load error: $error');
+      await _refreshPhilgepsDeliveryPeriod(referenceNumber);
+    }
+  }
+
+  Future<void> _refreshPhilgepsDeliveryPeriod(String referenceNumber) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse(
+              'https://philgepsnotifalert-production.up.railway.app/'
+              'refresh-delivery-period',
+            ),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'referenceNumber': referenceNumber}),
+          )
+          .timeout(const Duration(minutes: 2));
+      if (response.statusCode != 200) {
+        debugPrint('Delivery Period refresh failed: ${response.body}');
+        return;
+      }
+      final decoded = jsonDecode(response.body);
+      final deliveryPeriod = decoded is Map
+          ? (decoded['deliveryPeriod'] ?? '').toString().trim()
+          : '';
       if (!mounted || deliveryPeriod.isEmpty) return;
       setState(() => deliveredWeeksMonthsController.text = deliveryPeriod);
     } catch (error) {
-      debugPrint('PhilGEPS delivery period load error: $error');
+      debugPrint('Delivery Period refresh request error: $error');
     }
   }
 

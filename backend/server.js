@@ -1735,6 +1735,70 @@ app.post(
 
 /*
 |--------------------------------------------------------------------------
+| REFRESH DELIVERY PERIOD
+|--------------------------------------------------------------------------
+*/
+
+app.post(
+  "/refresh-delivery-period",
+  async (req, res) => {
+    const referenceNumber = cleanText(
+      req.body?.referenceNumber || ""
+    );
+    if (!referenceNumber) {
+      return res.status(400).json({
+        error: "referenceNumber is required",
+      });
+    }
+
+    let browser;
+    try {
+      const url =
+        "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/" +
+        `PrintableBidNoticeAbstractUI.aspx?refID=${encodeURIComponent(referenceNumber)}`;
+      browser = await chromium.launch({
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+        ],
+      });
+      const page = await browser.newPage();
+      const details = await getBidDetails(page, url);
+      const deliveryPeriod = cleanText(details.deliveryPeriod || "");
+      if (!deliveryPeriod) {
+        return res.status(404).json({
+          error: "Delivery Period was not found on PhilGEPS",
+        });
+      }
+
+      const { error } = await supabase
+        .from("philgeps_posts")
+        .update({ delivery_period: deliveryPeriod })
+        .eq("reference_number", referenceNumber);
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        referenceNumber,
+        deliveryPeriod,
+      });
+    } catch (error) {
+      console.error(
+        `Delivery Period refresh failed ${referenceNumber}:`,
+        error.message
+      );
+      return res.status(500).json({ error: error.message });
+    } finally {
+      if (browser) await browser.close().catch(() => {});
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
 | ADD BIDDING DOC
 |--------------------------------------------------------------------------
 */
