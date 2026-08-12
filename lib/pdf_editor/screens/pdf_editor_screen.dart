@@ -115,7 +115,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   Timer? slccSaveTimer;
   Timer? technicalSpecificationsSaveTimer;
   Timer? priceScheduleSaveTimer;
-  Timer? scheduleRequirementsSaveTimer;
   Timer? afterSalesSaveTimer;
   bool isLoadingSlcc = true;
   bool isSavingSlcc = false;
@@ -123,8 +122,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isSavingTechnicalSpecifications = false;
   bool isLoadingPriceSchedule = true;
   bool isSavingPriceSchedule = false;
-  bool isLoadingScheduleRequirements = true;
-  bool isSavingScheduleRequirements = false;
   bool includeTotalInScheduleRequirements = false;
   bool useBidSecuringDeclarationWithTable = true;
   bool isLoadingAfterSales = true;
@@ -189,7 +186,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     deliveredWeeksMonthsController = TextEditingController(
       text: widget.deliveryPeriod.trim(),
     );
-    deliveredWeeksMonthsController.addListener(_scheduleRequirementsSave);
     afterSalesYearsController = TextEditingController(text: '1');
     afterSalesYearsController.addListener(_scheduleAfterSalesSave);
     warrantyYearsController = TextEditingController(text: '2');
@@ -200,7 +196,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _loadSlcc();
     _loadTechnicalSpecifications();
     _loadUnitSuggestions();
-    _loadScheduleRequirements();
     _loadAfterSalesSettings();
   }
 
@@ -254,55 +249,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       debugPrint('After-sales settings save error: $error');
     } finally {
       if (mounted) setState(() => isSavingAfterSales = false);
-    }
-  }
-
-  Future<void> _loadScheduleRequirements() async {
-    try {
-      final row = await SupabaseConfig.client
-          .from('bid_schedule_requirements')
-          .select('delivery_weeks_months')
-          .eq('reference_number', widget.referenceNumber.trim())
-          .maybeSingle();
-      final savedDelivery =
-          (row?['delivery_weeks_months'] ?? '').toString().trim();
-      // A user's saved override wins; otherwise use the period scraped from
-      // the PhilGEPS Bid Notice Abstract (for example, "15 Day/s").
-      deliveredWeeksMonthsController.text = savedDelivery.isNotEmpty
-          ? savedDelivery
-          : widget.deliveryPeriod.trim();
-    } catch (error) {
-      debugPrint('Schedule requirements load error: $error');
-    } finally {
-      if (mounted) setState(() => isLoadingScheduleRequirements = false);
-    }
-  }
-
-  void _scheduleRequirementsSave() {
-    if (isLoadingScheduleRequirements) return;
-    scheduleRequirementsSaveTimer?.cancel();
-    scheduleRequirementsSaveTimer = Timer(
-      const Duration(milliseconds: 700),
-      _saveScheduleRequirements,
-    );
-  }
-
-  Future<void> _saveScheduleRequirements() async {
-    if (widget.referenceNumber.trim().isEmpty) return;
-    if (mounted) setState(() => isSavingScheduleRequirements = true);
-    try {
-      await SupabaseConfig.client.from('bid_schedule_requirements').upsert(
-        {
-          'reference_number': widget.referenceNumber.trim(),
-          'delivery_weeks_months': deliveredWeeksMonthsController.text.trim(),
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        },
-        onConflict: 'reference_number',
-      );
-    } catch (error) {
-      debugPrint('Schedule requirements save error: $error');
-    } finally {
-      if (mounted) setState(() => isSavingScheduleRequirements = false);
     }
   }
 
@@ -613,12 +559,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       slccSaveTimer?.cancel();
       technicalSpecificationsSaveTimer?.cancel();
       priceScheduleSaveTimer?.cancel();
-      scheduleRequirementsSaveTimer?.cancel();
       afterSalesSaveTimer?.cancel();
       await _saveSlcc();
       await _saveTechnicalSpecifications();
       await _savePriceSchedule();
-      await _saveScheduleRequirements();
       await _saveAfterSalesSettings();
       final bytes = await PdfService.generateBidDocs(
         values: {
@@ -1493,11 +1437,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(
-        isLoadingScheduleRequirements
-            ? 'Loading saved value...'
-            : isSavingScheduleRequirements
-                ? 'Saving...'
-                : 'Saved automatically',
+        widget.deliveryPeriod.trim().isEmpty
+            ? 'No Delivery Period found in PhilGEPS'
+            : 'Auto-filled from PhilGEPS',
       ),
       children: [
         CheckboxListTile(
@@ -1521,9 +1463,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           },
         ),
         formField(
-          label: 'Delivered Weeks/Months',
+          label: 'Delivery Period (PhilGEPS)',
           controller: deliveredWeeksMonthsController,
           maxLines: 2,
+          readOnly: true,
         ),
         const Text(
           'This delivery schedule applies to all Technical Specification items.',
@@ -1635,9 +1578,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     slccSaveTimer?.cancel();
     technicalSpecificationsSaveTimer?.cancel();
     priceScheduleSaveTimer?.cancel();
-    scheduleRequirementsSaveTimer?.cancel();
     afterSalesSaveTimer?.cancel();
-    deliveredWeeksMonthsController.removeListener(_scheduleRequirementsSave);
     deliveredWeeksMonthsController.dispose();
     afterSalesYearsController.removeListener(_scheduleAfterSalesSave);
     afterSalesYearsController.dispose();
