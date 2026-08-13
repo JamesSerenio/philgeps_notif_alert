@@ -1405,17 +1405,40 @@ class PdfService {
       style: PdfFontStyle.italic,
     );
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
-    final municipality = (values['municipality'] ?? '').trim().toUpperCase();
-    final province = (values['province'] ?? '').trim().toUpperCase();
+    final procuringEntityValue =
+        (values['procuringEntity'] ?? '').trim();
+    final entityParts = procuringEntityValue
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    final entityMunicipality = entityParts.isEmpty
+        ? ''
+        : entityParts.first
+            .replaceFirst(
+              RegExp(r'^MUNICIPALITY\s+OF\s+', caseSensitive: false),
+              '',
+            )
+            .trim();
+    final entityProvince = entityParts.length > 1 ? entityParts.last : '';
+    // The witness venue follows the Procuring Entity. Sidebar municipality
+    // and province values are only fallbacks for older records.
+    final municipalityValue = entityMunicipality.isNotEmpty
+        ? entityMunicipality
+        : (values['municipality'] ?? '').trim();
+    final provinceValue = entityProvince.isNotEmpty
+        ? entityProvince
+        : (values['province'] ?? '').trim();
+    final municipality = municipalityValue.toUpperCase();
+    final province = provinceValue.toUpperCase();
     String titleCase(String value) => value
         .split(RegExp(r'\s+'))
         .where((word) => word.isNotEmpty)
         .map((word) =>
             '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}')
         .join(' ');
-    final venue =
-        'Municipality of ${titleCase((values['municipality'] ?? '').trim())}, '
-        '${titleCase((values['province'] ?? '').trim())}';
+    final venue = 'Municipality of ${titleCase(municipalityValue)}'
+        '${provinceValue.isEmpty ? '' : ', ${titleCase(provinceValue)}'}';
     final dateParts = (values['date'] ?? '').trim().split(RegExp(r'\s+'));
     final year = dateParts.isEmpty ? '' : dateParts.last;
     final recipient = 'MUNICIPALITY OF $municipality, $province';
@@ -4565,25 +4588,45 @@ class PdfService {
     final replacement = startsWithLabel
         ? 'CDO Office: $_permanentBusinessAddress'
         : _permanentBusinessAddress;
-    final font = PdfStandardFont(
+    final availableWidth = pageWidth - left - 20;
+    var fontSize = 9.5;
+    var font = PdfStandardFont(
       PdfFontFamily.helvetica,
-      7.5,
+      fontSize,
       style: PdfFontStyle.italic,
     );
-    graphics.drawString(
-      replacement,
-      font,
-      brush: PdfSolidBrush(PdfColor(0, 0, 0)),
-      bounds: Rect.fromLTWH(
-        left,
-        top + 1,
-        pageWidth - left - 20,
-        addressLine.bounds.height + 5,
-      ),
-      format: PdfStringFormat(
-        wordWrap: PdfWordWrapType.none,
-      ),
+    while (fontSize > 8 &&
+        font.measureString(replacement).width > availableWidth) {
+      fontSize -= .25;
+      font = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        fontSize,
+        style: PdfFontStyle.italic,
+      );
+    }
+    final textBounds = Rect.fromLTWH(
+      left,
+      top,
+      availableWidth,
+      addressLine.bounds.height + 7,
     );
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    // Standard PDF fonts cannot combine bold and italic. Closely repeated
+    // italic passes reproduce the bold-slanted header style in the template.
+    for (final offset in const <double>[0, .22, .44]) {
+      graphics.drawString(
+        replacement,
+        font,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          textBounds.left + offset,
+          textBounds.top,
+          textBounds.width,
+          textBounds.height,
+        ),
+        format: PdfStringFormat(wordWrap: PdfWordWrapType.none),
+      );
+    }
   }
 
   static void _drawJuratPlaceholders(
