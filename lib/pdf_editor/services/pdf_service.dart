@@ -306,6 +306,10 @@ class PdfService {
     // above, leaving the legacy NFCC page in the final document.
     await _replaceNfccPage(document, values);
 
+    if (values['slccTemplateType']?.trim().toLowerCase() == 'none') {
+      _removeSlccSection(document);
+    }
+
     final List<int> outputBytes = await document.save();
     document.dispose();
 
@@ -4557,6 +4561,19 @@ class PdfService {
     drawRow('Designation', 'Authorized Representative', signatureTop + 45);
     drawRow('Name of Firm', displayBidderName, signatureTop + 70);
     drawRow('Date', date, signatureTop + 95);
+  }
+
+  static void _removeSlccSection(PdfDocument document) {
+    const slccPageIndex = 20;
+    const slccPageCount = 3;
+
+    for (
+      var removed = 0;
+      removed < slccPageCount && slccPageIndex < document.pages.count;
+      removed++
+    ) {
+      document.pages.removeAt(slccPageIndex);
+    }
   }
 
   static void _replaceCertificateHeaderAddress(
