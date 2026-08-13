@@ -4614,7 +4614,8 @@ class PdfService {
     final availableWidth = pageWidth - left - 20;
     // Use one fixed size on Manpower, AFS, and Warranty so all three
     // letterheads remain visually identical.
-    const fontSize = 9.0;
+    // Match the visual size of the existing Mobile No. and Email lines.
+    const fontSize = 10.0;
     final font = PdfStandardFont(
       PdfFontFamily.helvetica,
       fontSize,
@@ -4624,7 +4625,7 @@ class PdfService {
       left,
       top,
       availableWidth,
-      referenceHeight + 2,
+      fontSize + 3,
     );
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     // Standard PDF fonts cannot combine bold and italic. Closely repeated
