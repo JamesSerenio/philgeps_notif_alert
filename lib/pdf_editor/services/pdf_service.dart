@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -438,8 +439,7 @@ class PdfService {
     int? technicalSpecificationsPageIndex;
     for (final line in documentLines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-      if (line.pageIndex >= 20 &&
-          text.trim() == 'TECHNICAL SPECIFICATIONS') {
+      if (line.pageIndex >= 20 && text.trim() == 'TECHNICAL SPECIFICATIONS') {
         technicalSpecificationsPageIndex ??= line.pageIndex;
       }
       if (line.pageIndex >= 20 &&
@@ -1456,8 +1456,7 @@ class PdfService {
       style: PdfFontStyle.italic,
     );
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
-    final procuringEntityValue =
-        (values['procuringEntity'] ?? '').trim();
+    final procuringEntityValue = (values['procuringEntity'] ?? '').trim();
     final entityParts = procuringEntityValue
         .split(',')
         .map((part) => part.trim())
@@ -1752,7 +1751,8 @@ class PdfService {
     final selectedDate = (values['date'] ?? '').trim();
     final selectedMunicipality = (values['municipality'] ?? '').trim();
     final selectedProvince = (values['province'] ?? '').trim();
-    final selectedPlace = 'Municipality of $selectedMunicipality, $selectedProvince';
+    final selectedPlace =
+        'Municipality of $selectedMunicipality, $selectedProvince';
     final correctionFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       10,
@@ -4615,9 +4615,8 @@ class PdfService {
 
     for (final rawLine in text.replaceAll('\u2029', '\n').split('\n')) {
       final match = markerPattern.firstMatch(rawLine);
-      final content = match == null
-          ? rawLine.trim()
-          : rawLine.substring(match.end).trim();
+      final content =
+          match == null ? rawLine.trim() : rawLine.substring(match.end).trim();
       final contentWidth = math.max(1.0, width - (match == null ? 0 : 14));
       final measured = font.measureString(
         content.isEmpty ? ' ' : content,
@@ -4661,11 +4660,9 @@ class PdfService {
     const slccPageIndex = 20;
     const slccPageCount = 3;
 
-    for (
-      var removed = 0;
-      removed < slccPageCount && slccPageIndex < document.pages.count;
-      removed++
-    ) {
+    for (var removed = 0;
+        removed < slccPageCount && slccPageIndex < document.pages.count;
+        removed++) {
       document.pages.removeAt(slccPageIndex);
     }
   }
@@ -4700,7 +4697,8 @@ class PdfService {
     // Rebuild the three contact lines as one block. Clearing and redrawing the
     // whole block prevents remnants/overlap from the flattened templates and
     // keeps Manpower, AFS, and Warranty visually identical.
-    final referenceHeight = mobileLine?.bounds.height ?? addressLine.bounds.height;
+    final referenceHeight =
+        mobileLine?.bounds.height ?? addressLine.bounds.height;
     final top = addressLine.bounds.top;
     final left = mobileLine?.bounds.left ?? addressLine.bounds.left;
     final clearTop = top - 1;
