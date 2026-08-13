@@ -2154,14 +2154,16 @@ class _TechnicalSpecificationEntry {
     String quantity = '',
     String unit = '',
     String parameter = '',
-  })  : itemNumber = TextEditingController(text: itemNumber),
+  })  : _itemNumber = TextEditingController(text: itemNumber),
         specification = TextEditingController(text: specification),
         quantity = TextEditingController(text: quantity),
         unit = TextEditingController(text: unit),
         parameter = TextEditingController(text: parameter),
         hasParameter = parameter.trim().isNotEmpty;
 
-  final TextEditingController itemNumber;
+  TextEditingController? _itemNumber;
+  TextEditingController get itemNumber =>
+      _itemNumber ??= TextEditingController();
   final TextEditingController specification;
   final TextEditingController quantity;
   final TextEditingController unit;
@@ -2173,7 +2175,7 @@ class _TechnicalSpecificationEntry {
       [itemNumber, specification, quantity, unit, parameter];
 
   void dispose() {
-    itemNumber.dispose();
+    _itemNumber?.dispose();
     specification.dispose();
     quantity.dispose();
     unit.dispose();
