@@ -257,6 +257,39 @@ class PdfService {
     await _replaceAfsSection(document);
     await _replaceNfccPage(document, values);
 
+    // Reverse final PDF pages 29-43 while preserving every page exactly.
+    // Export them as templates first, remove the original range, then insert
+    // them back in reverse order at the same position.
+    if (document.pages.count >= 43) {
+      const reverseStartIndex = 28;
+      const reversePageCount = 15;
+      final reversedTemplates = <({PdfTemplate template, Size size})>[
+        for (var index = reverseStartIndex + reversePageCount - 1;
+            index >= reverseStartIndex;
+            index--)
+          (
+            template: document.pages[index].createTemplate(),
+            size: document.pages[index].size,
+          ),
+      ];
+      for (var page = 0; page < reversePageCount; page++) {
+        document.pages.removeAt(reverseStartIndex);
+      }
+      for (var index = 0; index < reversedTemplates.length; index++) {
+        final source = reversedTemplates[index];
+        final target = document.pages.insert(
+          reverseStartIndex + index,
+          source.size,
+          PdfMargins()..all = 0,
+        );
+        target.graphics.drawPdfTemplate(
+          source.template,
+          Offset.zero,
+          source.size,
+        );
+      }
+    }
+
     // These two attachment sheets are intentionally excluded from the final
     // bid document. Remove the higher page first so PDF page 44 does not shift
     // before it is deleted (PDF page numbers are one-based).
