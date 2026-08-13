@@ -4559,15 +4559,18 @@ class PdfService {
     List<TextLine> lines,
   ) {
     TextLine? addressLine;
+    TextLine? mobileLine;
     for (final line in lines) {
       final normalized = line.text.toUpperCase().replaceAll(
             RegExp(r'\s+'),
             ' ',
           );
+      if (normalized.trimLeft().startsWith('MOBILE NO')) {
+        mobileLine ??= line;
+      }
       if (normalized.contains('SAN AGUSTIN VALLEY HOMES') ||
           normalized.contains('L-25 & 27 B-2')) {
         addressLine = line;
-        break;
       }
     }
     if (addressLine == null) return;
@@ -4576,15 +4579,28 @@ class PdfService {
     final pageWidth = page.getClientSize().width;
     // Clear only the original address glyphs. A taller band also erases the
     // Mobile No. line immediately below it on these tightly spaced headers.
-    final top = addressLine.bounds.top - .5;
-    final left = addressLine.bounds.left;
+    // Anchor the replacement to the existing Mobile No. line. This preserves
+    // the original letterhead's left edge and compact line spacing even when
+    // the scanned templates have slightly different address coordinates.
+    final referenceHeight = mobileLine?.bounds.height ?? addressLine.bounds.height;
+    final top = mobileLine == null
+        ? addressLine.bounds.top - .5
+        : mobileLine.bounds.top - referenceHeight - 1;
+    final left = mobileLine?.bounds.left ?? addressLine.bounds.left;
+    final clearTop = addressLine.bounds.top < top
+        ? addressLine.bounds.top - .5
+        : top - .5;
+    final clearBottom = (addressLine.bounds.bottom > top + referenceHeight
+            ? addressLine.bounds.bottom
+            : top + referenceHeight) +
+        .8;
     graphics.drawRectangle(
       brush: PdfSolidBrush(PdfColor(255, 255, 255)),
       bounds: Rect.fromLTWH(
         left - 2,
-        top,
+        clearTop,
         pageWidth - left - 18,
-        addressLine.bounds.height + 1.5,
+        clearBottom - clearTop,
       ),
     );
 
@@ -4608,7 +4624,7 @@ class PdfService {
       left,
       top,
       availableWidth,
-      addressLine.bounds.height + 2,
+      referenceHeight + 2,
     );
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     // Standard PDF fonts cannot combine bold and italic. Closely repeated
