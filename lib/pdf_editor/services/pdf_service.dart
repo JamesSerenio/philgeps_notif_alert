@@ -3391,7 +3391,13 @@ class PdfService {
     }
     if (pageIndex == null) return;
 
-    final pageLines = lines.where((line) => line.pageIndex == pageIndex);
+    final page = document.pages[pageIndex];
+    final pageLines = lines
+        .where((line) => line.pageIndex == pageIndex)
+        .toList(growable: false);
+    // Keep the List of Manpower letterhead consistent with the AFS and
+    // Product Warranty pages.
+    _replaceCertificateHeaderAddress(page, pageLines);
     TextLine? submittedLabel;
     for (final line in pageLines) {
       final text =
@@ -3405,7 +3411,6 @@ class PdfService {
     }
     if (submittedLabel == null) return;
 
-    final page = document.pages[pageIndex];
     final submittedBy = (values['submittedBy'] ?? '').trim().toUpperCase();
     final bidderName = (values['bidderName'] ?? '').trim().toUpperCase();
     final date = (values['date'] ?? '').trim();
@@ -4569,7 +4574,9 @@ class PdfService {
 
     final graphics = page.graphics;
     final pageWidth = page.getClientSize().width;
-    final top = addressLine.bounds.top - 2;
+    // Clear only the original address glyphs. A taller band also erases the
+    // Mobile No. line immediately below it on these tightly spaced headers.
+    final top = addressLine.bounds.top - .5;
     final left = addressLine.bounds.left;
     graphics.drawRectangle(
       brush: PdfSolidBrush(PdfColor(255, 255, 255)),
@@ -4577,7 +4584,7 @@ class PdfService {
         left - 2,
         top,
         pageWidth - left - 18,
-        addressLine.bounds.height + 6,
+        addressLine.bounds.height + 1.5,
       ),
     );
 
@@ -4589,26 +4596,19 @@ class PdfService {
         ? 'CDO Office: $_permanentBusinessAddress'
         : _permanentBusinessAddress;
     final availableWidth = pageWidth - left - 20;
-    var fontSize = 9.5;
-    var font = PdfStandardFont(
+    // Use one fixed size on Manpower, AFS, and Warranty so all three
+    // letterheads remain visually identical.
+    const fontSize = 9.0;
+    final font = PdfStandardFont(
       PdfFontFamily.helvetica,
       fontSize,
       style: PdfFontStyle.italic,
     );
-    while (fontSize > 8 &&
-        font.measureString(replacement).width > availableWidth) {
-      fontSize -= .25;
-      font = PdfStandardFont(
-        PdfFontFamily.helvetica,
-        fontSize,
-        style: PdfFontStyle.italic,
-      );
-    }
     final textBounds = Rect.fromLTWH(
       left,
       top,
       availableWidth,
-      addressLine.bounds.height + 7,
+      addressLine.bounds.height + 2,
     );
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     // Standard PDF fonts cannot combine bold and italic. Closely repeated
