@@ -511,14 +511,16 @@ class PdfService {
     // The original signatory block starts well above the bottom margin.
     // Clear from there through the bottom so both the old and any previously
     // generated values are removed before drawing the single final block.
-    final footerTop = sourcePage.size.height - 270;
+    // Begin below the NFCC computation table. This is high enough to remove
+    // the legacy MARLJONE block but does not cover the Computed NFCC row.
+    final footerTop = sourcePage.size.height - 235;
     graphics.drawRectangle(
       brush: white,
       bounds: Rect.fromLTWH(
         18,
         footerTop - 12,
         sourcePage.size.width - 36,
-        282,
+        247,
       ),
     );
     graphics.drawString(
