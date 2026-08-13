@@ -257,6 +257,12 @@ class PdfService {
     await _replaceAfsSection(document);
     await _replaceNfccPage(document, values);
 
+    // These two attachment sheets are intentionally excluded from the final
+    // bid document. Remove the higher page first so PDF page 44 does not shift
+    // before it is deleted (PDF page numbers are one-based).
+    if (document.pages.count >= 45) document.pages.removeAt(44);
+    if (document.pages.count >= 44) document.pages.removeAt(43);
+
     final List<int> outputBytes = await document.save();
     document.dispose();
 
