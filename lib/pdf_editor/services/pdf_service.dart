@@ -420,20 +420,29 @@ class PdfService {
     PdfDocument document,
     Map<String, String> values,
   ) async {
-    // In the assembled bid document the NFCC sheet is final PDF page 44.
-    // The legacy sheet is commonly a flattened scan, so text extraction may
-    // return no title at all. Use its stable page slot first and retain title
-    // detection only as a fallback for documents with a different layout.
-    int? nfccPageIndex = document.pages.count >= 44 ? 43 : null;
+    // The legacy NFCC is commonly a flattened scan, so its own title cannot
+    // always be extracted. Anchor it to the document structure instead: NFCC
+    // is the page immediately before the generated Technical Specifications
+    // section. This remains correct when earlier sections gain extra pages.
+    int? nfccPageIndex;
     final documentLines = PdfTextExtractor(document).extractTextLines();
+    int? technicalSpecificationsPageIndex;
     for (final line in documentLines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (line.pageIndex >= 20 &&
+          text.trim() == 'TECHNICAL SPECIFICATIONS') {
+        technicalSpecificationsPageIndex ??= line.pageIndex;
+      }
       if (line.pageIndex >= 20 &&
           text.contains('NET FINANCIAL CONTRACTING CAPACITY') &&
           text.contains('NFCC') &&
           text.length < 100) {
         nfccPageIndex = line.pageIndex;
       }
+    }
+    if (technicalSpecificationsPageIndex != null &&
+        technicalSpecificationsPageIndex > 0) {
+      nfccPageIndex = technicalSpecificationsPageIndex - 1;
     }
     if (nfccPageIndex == null) return;
 
@@ -502,14 +511,14 @@ class PdfService {
     // The original signatory block starts well above the bottom margin.
     // Clear from there through the bottom so both the old and any previously
     // generated values are removed before drawing the single final block.
-    final footerTop = sourcePage.size.height - 190;
+    final footerTop = sourcePage.size.height - 270;
     graphics.drawRectangle(
       brush: white,
       bounds: Rect.fromLTWH(
         18,
         footerTop - 12,
         sourcePage.size.width - 36,
-        202,
+        282,
       ),
     );
     graphics.drawString(
