@@ -420,8 +420,12 @@ class PdfService {
     PdfDocument document,
     Map<String, String> values,
   ) async {
+    // In the assembled bid document the NFCC sheet is final PDF page 44.
+    // The legacy sheet is commonly a flattened scan, so text extraction may
+    // return no title at all. Use its stable page slot first and retain title
+    // detection only as a fallback for documents with a different layout.
+    int? nfccPageIndex = document.pages.count >= 44 ? 43 : null;
     final documentLines = PdfTextExtractor(document).extractTextLines();
-    int? nfccPageIndex;
     for (final line in documentLines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
       if (line.pageIndex >= 20 &&
