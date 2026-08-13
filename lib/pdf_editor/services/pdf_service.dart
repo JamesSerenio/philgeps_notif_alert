@@ -255,7 +255,6 @@ class PdfService {
     // stable while the document is being prepared.
     await _replaceSlccSection(document, values);
     await _replaceAfsSection(document);
-    await _replaceNfccPage(document, values);
 
     // Reverse final PDF pages 29-43 while preserving every page exactly.
     // Export them as templates first, remove the original range, then insert
@@ -301,6 +300,11 @@ class PdfService {
     // before it is deleted (PDF page numbers are one-based).
     if (document.pages.count >= 45) document.pages.removeAt(44);
     if (document.pages.count >= 44) document.pages.removeAt(43);
+
+    // Replace NFCC only after all page moves/removals. Otherwise the newly
+    // inserted template can itself be moved or removed by the operations
+    // above, leaving the legacy NFCC page in the final document.
+    await _replaceNfccPage(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -420,9 +424,11 @@ class PdfService {
     int? nfccPageIndex;
     for (final line in documentLines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-      if (text == 'NET FINANCIAL CONTRACTING CAPACITY (NFCC)') {
+      if (line.pageIndex >= 20 &&
+          text.contains('NET FINANCIAL CONTRACTING CAPACITY') &&
+          text.contains('NFCC') &&
+          text.length < 100) {
         nfccPageIndex = line.pageIndex;
-        break;
       }
     }
     if (nfccPageIndex == null) return;
@@ -435,10 +441,6 @@ class PdfService {
     }
 
     final sourcePage = sourceDocument.pages[0];
-    final sourceLines = PdfTextExtractor(sourceDocument).extractTextLines(
-      startPageIndex: 0,
-      endPageIndex: 0,
-    );
     final graphics = sourcePage.graphics;
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
@@ -452,56 +454,70 @@ class PdfService {
     final referenceNumber = (values['referenceNumber'] ?? '').trim();
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final submittedBy = (values['submittedBy'] ?? '').trim();
-    final date = (values['date'] ?? '').trim();
+    final date = DateFormat('MMMM d, yyyy').format(DateTime.now());
+    const address =
+        'SITIO PULI, CARMEN, CAGAYAN DE ORO CITY, MISAMIS ORIENTAL, 9000';
 
-    String? replacementFor(String upper) {
-      if (upper.contains('PROCURING ENTITY:')) {
-        return 'PROCURING ENTITY: ${procuringEntity.toUpperCase()}';
-      }
-      if (upper.contains('PROJECT NUMBER:')) {
-        return 'Project Number: $referenceNumber';
-      }
-      if (upper.startsWith('CONTRACT:')) {
-        return 'CONTRACT: ${projectTitle.toUpperCase()}';
-      }
-      if (upper.startsWith('SUBMITTED')) {
-        return 'Submitted          ${submittedBy.toUpperCase()}';
-      }
-      if (upper.startsWith('DESIGNATION')) {
-        return 'Designation   :    Authorized Representative';
-      }
-      if (upper.startsWith('DATE')) return 'Date             :    $date';
-      return null;
-    }
-
-    for (final line in sourceLines) {
-      final upper =
-          line.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-      final replacement = replacementFor(upper);
-      if (replacement == null) continue;
-      final bounds = line.bounds;
-      graphics.drawRectangle(
-        brush: white,
-        bounds: Rect.fromLTWH(
-          bounds.left - 2,
-          bounds.top - 1,
-          sourcePage.size.width - bounds.left + 2,
-          bounds.height + 5,
-        ),
+    // Values in the supplied NFCC file are sometimes encoded together in a
+    // single text object. Clear the complete variable header instead of
+    // trying to replace individual extracted lines.
+    graphics.drawRectangle(
+      brush: white,
+      bounds: Rect.fromLTWH(18, 65, sourcePage.size.width - 36, 86),
+    );
+    void drawHeader(String label, String value, double top) {
+      graphics.drawString(
+        label,
+        regular,
+        brush: black,
+        bounds: Rect.fromLTWH(20, top, 110, 16),
       );
       graphics.drawString(
-        replacement,
-        upper.startsWith('SUBMITTED') ? bold : regular,
+        value,
+        regular,
         brush: black,
-        bounds: Rect.fromLTWH(
-          bounds.left,
-          bounds.top,
-          sourcePage.size.width - bounds.left - 28,
-          bounds.height + 16,
-        ),
+        bounds: Rect.fromLTWH(130, top, sourcePage.size.width - 150, 28),
         format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
       );
     }
+
+    drawHeader('PROCURING ENTITY:', procuringEntity.toUpperCase(), 70);
+    drawHeader('Project Number:', referenceNumber, 86);
+    drawHeader('CONTRACT:', projectTitle.toUpperCase(), 102);
+    drawHeader('Supplier/Contractor:',
+        (values['bidderName'] ?? '').trim().toUpperCase(), 122);
+    drawHeader('Address:', address, 138);
+
+    // Replace the complete signatory block and always stamp today's date.
+    final footerTop = sourcePage.size.height - 72;
+    graphics.drawRectangle(
+      brush: white,
+      bounds: Rect.fromLTWH(18, footerTop - 4, sourcePage.size.width - 36, 72),
+    );
+    graphics.drawString(
+      'Submitted',
+      regular,
+      brush: black,
+      bounds: Rect.fromLTWH(20, footerTop, 95, 16),
+    );
+    graphics.drawString(
+      submittedBy.toUpperCase(),
+      bold,
+      brush: black,
+      bounds: Rect.fromLTWH(125, footerTop, 300, 16),
+    );
+    graphics.drawString(
+      'Designation   :    Authorized Representative',
+      regular,
+      brush: black,
+      bounds: Rect.fromLTWH(20, footerTop + 18, 360, 16),
+    );
+    graphics.drawString(
+      'Date             :    $date',
+      regular,
+      brush: black,
+      bounds: Rect.fromLTWH(20, footerTop + 36, 280, 16),
+    );
 
     document.pages.removeAt(nfccPageIndex);
     const a4Size = Size(595.28, 841.89);
