@@ -255,6 +255,7 @@ class PdfService {
     // stable while the document is being prepared.
     await _replaceSlccSection(document, values);
     await _replaceAfsSection(document);
+    await _replaceNfccPage(document, values);
 
     final List<int> outputBytes = await document.save();
     document.dispose();
@@ -363,6 +364,121 @@ class PdfService {
         fittedSize,
       );
     }
+    sourceDocument.dispose();
+  }
+
+  static Future<void> _replaceNfccPage(
+    PdfDocument document,
+    Map<String, String> values,
+  ) async {
+    final documentLines = PdfTextExtractor(document).extractTextLines();
+    int? nfccPageIndex;
+    for (final line in documentLines) {
+      final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (text == 'NET FINANCIAL CONTRACTING CAPACITY (NFCC)') {
+        nfccPageIndex = line.pageIndex;
+        break;
+      }
+    }
+    if (nfccPageIndex == null) return;
+
+    final data = await rootBundle.load('assets/pdf/NFCC_Template.pdf');
+    final sourceDocument = PdfDocument(inputBytes: data.buffer.asUint8List());
+    if (sourceDocument.pages.count == 0) {
+      sourceDocument.dispose();
+      return;
+    }
+
+    final sourcePage = sourceDocument.pages[0];
+    final sourceLines = PdfTextExtractor(sourceDocument).extractTextLines(
+      startPageIndex: 0,
+      endPageIndex: 0,
+    );
+    final graphics = sourcePage.graphics;
+    final white = PdfSolidBrush(PdfColor(255, 255, 255));
+    final black = PdfSolidBrush(PdfColor(0, 0, 0));
+    final regular = PdfStandardFont(PdfFontFamily.helvetica, 10);
+    final bold = PdfStandardFont(
+      PdfFontFamily.helvetica,
+      10,
+      style: PdfFontStyle.bold,
+    );
+    final procuringEntity = (values['procuringEntity'] ?? '').trim();
+    final referenceNumber = (values['referenceNumber'] ?? '').trim();
+    final projectTitle = (values['projectTitle'] ?? '').trim();
+    final submittedBy = (values['submittedBy'] ?? '').trim();
+    final date = (values['date'] ?? '').trim();
+
+    String? replacementFor(String upper) {
+      if (upper.contains('PROCURING ENTITY:')) {
+        return 'PROCURING ENTITY: ${procuringEntity.toUpperCase()}';
+      }
+      if (upper.contains('PROJECT NUMBER:')) {
+        return 'Project Number: $referenceNumber';
+      }
+      if (upper.startsWith('CONTRACT:')) {
+        return 'CONTRACT: ${projectTitle.toUpperCase()}';
+      }
+      if (upper.startsWith('SUBMITTED')) {
+        return 'Submitted          ${submittedBy.toUpperCase()}';
+      }
+      if (upper.startsWith('DESIGNATION')) {
+        return 'Designation   :    Authorized Representative';
+      }
+      if (upper.startsWith('DATE')) return 'Date             :    $date';
+      return null;
+    }
+
+    for (final line in sourceLines) {
+      final upper =
+          line.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+      final replacement = replacementFor(upper);
+      if (replacement == null) continue;
+      final bounds = line.bounds;
+      graphics.drawRectangle(
+        brush: white,
+        bounds: Rect.fromLTWH(
+          bounds.left - 2,
+          bounds.top - 1,
+          sourcePage.size.width - bounds.left + 2,
+          bounds.height + 5,
+        ),
+      );
+      graphics.drawString(
+        replacement,
+        upper.startsWith('SUBMITTED') ? bold : regular,
+        brush: black,
+        bounds: Rect.fromLTWH(
+          bounds.left,
+          bounds.top,
+          sourcePage.size.width - bounds.left - 28,
+          bounds.height + 16,
+        ),
+        format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      );
+    }
+
+    document.pages.removeAt(nfccPageIndex);
+    const a4Size = Size(595.28, 841.89);
+    final sourceSize = sourcePage.size;
+    final scale = (a4Size.width / sourceSize.width)
+        .clamp(0.0, a4Size.height / sourceSize.height)
+        .toDouble();
+    final fittedSize =
+        Size(sourceSize.width * scale, sourceSize.height * scale);
+    final targetPage = document.pages.insert(
+      nfccPageIndex,
+      a4Size,
+      PdfMargins()..all = 0,
+    );
+    targetPage.graphics.drawPdfTemplate(
+      sourcePage.createTemplate(),
+      Offset(
+        (a4Size.width - fittedSize.width) / 2,
+        (a4Size.height - fittedSize.height) / 2,
+      ),
+      fittedSize,
+    );
     sourceDocument.dispose();
   }
 
