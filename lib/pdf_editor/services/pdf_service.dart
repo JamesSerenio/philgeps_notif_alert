@@ -2871,7 +2871,7 @@ class PdfService {
     ];
     final pageRowCounts = <int>[];
     var nextItem = 0;
-    while (nextItem < priceRows.length && pageRowCounts.length < 8) {
+    while (nextItem < priceRows.length) {
       var usedHeight = 0.0;
       var count = 0;
       while (nextItem + count < priceRows.length) {
@@ -2885,6 +2885,24 @@ class PdfService {
     }
     if (pageRowCounts.isEmpty) pageRowCounts.add(0);
     final pageCount = pageRowCounts.length;
+
+    // The source document provides eight Price Schedule sheets. When the
+    // entered specifications need more than those templates, insert clean
+    // continuation pages immediately after them instead of clipping rows or
+    // drawing over the total/signature block.
+    const bundledPriceSchedulePages = 8;
+    if (pageCount > bundledPriceSchedulePages) {
+      final sourceSize = document.pages[startPageIndex].size;
+      for (var extraPage = bundledPriceSchedulePages;
+          extraPage < pageCount;
+          extraPage++) {
+        document.pages.insert(
+          startPageIndex + extraPage,
+          sourceSize,
+          PdfMargins()..all = 0,
+        );
+      }
+    }
     const baseColumns = <double>[
       24,
       52,
