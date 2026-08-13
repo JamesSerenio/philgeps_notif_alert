@@ -2276,19 +2276,18 @@ class PdfService {
           .split(RegExp(r'\r?\n'))
           .where((line) => line.trim().isNotEmpty)
           .toList();
-      final chunks = <List<String>>[];
-      if (lines.isEmpty) {
-        chunks.add(<String>['']);
-      } else {
-        for (var start = 0; start < lines.length; start += 16) {
-          chunks.add(lines.skip(start).take(16).toList());
-        }
-      }
+      final chunks = lines.isEmpty
+          ? <List<String>>[
+              <String>[''],
+            ]
+          : <List<String>>[
+              for (final line in lines) <String>[line],
+            ];
       for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         renderRows.add(<String, dynamic>{
           ...source,
           'specification': chunks[chunkIndex].join('\n'),
-          '_itemNumber': (source['itemNumber'] ?? '${sourceIndex + 1}'),
+          '_itemNumber': sourceIndex + 1,
           '_continuation': chunkIndex > 0,
           if (chunkIndex > 0) 'quantity': '',
           if (chunkIndex > 0) 'unit': '',
@@ -2599,11 +2598,40 @@ class PdfService {
       );
       for (var row = 0; row < rowsOnPage; row++) {
         horizontalY += rowHeights[pageStartItemIndex + row];
-        page.graphics.drawLine(
-          gridPen,
-          Offset(columns.first, horizontalY),
-          Offset(columns.last, horizontalY),
-        );
+        final currentIndex = pageStartItemIndex + row;
+        final currentItem = '${renderRows[currentIndex]['_itemNumber']}';
+        final nextItem = currentIndex + 1 < renderRows.length
+            ? '${renderRows[currentIndex + 1]['_itemNumber']}'
+            : null;
+        final isInternalItemLine = currentItem == nextItem;
+        if (isInternalItemLine) {
+          // Keep Item No., Qty, and Unit visually merged for all lines under
+          // one item. Only Specification (and optional Parameter) plus
+          // Compliance receive a separator for every added line.
+          page.graphics.drawLine(
+            gridPen,
+            Offset(columns[1], horizontalY),
+            Offset(columns[2], horizontalY),
+          );
+          if (hasAnyParameter) {
+            page.graphics.drawLine(
+              gridPen,
+              Offset(columns[4], horizontalY),
+              Offset(columns[5], horizontalY),
+            );
+          }
+          page.graphics.drawLine(
+            gridPen,
+            Offset(columns[columns.length - 2], horizontalY),
+            Offset(columns.last, horizontalY),
+          );
+        } else {
+          page.graphics.drawLine(
+            gridPen,
+            Offset(columns.first, horizontalY),
+            Offset(columns.last, horizontalY),
+          );
+        }
       }
 
       final headers = <String>[
@@ -2647,7 +2675,7 @@ class PdfService {
           (specification['quantity'] ?? '').toString(),
           (specification['unit'] ?? '').toString(),
           if (hasAnyParameter) (specification['parameter'] ?? '').toString(),
-          isContinuation ? '' : 'COMPLY',
+          'COMPLY',
         ];
         final rowHeight = rowHeights[itemIndex];
         for (var column = 0; column < texts.length; column++) {

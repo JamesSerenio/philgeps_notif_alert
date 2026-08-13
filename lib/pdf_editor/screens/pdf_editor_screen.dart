@@ -368,7 +368,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   void _addTechnicalSpecification({
-    String itemNumber = '',
     String specification = '',
     String quantity = '1',
     String unit = 'unit',
@@ -377,9 +376,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }) {
     if (technicalSpecifications.length >= 72) return;
     final entry = _TechnicalSpecificationEntry(
-      itemNumber: itemNumber.isEmpty
-          ? '${technicalSpecifications.length + 1}'
-          : itemNumber,
       specification: specification,
       quantity: quantity,
       unit: unit,
@@ -459,7 +455,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         for (final value in savedSpecifications.take(72)) {
           if (value is Map) {
             _addTechnicalSpecification(
-              itemNumber: (value['itemNumber'] ?? '').toString(),
               specification: (value['specification'] ?? '').toString(),
               quantity: (value['quantity'] ?? '').toString().trim().isEmpty
                   ? '1'
@@ -576,7 +571,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       final specifications = [
         for (final entry in technicalSpecifications)
           {
-            'itemNumber': entry.itemNumber.text.trim(),
             'specification': entry.specification.text.trim(),
             'quantity': entry.quantity.text.trim(),
             'unit': entry.unit.text.trim(),
@@ -685,7 +679,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'technicalSpecifications': jsonEncode([
             for (final entry in technicalSpecifications)
               {
-                'itemNumber': entry.itemNumber.text.trim(),
                 'specification': entry.specification.text.trim(),
                 'quantity': entry.quantity.text.trim(),
                 'unit': entry.unit.text.trim(),
@@ -1158,24 +1151,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                               color: Color(0xFF0B5D3B),
                             ),
                             const SizedBox(width: 7),
-                            SizedBox(
-                              width: 100,
-                              child: TextField(
-                                controller:
-                                    technicalSpecifications[index].itemNumber,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                ],
-                                decoration: const InputDecoration(
-                                  labelText: 'Item No.',
-                                  isDense: true,
-                                  border: OutlineInputBorder(),
-                                ),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF234B38),
-                                ),
+                            Text(
+                              'Item ${index + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF234B38),
                               ),
                             ),
                           ],
@@ -1195,6 +1175,23 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                     inputFormatters: const <TextInputFormatter>[
                       _SpecificationListFormatter(),
                     ],
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        final entry = technicalSpecifications[index];
+                        final current = entry.specification.text;
+                        entry.specification.text = current.trim().isEmpty
+                            ? '✓ '
+                            : '${current.trimRight()}\n✓ ';
+                        entry.specification.selection = TextSelection.collapsed(
+                          offset: entry.specification.text.length,
+                        );
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add line'),
+                    ),
                   ),
                   Wrap(
                     spacing: 4,
@@ -2149,21 +2146,16 @@ class _SpecificationListFormatter extends TextInputFormatter {
 
 class _TechnicalSpecificationEntry {
   _TechnicalSpecificationEntry({
-    String itemNumber = '',
     String specification = '',
     String quantity = '',
     String unit = '',
     String parameter = '',
-  })  : _itemNumber = TextEditingController(text: itemNumber),
-        specification = TextEditingController(text: specification),
+  })  : specification = TextEditingController(text: specification),
         quantity = TextEditingController(text: quantity),
         unit = TextEditingController(text: unit),
         parameter = TextEditingController(text: parameter),
         hasParameter = parameter.trim().isNotEmpty;
 
-  TextEditingController? _itemNumber;
-  TextEditingController get itemNumber =>
-      _itemNumber ??= TextEditingController();
   final TextEditingController specification;
   final TextEditingController quantity;
   final TextEditingController unit;
@@ -2172,10 +2164,9 @@ class _TechnicalSpecificationEntry {
   final FocusNode unitFocusNode = FocusNode();
 
   List<TextEditingController> get controllers =>
-      [itemNumber, specification, quantity, unit, parameter];
+      [specification, quantity, unit, parameter];
 
   void dispose() {
-    _itemNumber?.dispose();
     specification.dispose();
     quantity.dispose();
     unit.dispose();
