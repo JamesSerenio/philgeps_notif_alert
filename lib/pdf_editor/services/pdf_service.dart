@@ -316,8 +316,13 @@ class PdfService {
     PdfDocument document,
     Map<String, String> values,
   ) async {
+    final requestedTemplate =
+        values['slccTemplateType']?.trim().toLowerCase() ?? 'cctv';
+    // Keep the legacy placeholder pages until all fixed-index replacements
+    // finish. They are removed near the end when SLCC is disabled.
+    if (requestedTemplate == 'none') return;
     final templateType =
-        values['slccTemplateType'] == 'streetlight' ? 'streetlight' : 'cctv';
+        requestedTemplate == 'streetlight' ? 'streetlight' : 'cctv';
     final assetPath = templateType == 'streetlight'
         ? 'assets/pdf/SLCC_Streetlight_template.pdf'
         : 'assets/pdf/SLCC_CCTV_template.pdf';

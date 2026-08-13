@@ -25,7 +25,7 @@ drop constraint if exists bid_slcc_entries_template_type_check;
 
 alter table public.bid_slcc_entries
 add constraint bid_slcc_entries_template_type_check
-check (template_type in ('cctv', 'streetlight'));
+  check (template_type in ('none', 'cctv', 'streetlight'));
 
 alter table public.bid_slcc_entries enable row level security;
 

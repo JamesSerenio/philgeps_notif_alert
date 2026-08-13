@@ -617,9 +617,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           .maybeSingle();
       if (row != null) {
         final savedTemplate = (row['template_type'] ?? '').toString();
-        if (savedTemplate == 'cctv' || savedTemplate == 'streetlight') {
-          selectedSlccTemplate = savedTemplate;
-        }
+      if (savedTemplate == 'none' ||
+          savedTemplate == 'cctv' ||
+          savedTemplate == 'streetlight') {
+        selectedSlccTemplate = savedTemplate;
+      }
       }
     } catch (error) {
       debugPrint('SLCC load error: $error');
@@ -1041,8 +1043,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         SizedBox(
           width: double.infinity,
           child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'cctv', label: Text('CCTV')),
+      segments: const [
+        ButtonSegment(value: 'none', label: Text('None')),
+        ButtonSegment(value: 'cctv', label: Text('CCTV')),
               ButtonSegment(
                 value: 'streetlight',
                 label: Text('Street Lights'),
