@@ -488,7 +488,10 @@ class PdfService {
   static String _pdfSafeText(String value) => value
       .replaceAll('\u2714', '\u2713')
       .replaceAll('\u221A', '\u2713')
-      .replaceAll('\u2029', '\n\n');
+      // This function also receives JSON-encoded form values. Use escaped
+      // newline sequences so replacing a legacy separator cannot insert a
+      // raw control character inside a JSON string literal.
+      .replaceAll('\u2029', r'\n\n');
 
   static void _drawMarkedSpecificationText(
     PdfGraphics graphics,
