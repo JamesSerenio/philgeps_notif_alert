@@ -606,9 +606,19 @@ class PdfService {
       bounds: Rect.fromLTWH(125, footerTop + 36, 280, 18),
     );
 
+    // Save and reopen the edited NFCC template before importing it. Creating a
+    // template directly from sourcePage can copy the original imported page
+    // and omit the replacement graphics drawn above.
+    final modifiedSourceBytes = await sourceDocument.save();
+    sourceDocument.dispose();
+    final flattenedSourceDocument = PdfDocument(
+      inputBytes: modifiedSourceBytes,
+    );
+    final flattenedSourcePage = flattenedSourceDocument.pages[0];
+
     document.pages.removeAt(nfccPageIndex);
     const a4Size = Size(595.28, 841.89);
-    final sourceSize = sourcePage.size;
+    final sourceSize = flattenedSourcePage.size;
     final scale = (a4Size.width / sourceSize.width)
         .clamp(0.0, a4Size.height / sourceSize.height)
         .toDouble();
@@ -620,14 +630,14 @@ class PdfService {
       PdfMargins()..all = 0,
     );
     targetPage.graphics.drawPdfTemplate(
-      sourcePage.createTemplate(),
+      flattenedSourcePage.createTemplate(),
       Offset(
         (a4Size.width - fittedSize.width) / 2,
         (a4Size.height - fittedSize.height) / 2,
       ),
       fittedSize,
     );
-    sourceDocument.dispose();
+    flattenedSourceDocument.dispose();
   }
 
   /// Standard PDF fonts do not contain Unicode checkmark glyphs. Normalize
