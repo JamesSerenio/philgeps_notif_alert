@@ -497,8 +497,9 @@ class PdfService {
     // trying to replace individual extracted lines.
     graphics.drawRectangle(
       brush: white,
-      // Include the template's second legacy address line as well.
-      bounds: Rect.fromLTWH(18, 58, sourcePage.size.width - 36, 128),
+      // Cover only the legacy header. Keep a clear gap before the first body
+      // line, which starts at about y=178 in the supplied template.
+      bounds: Rect.fromLTWH(18, 58, sourcePage.size.width - 36, 110),
     );
     void drawHeader(
       String label,
@@ -535,17 +536,17 @@ class PdfService {
     drawHeader(
       'NAME OF THE PROCURING ENTITY',
       procuringEntity.toUpperCase(),
-      66,
+      61,
     );
-    drawHeader('PROJECT TITLE', projectTitle.toUpperCase(), 83,
-        valueHeight: 34);
-    drawHeader('REFERENCE NUMBER', referenceNumber, 119);
+    drawHeader('PROJECT TITLE', projectTitle.toUpperCase(), 76,
+        valueHeight: 30);
+    drawHeader('REFERENCE NUMBER', referenceNumber, 108);
     drawHeader(
       'CONTRACTOR',
       (values['bidderName'] ?? '').trim().toUpperCase(),
-      136,
+      123,
     );
-    drawHeader('ADDRESS', address, 153, valueHeight: 30);
+    drawHeader('ADDRESS', address, 138, valueHeight: 27);
 
     // Replace the complete signatory block and always stamp today's date.
     // The original signatory block starts well above the bottom margin.
