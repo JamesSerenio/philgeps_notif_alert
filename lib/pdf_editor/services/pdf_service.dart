@@ -4605,6 +4605,58 @@ class PdfService {
     drawRow('Date', date, signatureTop + 95);
   }
 
+  static double _measureMarkedSpecificationTextHeight(
+    String text,
+    PdfFont font,
+    double width,
+  ) {
+    final markerPattern = RegExp(r'^\s*(âœ“|â€¢|â—‹|â– |âž¢)\s*');
+    var totalHeight = 0.0;
+
+    for (final rawLine in text.replaceAll('\u2029', '\n').split('\n')) {
+      final match = markerPattern.firstMatch(rawLine);
+      final content = match == null
+          ? rawLine.trim()
+          : rawLine.substring(match.end).trim();
+      final contentWidth = math.max(1.0, width - (match == null ? 0 : 14));
+      final measured = font.measureString(
+        content.isEmpty ? ' ' : content,
+        layoutArea: Size(contentWidth, 10000),
+        format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      );
+      totalHeight += math.max(font.size + 2, measured.height);
+    }
+
+    return totalHeight;
+  }
+
+  static List<List<String>> _chunkMarkedSpecificationLines(
+    List<String> sourceLines,
+    PdfFont font,
+    double width,
+    double maximumHeight,
+  ) {
+    final chunks = <List<String>>[];
+    var current = <String>[];
+
+    for (final line in sourceLines) {
+      final candidate = <String>[...current, line];
+      final candidateHeight = _measureMarkedSpecificationTextHeight(
+        candidate.join('\n'),
+        font,
+        width,
+      );
+      if (current.isNotEmpty && candidateHeight > maximumHeight) {
+        chunks.add(current);
+        current = <String>[line];
+      } else {
+        current = candidate;
+      }
+    }
+    if (current.isNotEmpty) chunks.add(current);
+    return chunks;
+  }
+
   static void _removeSlccSection(PdfDocument document) {
     const slccPageIndex = 20;
     const slccPageCount = 3;
