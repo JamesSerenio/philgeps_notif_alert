@@ -461,7 +461,7 @@ class PdfService {
     final bold = PdfStandardFont(
       PdfFontFamily.helvetica,
       12,
-      style: PdfFontStyle.bold,
+      style: PdfFontStyle.bold | PdfFontStyle.underline,
     );
     final italic = PdfStandardFont(
       PdfFontFamily.helvetica,
@@ -539,25 +539,25 @@ class PdfService {
       'Designation',
       regular,
       brush: black,
-      bounds: Rect.fromLTWH(20, footerTop + 22, 105, 18),
+      bounds: Rect.fromLTWH(20, footerTop + 18, 105, 18),
     );
     graphics.drawString(
       ':    Authorized Representative',
       italic,
       brush: black,
-      bounds: Rect.fromLTWH(125, footerTop + 22, 330, 18),
+      bounds: Rect.fromLTWH(125, footerTop + 18, 330, 18),
     );
     graphics.drawString(
       'Date',
       regular,
       brush: black,
-      bounds: Rect.fromLTWH(20, footerTop + 44, 105, 18),
+      bounds: Rect.fromLTWH(20, footerTop + 36, 105, 18),
     );
     graphics.drawString(
       ':    $date',
       regular,
       brush: black,
-      bounds: Rect.fromLTWH(125, footerTop + 44, 280, 18),
+      bounds: Rect.fromLTWH(125, footerTop + 36, 280, 18),
     );
 
     document.pages.removeAt(nfccPageIndex);
