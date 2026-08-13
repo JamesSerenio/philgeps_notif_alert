@@ -12,7 +12,7 @@ class PdfService {
   const PdfService._();
 
   static const String _permanentBusinessAddress =
-      'Sitio Puli, Carmen, Cagayan de Oro. Misamis Oriental';
+      'SITIO PULI, CARMEN, CAGAYAN DE ORO CITY, MISAMIS ORIENTAL, 9000';
 
   static Future<Uint8List> generateBidDocs({
     required Map<String, String> values,
@@ -461,7 +461,7 @@ class PdfService {
     final bold = PdfStandardFont(
       PdfFontFamily.helvetica,
       12,
-      style: PdfFontStyle.bold | PdfFontStyle.underline,
+      style: PdfFontStyle.bold,
     );
     final italic = PdfStandardFont(
       PdfFontFamily.helvetica,
@@ -534,6 +534,12 @@ class PdfService {
       bold,
       brush: black,
       bounds: Rect.fromLTWH(125, footerTop, 330, 18),
+    );
+    final submittedWidth = bold.measureString(submittedBy.toUpperCase()).width;
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0), width: 0.7),
+      Offset(125, footerTop + 14),
+      Offset(125 + submittedWidth, footerTop + 14),
     );
     graphics.drawString(
       'Designation',
@@ -4019,6 +4025,7 @@ class PdfService {
       startPageIndex: pageIndex,
       endPageIndex: pageIndex,
     );
+    _replaceCertificateHeaderAddress(page, pageLines);
     TextLine? certificateLine;
     TextLine? secondParagraphLine;
     TextLine? submittedLine;
@@ -4277,6 +4284,7 @@ class PdfService {
       startPageIndex: pageIndex,
       endPageIndex: pageIndex,
     );
+    _replaceCertificateHeaderAddress(page, lines);
     TextLine? titleLine;
     TextLine? certificationLine;
     TextLine? guaranteeLine;
@@ -4516,6 +4524,66 @@ class PdfService {
     drawRow('Designation', 'Authorized Representative', signatureTop + 45);
     drawRow('Name of Firm', displayBidderName, signatureTop + 70);
     drawRow('Date', date, signatureTop + 95);
+  }
+
+  static void _replaceCertificateHeaderAddress(
+    PdfPage page,
+    List<TextLine> lines,
+  ) {
+    TextLine? addressLine;
+    for (final line in lines) {
+      final normalized = line.text.toUpperCase().replaceAll(
+            RegExp(r'\s+'),
+            ' ',
+          );
+      if (normalized.contains('SAN AGUSTIN VALLEY HOMES') ||
+          normalized.contains('L-25 & 27 B-2')) {
+        addressLine = line;
+        break;
+      }
+    }
+    if (addressLine == null) return;
+
+    final graphics = page.graphics;
+    final pageWidth = page.getClientSize().width;
+    final top = addressLine.bounds.top - 2;
+    final left = addressLine.bounds.left;
+    graphics.drawRectangle(
+      brush: PdfSolidBrush(PdfColor(255, 255, 255)),
+      bounds: Rect.fromLTWH(
+        left - 2,
+        top,
+        pageWidth - left - 18,
+        addressLine.bounds.height + 6,
+      ),
+    );
+
+    final startsWithLabel = addressLine.text
+        .trimLeft()
+        .toUpperCase()
+        .startsWith('CDO OFFICE');
+    final replacement = startsWithLabel
+        ? 'CDO Office: $_permanentBusinessAddress'
+        : _permanentBusinessAddress;
+    final font = PdfStandardFont(
+      PdfFontFamily.helvetica,
+      7.5,
+      style: PdfFontStyle.italic,
+    );
+    graphics.drawString(
+      replacement,
+      font,
+      brush: PdfSolidBrush(PdfColor(0, 0, 0)),
+      bounds: Rect.fromLTWH(
+        left,
+        top + 1,
+        pageWidth - left - 20,
+        addressLine.bounds.height + 5,
+      ),
+      format: PdfStringFormat(
+        wordWrap: PdfWordWrapType.none,
+      ),
+    );
   }
 
   static void _drawJuratPlaceholders(
