@@ -447,10 +447,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _TechnicalSpecificationEntry entry,
     int lineIndex,
   ) {
-    final lines = entry.specification.text.split(RegExp(r'\r?\n'));
+    final lines = entry.specification.text.split('\u2029');
     if (lineIndex < 0 || lineIndex >= lines.length) return;
     lines.removeAt(lineIndex);
-    entry.specification.text = lines.join('\n');
+    entry.specification.text = lines.join('\u2029');
     entry.specification.selection = TextSelection.collapsed(
       offset: entry.specification.text.length,
     );
@@ -1197,7 +1197,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                         final current = entry.specification.text;
                         entry.specification.text = current.trim().isEmpty
                             ? '✓ '
-                            : '${current.trimRight()}\n✓ ';
+                            : '${current.trimRight()}\u2029✓ ';
                         entry.specification.selection = TextSelection.collapsed(
                           offset: entry.specification.text.length,
                         );
@@ -1224,7 +1224,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                           for (final line in technicalSpecifications[index]
                               .specification
                               .text
-                              .split(RegExp(r'\r?\n'))
+                              .split('\u2029')
                               .asMap()
                               .entries)
                             if (line.value.trim().isNotEmpty)

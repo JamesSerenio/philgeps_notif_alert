@@ -2271,17 +2271,17 @@ class PdfService {
       final source = specifications[sourceIndex] is Map
           ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
           : <String, dynamic>{};
-      final lines = (source['specification'] ?? '')
+      final addedLines = (source['specification'] ?? '')
           .toString()
-          .split(RegExp(r'\r?\n'))
+          .split('\u2029')
           .where((line) => line.trim().isNotEmpty)
           .toList();
-      final chunks = lines.isEmpty
+      final chunks = addedLines.isEmpty
           ? <List<String>>[
               <String>[''],
             ]
           : <List<String>>[
-              for (final line in lines) <String>[line],
+              for (final line in addedLines) <String>[line],
             ];
       for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         renderRows.add(<String, dynamic>{
