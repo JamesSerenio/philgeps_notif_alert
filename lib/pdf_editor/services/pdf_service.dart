@@ -467,7 +467,8 @@ class PdfService {
     // trying to replace individual extracted lines.
     graphics.drawRectangle(
       brush: white,
-      bounds: Rect.fromLTWH(18, 65, sourcePage.size.width - 36, 86),
+      // Include the template's second legacy address line as well.
+      bounds: Rect.fromLTWH(18, 60, sourcePage.size.width - 36, 112),
     );
     void drawHeader(String label, String value, double top) {
       graphics.drawString(
@@ -493,10 +494,18 @@ class PdfService {
     drawHeader('Address:', address, 138);
 
     // Replace the complete signatory block and always stamp today's date.
-    final footerTop = sourcePage.size.height - 72;
+    // The original signatory block starts well above the bottom margin.
+    // Clear from there through the bottom so both the old and any previously
+    // generated values are removed before drawing the single final block.
+    final footerTop = sourcePage.size.height - 118;
     graphics.drawRectangle(
       brush: white,
-      bounds: Rect.fromLTWH(18, footerTop - 4, sourcePage.size.width - 36, 72),
+      bounds: Rect.fromLTWH(
+        18,
+        footerTop - 8,
+        sourcePage.size.width - 36,
+        126,
+      ),
     );
     graphics.drawString(
       'Submitted',
