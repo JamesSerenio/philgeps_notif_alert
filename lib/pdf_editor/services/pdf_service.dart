@@ -20,7 +20,6 @@ class PdfService {
     values = values.map(
       (key, value) => MapEntry(key, _pdfSafeText(value)),
     );
-    values = _groupSpecificationsByItemNumber(values);
     final ByteData templateData = await rootBundle.load(
       'assets/pdf/bidocs_template.pdf',
     );
@@ -372,56 +371,6 @@ class PdfService {
   /// cannot abort the entire document with "character 9971".
   static String _pdfSafeText(String value) =>
       value.replaceAll('\u2714', '\u2713').replaceAll('\u221A', '\u2713');
-
-  static Map<String, String> _groupSpecificationsByItemNumber(
-    Map<String, String> values,
-  ) {
-    final encoded = values['technicalSpecifications'] ?? '';
-    if (encoded.isEmpty) return values;
-    final decoded = jsonDecode(encoded);
-    if (decoded is! List) return values;
-
-    List<dynamic> prices = const [];
-    final encodedPrices = values['priceSchedule'] ?? '';
-    if (encodedPrices.isNotEmpty) {
-      final decodedPrices = jsonDecode(encodedPrices);
-      if (decodedPrices is List) prices = decodedPrices;
-    }
-
-    final grouped = <String, Map<String, dynamic>>{};
-    final groupedPrices = <String, dynamic>{};
-    for (var index = 0; index < decoded.length; index++) {
-      if (decoded[index] is! Map) continue;
-      final source = Map<String, dynamic>.from(decoded[index] as Map);
-      final enteredNumber = (source['itemNumber'] ?? '').toString().trim();
-      final itemNumber = enteredNumber.isEmpty ? '${index + 1}' : enteredNumber;
-      source['itemNumber'] = itemNumber;
-      final existing = grouped[itemNumber];
-      if (existing == null) {
-        grouped[itemNumber] = source;
-        if (index < prices.length) groupedPrices[itemNumber] = prices[index];
-        continue;
-      }
-      final oldText = (existing['specification'] ?? '').toString().trim();
-      final newText = (source['specification'] ?? '').toString().trim();
-      existing['specification'] =
-          [oldText, newText].where((text) => text.isNotEmpty).join('\n');
-      final oldParameter = (existing['parameter'] ?? '').toString().trim();
-      final newParameter = (source['parameter'] ?? '').toString().trim();
-      existing['parameter'] = [oldParameter, newParameter]
-          .where((text) => text.isNotEmpty)
-          .join('\n');
-    }
-
-    return <String, String>{
-      ...values,
-      'technicalSpecifications': jsonEncode(grouped.values.toList()),
-      'priceSchedule': jsonEncode([
-        for (final itemNumber in grouped.keys)
-          groupedPrices[itemNumber] ?? <String, dynamic>{},
-      ]),
-    };
-  }
 
   static void _drawMarkedSpecificationText(
     PdfGraphics graphics,
@@ -2572,8 +2521,12 @@ class PdfService {
       for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
         final specification = renderRows[itemIndex];
         final isContinuation = specification['_continuation'] == true;
+        final itemNumber = '${specification['_itemNumber']}';
+        final previousItemNumber = itemIndex == 0
+            ? null
+            : '${renderRows[itemIndex - 1]['_itemNumber']}';
         final texts = <String>[
-          isContinuation ? '' : '${specification['_itemNumber']}',
+          isContinuation || itemNumber == previousItemNumber ? '' : itemNumber,
           (specification['specification'] ?? '').toString(),
           (specification['quantity'] ?? '').toString(),
           (specification['unit'] ?? '').toString(),
@@ -2740,7 +2693,7 @@ class PdfService {
         priceRows.add(<String, dynamic>{
           ...source,
           '_sourceIndex': sourceIndex,
-          '_itemNumber': (source['itemNumber'] ?? '${sourceIndex + 1}'),
+          '_itemNumber': sourceIndex + 1,
           '_continuation': continuation,
           '_descriptionLines': lines.skip(start).take(14).toList(),
           if (continuation) 'quantity': '',
@@ -5675,7 +5628,7 @@ class PdfService {
                 .toDouble();
         final deliveredTotal = number(quantity) * adjustedUnitPrice;
         final texts = <String>[
-          (specification['itemNumber'] ?? '${itemIndex + 1}').toString(),
+          '${itemIndex + 1}',
           scheduleDescription(specification),
           includeTotal
               ? [quantity, unit].where((value) => value.isNotEmpty).join(' ')
@@ -5772,7 +5725,7 @@ class PdfService {
         summaryRows.add(<String, dynamic>{
           ...source,
           '_sourceIndex': sourceIndex,
-          '_itemNumber': (source['itemNumber'] ?? '${sourceIndex + 1}'),
+          '_itemNumber': sourceIndex + 1,
           '_continuation': start > 0,
           '_descriptionLines': descriptionLines.skip(start).take(14).toList(),
         });
