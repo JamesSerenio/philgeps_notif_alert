@@ -368,6 +368,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   void _addTechnicalSpecification({
+    String itemNumber = '',
     String specification = '',
     String quantity = '1',
     String unit = 'unit',
@@ -376,6 +377,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }) {
     if (technicalSpecifications.length >= 72) return;
     final entry = _TechnicalSpecificationEntry(
+      itemNumber: itemNumber.isEmpty
+          ? '${technicalSpecifications.length + 1}'
+          : itemNumber,
       specification: specification,
       quantity: quantity,
       unit: unit,
@@ -455,6 +459,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         for (final value in savedSpecifications.take(72)) {
           if (value is Map) {
             _addTechnicalSpecification(
+              itemNumber: (value['itemNumber'] ?? '').toString(),
               specification: (value['specification'] ?? '').toString(),
               quantity: (value['quantity'] ?? '').toString().trim().isEmpty
                   ? '1'
@@ -571,6 +576,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       final specifications = [
         for (final entry in technicalSpecifications)
           {
+            'itemNumber': entry.itemNumber.text.trim(),
             'specification': entry.specification.text.trim(),
             'quantity': entry.quantity.text.trim(),
             'unit': entry.unit.text.trim(),
@@ -679,6 +685,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'technicalSpecifications': jsonEncode([
             for (final entry in technicalSpecifications)
               {
+                'itemNumber': entry.itemNumber.text.trim(),
                 'specification': entry.specification.text.trim(),
                 'quantity': entry.quantity.text.trim(),
                 'unit': entry.unit.text.trim(),
@@ -1151,11 +1158,24 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                               color: Color(0xFF0B5D3B),
                             ),
                             const SizedBox(width: 7),
-                            Text(
-                              'Item ${index + 1}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF234B38),
+                            SizedBox(
+                              width: 100,
+                              child: TextField(
+                                controller:
+                                    technicalSpecifications[index].itemNumber,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: 'Item No.',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF234B38),
+                                ),
                               ),
                             ),
                           ],
@@ -2129,16 +2149,19 @@ class _SpecificationListFormatter extends TextInputFormatter {
 
 class _TechnicalSpecificationEntry {
   _TechnicalSpecificationEntry({
+    String itemNumber = '',
     String specification = '',
     String quantity = '',
     String unit = '',
     String parameter = '',
-  })  : specification = TextEditingController(text: specification),
+  })  : itemNumber = TextEditingController(text: itemNumber),
+        specification = TextEditingController(text: specification),
         quantity = TextEditingController(text: quantity),
         unit = TextEditingController(text: unit),
         parameter = TextEditingController(text: parameter),
         hasParameter = parameter.trim().isNotEmpty;
 
+  final TextEditingController itemNumber;
   final TextEditingController specification;
   final TextEditingController quantity;
   final TextEditingController unit;
@@ -2147,9 +2170,10 @@ class _TechnicalSpecificationEntry {
   final FocusNode unitFocusNode = FocusNode();
 
   List<TextEditingController> get controllers =>
-      [specification, quantity, unit, parameter];
+      [itemNumber, specification, quantity, unit, parameter];
 
   void dispose() {
+    itemNumber.dispose();
     specification.dispose();
     quantity.dispose();
     unit.dispose();
