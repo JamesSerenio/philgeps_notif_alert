@@ -477,6 +477,13 @@ class PdfService {
       12,
       style: PdfFontStyle.italic,
     );
+    final headerLabelFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
+    final headerValueFont = PdfStandardFont(
+      PdfFontFamily.timesRoman,
+      11,
+      style: PdfFontStyle.bold,
+    );
+    final red = PdfSolidBrush(PdfColor(210, 0, 0));
     final procuringEntity = (values['procuringEntity'] ?? '').trim();
     final referenceNumber = (values['referenceNumber'] ?? '').trim();
     final projectTitle = (values['projectTitle'] ?? '').trim();
@@ -491,30 +498,54 @@ class PdfService {
     graphics.drawRectangle(
       brush: white,
       // Include the template's second legacy address line as well.
-      bounds: Rect.fromLTWH(18, 60, sourcePage.size.width - 36, 112),
+      bounds: Rect.fromLTWH(18, 58, sourcePage.size.width - 36, 128),
     );
-    void drawHeader(String label, String value, double top) {
+    void drawHeader(
+      String label,
+      String value,
+      double top, {
+      double valueHeight = 18,
+    }) {
       graphics.drawString(
         label,
-        regular,
+        headerLabelFont,
         brush: black,
-        bounds: Rect.fromLTWH(20, top, 110, 18),
+        bounds: Rect.fromLTWH(20, top, 174, 18),
+      );
+      graphics.drawString(
+        ':',
+        headerLabelFont,
+        brush: black,
+        bounds: Rect.fromLTWH(196, top, 10, 18),
       );
       graphics.drawString(
         value,
-        regular,
-        brush: black,
-        bounds: Rect.fromLTWH(130, top, sourcePage.size.width - 150, 30),
+        headerValueFont,
+        brush: red,
+        bounds: Rect.fromLTWH(
+          212,
+          top,
+          sourcePage.size.width - 232,
+          valueHeight,
+        ),
         format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
       );
     }
 
-    drawHeader('PROCURING ENTITY:', procuringEntity.toUpperCase(), 70);
-    drawHeader('Project Number:', referenceNumber, 86);
-    drawHeader('CONTRACT:', projectTitle.toUpperCase(), 102);
-    drawHeader('Supplier/Contractor:',
-        (values['bidderName'] ?? '').trim().toUpperCase(), 122);
-    drawHeader('Address:', address, 138);
+    drawHeader(
+      'NAME OF THE PROCURING ENTITY',
+      procuringEntity.toUpperCase(),
+      66,
+    );
+    drawHeader('PROJECT TITLE', projectTitle.toUpperCase(), 83,
+        valueHeight: 34);
+    drawHeader('REFERENCE NUMBER', referenceNumber, 119);
+    drawHeader(
+      'CONTRACTOR',
+      (values['bidderName'] ?? '').trim().toUpperCase(),
+      136,
+    );
+    drawHeader('ADDRESS', address, 153, valueHeight: 30);
 
     // Replace the complete signatory block and always stamp today's date.
     // The original signatory block starts well above the bottom margin.
