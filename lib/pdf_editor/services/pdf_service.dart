@@ -448,11 +448,16 @@ class PdfService {
     final graphics = sourcePage.graphics;
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
-    final regular = PdfStandardFont(PdfFontFamily.helvetica, 10);
+    final regular = PdfStandardFont(PdfFontFamily.helvetica, 12);
     final bold = PdfStandardFont(
       PdfFontFamily.helvetica,
-      10,
+      12,
       style: PdfFontStyle.bold,
+    );
+    final italic = PdfStandardFont(
+      PdfFontFamily.helvetica,
+      12,
+      style: PdfFontStyle.italic,
     );
     final procuringEntity = (values['procuringEntity'] ?? '').trim();
     final referenceNumber = (values['referenceNumber'] ?? '').trim();
@@ -475,13 +480,13 @@ class PdfService {
         label,
         regular,
         brush: black,
-        bounds: Rect.fromLTWH(20, top, 110, 16),
+        bounds: Rect.fromLTWH(20, top, 110, 18),
       );
       graphics.drawString(
         value,
         regular,
         brush: black,
-        bounds: Rect.fromLTWH(130, top, sourcePage.size.width - 150, 28),
+        bounds: Rect.fromLTWH(130, top, sourcePage.size.width - 150, 30),
         format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
       );
     }
@@ -497,39 +502,51 @@ class PdfService {
     // The original signatory block starts well above the bottom margin.
     // Clear from there through the bottom so both the old and any previously
     // generated values are removed before drawing the single final block.
-    final footerTop = sourcePage.size.height - 118;
+    final footerTop = sourcePage.size.height - 190;
     graphics.drawRectangle(
       brush: white,
       bounds: Rect.fromLTWH(
         18,
-        footerTop - 8,
+        footerTop - 12,
         sourcePage.size.width - 36,
-        126,
+        202,
       ),
     );
     graphics.drawString(
       'Submitted',
       regular,
       brush: black,
-      bounds: Rect.fromLTWH(20, footerTop, 95, 16),
+      bounds: Rect.fromLTWH(20, footerTop, 105, 18),
     );
     graphics.drawString(
       submittedBy.toUpperCase(),
       bold,
       brush: black,
-      bounds: Rect.fromLTWH(125, footerTop, 300, 16),
+      bounds: Rect.fromLTWH(125, footerTop, 330, 18),
     );
     graphics.drawString(
-      'Designation   :    Authorized Representative',
+      'Designation',
       regular,
       brush: black,
-      bounds: Rect.fromLTWH(20, footerTop + 18, 360, 16),
+      bounds: Rect.fromLTWH(20, footerTop + 22, 105, 18),
     );
     graphics.drawString(
-      'Date             :    $date',
+      ':    Authorized Representative',
+      italic,
+      brush: black,
+      bounds: Rect.fromLTWH(125, footerTop + 22, 330, 18),
+    );
+    graphics.drawString(
+      'Date',
       regular,
       brush: black,
-      bounds: Rect.fromLTWH(20, footerTop + 36, 280, 16),
+      bounds: Rect.fromLTWH(20, footerTop + 44, 105, 18),
+    );
+    graphics.drawString(
+      ':    $date',
+      regular,
+      brush: black,
+      bounds: Rect.fromLTWH(125, footerTop + 44, 280, 18),
     );
 
     document.pages.removeAt(nfccPageIndex);
