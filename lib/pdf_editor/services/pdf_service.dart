@@ -1401,7 +1401,15 @@ class PdfService {
     final linePen = PdfPen(PdfColor(0, 0, 0), width: 0.7);
     final municipality = (values['municipality'] ?? '').trim().toUpperCase();
     final province = (values['province'] ?? '').trim().toUpperCase();
-    const venue = 'Municipality of __________, __________';
+    String titleCase(String value) => value
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .map((word) =>
+            '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}')
+        .join(' ');
+    final venue =
+        'Municipality of ${titleCase((values['municipality'] ?? '').trim())}, '
+        '${titleCase((values['province'] ?? '').trim())}';
     final dateParts = (values['date'] ?? '').trim().split(RegExp(r'\s+'));
     final year = dateParts.isEmpty ? '' : dateParts.last;
     final recipient = 'MUNICIPALITY OF $municipality, $province';
@@ -1473,9 +1481,20 @@ class PdfService {
       ),
     );
 
-    // Keep the template's original witness sentence and its writing lines.
-    // The scratch canvas absorbs the legacy redraw operations below; only the
-    // municipality is corrected later using the original line bounds.
+    // Erase the legacy witness sentence from the declaration page itself.
+    // It is redrawn only once on the following signature page.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: Rect.fromLTWH(
+        30,
+        witnessTop - 4,
+        page.getClientSize().width - 60,
+        48,
+      ),
+    );
+
+    // Use a scratch canvas only until the destination signature page is
+    // resolved; no visible witness text is drawn back on the first page.
     final witnessScratch = PdfTemplate(600, 100);
     final scratchGraphics = witnessScratch.graphics!;
     scratchGraphics.drawRectangle(
@@ -1497,6 +1516,7 @@ class PdfService {
     }
     if (signaturePageIndex != null && dulyTop != null) {
       witnessTop = dulyTop - 44;
+      witnessGraphics = document.pages[signaturePageIndex].graphics;
       witnessGraphics.drawRectangle(
         brush: whiteBrush,
         bounds: Rect.fromLTWH(33, witnessTop - 2, 545, 40),
@@ -1567,7 +1587,7 @@ class PdfService {
       bounds: Rect.fromLTWH(yearLeft + 0.18, witnessTop + 0.12, 150, 15),
     );
 
-    // Keep the notarial venue blank for manual completion.
+    // Use the municipality and province selected in the editor.
     witnessGraphics.drawString(
       '$venueRemainder.',
       boldTextFont,
@@ -1651,7 +1671,8 @@ class PdfService {
         (values['submittedByFormalName'] ?? values['submittedBy'] ?? '').trim();
     final selectedDate = (values['date'] ?? '').trim();
     final selectedMunicipality = (values['municipality'] ?? '').trim();
-    final selectedPlace = 'Municipality of $selectedMunicipality';
+    final selectedProvince = (values['province'] ?? '').trim();
+    final selectedPlace = 'Municipality of $selectedMunicipality, $selectedProvince';
     final correctionFont = PdfStandardFont(
       PdfFontFamily.timesRoman,
       10,
