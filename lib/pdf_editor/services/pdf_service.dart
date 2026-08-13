@@ -263,13 +263,18 @@ class PdfService {
     if (document.pages.count >= 43) {
       const reverseStartIndex = 28;
       const reversePageCount = 15;
+      // Templates created directly from `document` become invalid as soon as
+      // their source pages are removed. Reopen a snapshot and keep it alive
+      // until all reversed pages have been drawn.
+      final snapshotBytes = await document.save();
+      final snapshotDocument = PdfDocument(inputBytes: snapshotBytes);
       final reversedTemplates = <({PdfTemplate template, Size size})>[
         for (var index = reverseStartIndex + reversePageCount - 1;
             index >= reverseStartIndex;
             index--)
           (
-            template: document.pages[index].createTemplate(),
-            size: document.pages[index].size,
+            template: snapshotDocument.pages[index].createTemplate(),
+            size: snapshotDocument.pages[index].size,
           ),
       ];
       for (var page = 0; page < reversePageCount; page++) {
@@ -288,6 +293,7 @@ class PdfService {
           source.size,
         );
       }
+      snapshotDocument.dispose();
     }
 
     // These two attachment sheets are intentionally excluded from the final
