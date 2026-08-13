@@ -39,6 +39,7 @@ class PdfEditorScreen extends StatefulWidget {
 }
 
 class _PdfEditorScreenState extends State<PdfEditorScreen> {
+  static const String specificationLineSeparator = '\n\n';
   static const List<String> submittedByNames = [
     'JHO ANN Q. CLEOPAS',
     'CARLOS RAFAEL A. JAMILO',
@@ -447,10 +448,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _TechnicalSpecificationEntry entry,
     int lineIndex,
   ) {
-    final lines = entry.specification.text.split('\u2029');
+    final lines = entry.specification.text
+        .replaceAll('\u2029', specificationLineSeparator)
+        .split(specificationLineSeparator);
     if (lineIndex < 0 || lineIndex >= lines.length) return;
     lines.removeAt(lineIndex);
-    entry.specification.text = lines.join('\u2029');
+    entry.specification.text = lines.join(specificationLineSeparator);
     entry.specification.selection = TextSelection.collapsed(
       offset: entry.specification.text.length,
     );
@@ -1197,7 +1200,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                         final current = entry.specification.text;
                         entry.specification.text = current.trim().isEmpty
                             ? '✓ '
-                            : '${current.trimRight()}\u2029✓ ';
+                            : '${current.trimRight()}$specificationLineSeparator✓ ';
                         entry.specification.selection = TextSelection.collapsed(
                           offset: entry.specification.text.length,
                         );
@@ -1224,7 +1227,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                           for (final line in technicalSpecifications[index]
                               .specification
                               .text
-                              .split('\u2029')
+                              .replaceAll(
+                                '\u2029',
+                                specificationLineSeparator,
+                              )
+                              .split(specificationLineSeparator)
                               .asMap()
                               .entries)
                             if (line.value.trim().isNotEmpty)

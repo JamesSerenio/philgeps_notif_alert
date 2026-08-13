@@ -485,8 +485,10 @@ class PdfService {
   /// Standard PDF fonts do not contain Unicode checkmark glyphs. Normalize
   /// common pasted checkmarks before any page is drawn so one specification
   /// cannot abort the entire document with "character 9971".
-  static String _pdfSafeText(String value) =>
-      value.replaceAll('\u2714', '\u2713').replaceAll('\u221A', '\u2713');
+  static String _pdfSafeText(String value) => value
+      .replaceAll('\u2714', '\u2713')
+      .replaceAll('\u221A', '\u2713')
+      .replaceAll('\u2029', '\n\n');
 
   static void _drawMarkedSpecificationText(
     PdfGraphics graphics,
@@ -2273,7 +2275,8 @@ class PdfService {
           : <String, dynamic>{};
       final addedLines = (source['specification'] ?? '')
           .toString()
-          .split('\u2029')
+          .replaceAll('\u2029', '\n\n')
+          .split(RegExp(r'\r?\n\s*\r?\n'))
           .where((line) => line.trim().isNotEmpty)
           .toList();
       final chunks = addedLines.isEmpty
