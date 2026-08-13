@@ -443,6 +443,19 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  void _removeSpecificationLine(
+    _TechnicalSpecificationEntry entry,
+    int lineIndex,
+  ) {
+    final lines = entry.specification.text.split(RegExp(r'\r?\n'));
+    if (lineIndex < 0 || lineIndex >= lines.length) return;
+    lines.removeAt(lineIndex);
+    entry.specification.text = lines.join('\n');
+    entry.specification.selection = TextSelection.collapsed(
+      offset: entry.specification.text.length,
+    );
+  }
+
   Future<void> _loadTechnicalSpecifications() async {
     try {
       final row = await SupabaseConfig.client
@@ -1193,6 +1206,54 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       label: const Text('Add line'),
                     ),
                   ),
+                  if (technicalSpecifications[index]
+                      .specification
+                      .text
+                      .trim()
+                      .isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFDCE5DF)),
+                      ),
+                      child: Column(
+                        children: [
+                          for (final line in technicalSpecifications[index]
+                              .specification
+                              .text
+                              .split(RegExp(r'\r?\n'))
+                              .asMap()
+                              .entries)
+                            if (line.value.trim().isNotEmpty)
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Line ${line.key + 1}: ${line.value}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Delete this line',
+                                    visualDensity: VisualDensity.compact,
+                                    icon: const Icon(
+                                      Icons.close,
+                                      size: 18,
+                                      color: Colors.redAccent,
+                                    ),
+                                    onPressed: () => _removeSpecificationLine(
+                                      technicalSpecifications[index],
+                                      line.key,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                        ],
+                      ),
+                    ),
                   Wrap(
                     spacing: 4,
                     runSpacing: 4,

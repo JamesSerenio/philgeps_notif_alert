@@ -2679,11 +2679,22 @@ class PdfService {
         ];
         final rowHeight = rowHeights[itemIndex];
         for (var column = 0; column < texts.length; column++) {
+          final isMergedColumn = column == 0 || column == 2 || column == 3;
+          if (isMergedColumn && itemNumber == previousItemNumber) continue;
+          var cellHeight = rowHeight - 2;
+          if (isMergedColumn) {
+            for (var next = itemIndex + 1;
+                next < pageStartItemIndex + rowsOnPage &&
+                    '${renderRows[next]['_itemNumber']}' == itemNumber;
+                next++) {
+              cellHeight += rowHeights[next];
+            }
+          }
           final cellBounds = Rect.fromLTWH(
             columns[column] + 3,
             rowTop + 1,
             columns[column + 1] - columns[column] - 6,
-            rowHeight - 2,
+            cellHeight,
           );
           if (column == 1) {
             _drawMarkedSpecificationText(
