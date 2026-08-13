@@ -4560,6 +4560,7 @@ class PdfService {
   ) {
     TextLine? addressLine;
     TextLine? mobileLine;
+    TextLine? emailLine;
     for (final line in lines) {
       final normalized = line.text.toUpperCase().replaceAll(
             RegExp(r'\s+'),
@@ -4567,6 +4568,9 @@ class PdfService {
           );
       if (normalized.trimLeft().startsWith('MOBILE NO')) {
         mobileLine ??= line;
+      }
+      if (normalized.trimLeft().startsWith('EMAIL')) {
+        emailLine ??= line;
       }
       if (normalized.contains('SAN AGUSTIN VALLEY HOMES') ||
           normalized.contains('L-25 & 27 B-2')) {
@@ -4577,23 +4581,17 @@ class PdfService {
 
     final graphics = page.graphics;
     final pageWidth = page.getClientSize().width;
-    // Clear only the original address glyphs. A taller band also erases the
-    // Mobile No. line immediately below it on these tightly spaced headers.
-    // Anchor the replacement to the existing Mobile No. line. This preserves
-    // the original letterhead's left edge and compact line spacing even when
-    // the scanned templates have slightly different address coordinates.
+    // Rebuild the three contact lines as one block. Clearing and redrawing the
+    // whole block prevents remnants/overlap from the flattened templates and
+    // keeps Manpower, AFS, and Warranty visually identical.
     final referenceHeight = mobileLine?.bounds.height ?? addressLine.bounds.height;
-    final top = mobileLine == null
-        ? addressLine.bounds.top - .5
-        : mobileLine.bounds.top - referenceHeight - 1;
+    final top = addressLine.bounds.top;
     final left = mobileLine?.bounds.left ?? addressLine.bounds.left;
-    final clearTop = addressLine.bounds.top < top
-        ? addressLine.bounds.top - .5
-        : top - .5;
-    final clearBottom = (addressLine.bounds.bottom > top + referenceHeight
-            ? addressLine.bounds.bottom
-            : top + referenceHeight) +
-        .8;
+    final clearTop = top - 1;
+    final detectedBottom = emailLine?.bounds.bottom ??
+        mobileLine?.bounds.bottom ??
+        addressLine.bounds.bottom;
+    final clearBottom = detectedBottom + 1;
     graphics.drawRectangle(
       brush: PdfSolidBrush(PdfColor(255, 255, 255)),
       bounds: Rect.fromLTWH(
@@ -4604,13 +4602,6 @@ class PdfService {
       ),
     );
 
-    final startsWithLabel = addressLine.text
-        .trimLeft()
-        .toUpperCase()
-        .startsWith('CDO OFFICE');
-    final replacement = startsWithLabel
-        ? 'CDO Office: $_permanentBusinessAddress'
-        : _permanentBusinessAddress;
     final availableWidth = pageWidth - left - 20;
     // Use one fixed size on Manpower, AFS, and Warranty so all three
     // letterheads remain visually identical.
@@ -4621,28 +4612,38 @@ class PdfService {
       fontSize,
       style: PdfFontStyle.italic,
     );
-    final textBounds = Rect.fromLTWH(
-      left,
-      top,
-      availableWidth,
-      fontSize + 3,
-    );
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
-    // Standard PDF fonts cannot combine bold and italic. Closely repeated
-    // italic passes reproduce the bold-slanted header style in the template.
-    for (final offset in const <double>[0, .22, .44]) {
-      graphics.drawString(
-        replacement,
-        font,
-        brush: black,
-        bounds: Rect.fromLTWH(
-          textBounds.left + offset,
-          textBounds.top,
-          textBounds.width,
-          textBounds.height,
-        ),
-        format: PdfStringFormat(wordWrap: PdfWordWrapType.none),
-      );
+    final originalGap = mobileLine == null
+        ? referenceHeight + 1
+        : mobileLine.bounds.top - addressLine.bounds.top;
+    final lineGap = originalGap.clamp(fontSize + .5, fontSize + 2).toDouble();
+    const contactLines = <String>[
+      'Mobile No.: 0917 129 2972 / 0926 253 0301',
+      'Email: MikataPrime@gmail.com',
+    ];
+    final replacementLines = <String>[
+      'CDO Office: $_permanentBusinessAddress',
+      ...contactLines,
+    ];
+
+    for (var lineIndex = 0; lineIndex < replacementLines.length; lineIndex++) {
+      final lineTop = top + (lineIndex * lineGap);
+      // Standard PDF fonts cannot combine bold and italic. Closely repeated
+      // italic passes reproduce the bold-slanted style of the source header.
+      for (final offset in const <double>[0, .18, .36]) {
+        graphics.drawString(
+          replacementLines[lineIndex],
+          font,
+          brush: black,
+          bounds: Rect.fromLTWH(
+            left + offset,
+            lineTop,
+            availableWidth,
+            fontSize + 2,
+          ),
+          format: PdfStringFormat(wordWrap: PdfWordWrapType.none),
+        );
+      }
     }
   }
 
