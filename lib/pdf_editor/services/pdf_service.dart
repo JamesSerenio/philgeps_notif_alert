@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -4617,13 +4616,17 @@ class PdfService {
       final match = markerPattern.firstMatch(rawLine);
       final content =
           match == null ? rawLine.trim() : rawLine.substring(match.end).trim();
-      final contentWidth = math.max(1.0, width - (match == null ? 0 : 14));
+      final rawContentWidth = width - (match == null ? 0 : 14);
+      final contentWidth = rawContentWidth < 1.0 ? 1.0 : rawContentWidth;
       final measured = font.measureString(
         content.isEmpty ? ' ' : content,
         layoutArea: Size(contentWidth, 10000),
         format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
       );
-      totalHeight += math.max(font.size + 2, measured.height);
+      final minimumLineHeight = font.size + 2;
+      totalHeight += measured.height > minimumLineHeight
+          ? measured.height
+          : minimumLineHeight;
     }
 
     return totalHeight;
