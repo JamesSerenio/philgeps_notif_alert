@@ -3043,6 +3043,44 @@ class PdfService {
       return result.isEmpty ? <String>[''] : result;
     }
 
+    // The specification column is narrow. Counting only explicit newlines
+    // underestimates rows whose individual lines wrap, which used to let the
+    // text run past its cell and get clipped. Convert the input into the same
+    // visual lines that fit in the PDF column before paginating it.
+    final firstPageSize = document.pages[startPageIndex].getClientSize();
+    const horizontalMargin = 36.0;
+    const baseSpecificationWidth = 158.0 - 52.0;
+    const baseTableWidth = 582.0 - 24.0;
+    final specificationWidth =
+        (firstPageSize.width - horizontalMargin * 2) *
+                baseSpecificationWidth /
+                baseTableWidth -
+            6;
+    final measuringFont =
+        PdfStandardFont(PdfFontFamily.timesRoman, 12);
+
+    List<String> wrapPriceSpecificationLine(String sourceLine) {
+      final words = sourceLine.trim().split(RegExp(r'\s+'));
+      if (words.isEmpty || (words.length == 1 && words.first.isEmpty)) {
+        return <String>[''];
+      }
+      final wrapped = <String>[];
+      var current = '';
+      for (final word in words) {
+        final candidate = current.isEmpty ? word : '$current $word';
+        if (current.isNotEmpty &&
+            measuringFont.measureString(candidate).width >
+                specificationWidth) {
+          wrapped.add(current);
+          current = word;
+        } else {
+          current = candidate;
+        }
+      }
+      if (current.isNotEmpty) wrapped.add(current);
+      return wrapped.isEmpty ? <String>[''] : wrapped;
+    }
+
     final priceRows = <Map<String, dynamic>>[];
     for (var sourceIndex = 0;
         sourceIndex < specifications.length;
@@ -3050,15 +3088,26 @@ class PdfService {
       final source = specifications[sourceIndex] is Map
           ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
           : <String, dynamic>{};
-      final lines = priceSpecificationLines(source['specification']);
-      for (var start = 0; start < lines.length; start += 14) {
+      final lines = <String>[
+        for (final line in priceSpecificationLines(source['specification']))
+          ...wrapPriceSpecificationLine(line),
+      ];
+      // Leave vertical breathing room around every continuation. On Web the
+      // marked-text renderer can use a slightly taller baseline than the
+      // measuring font, so tightly packing fourteen lines could clip the last
+      // one at the cell border.
+      const linesPerPriceRow = 11;
+      for (var start = 0;
+          start < lines.length;
+          start += linesPerPriceRow) {
         final continuation = start > 0;
         priceRows.add(<String, dynamic>{
           ...source,
           '_sourceIndex': sourceIndex,
           '_itemNumber': sourceIndex + 1,
           '_continuation': continuation,
-          '_descriptionLines': lines.skip(start).take(14).toList(),
+          '_descriptionLines':
+              lines.skip(start).take(linesPerPriceRow).toList(),
           if (continuation) 'quantity': '',
           if (continuation) 'unit': '',
         });
@@ -3078,7 +3127,9 @@ class PdfService {
       var count = 0;
       while (nextItem + count < priceRows.length) {
         final height = itemHeights[nextItem + count];
-        if (count > 0 && usedHeight + height > 260) break;
+        // Reserve room for TOTAL and the signature block on whichever page
+        // becomes the last Price Schedule page.
+        if (count > 0 && usedHeight + height > 200) break;
         usedHeight += height;
         count++;
       }
@@ -3149,7 +3200,6 @@ class PdfService {
     for (var pageNumber = 0; pageNumber < pageCount; pageNumber++) {
       final page = document.pages[startPageIndex + pageNumber];
       final size = page.getClientSize();
-      const horizontalMargin = 36.0;
       final tableWidth = size.width - horizontalMargin * 2;
       final baseWidth = baseColumns.last - baseColumns.first;
       final columns = <double>[
@@ -6255,6 +6305,39 @@ class PdfService {
       return '$grouped.${parts.last}';
     }
 
+    final firstPageSize = document.pages[startPageIndex].getClientSize();
+    const summaryLeft = 42.0;
+    final summaryRight = firstPageSize.width - summaryLeft;
+    final summaryItemRight = summaryLeft + 48;
+    final summaryDescriptionRight =
+        summaryLeft + (summaryRight - summaryLeft) * .67;
+    final summaryDescriptionWidth =
+        summaryDescriptionRight - summaryItemRight - 8;
+    final summaryMeasuringFont =
+        PdfStandardFont(PdfFontFamily.timesRoman, 12);
+
+    List<String> wrapSummaryLine(String sourceLine) {
+      final words = sourceLine.trim().split(RegExp(r'\s+'));
+      if (words.isEmpty || (words.length == 1 && words.first.isEmpty)) {
+        return <String>[''];
+      }
+      final wrapped = <String>[];
+      var current = '';
+      for (final word in words) {
+        final candidate = current.isEmpty ? word : '$current $word';
+        if (current.isNotEmpty &&
+            summaryMeasuringFont.measureString(candidate).width >
+                summaryDescriptionWidth) {
+          wrapped.add(current);
+          current = word;
+        } else {
+          current = candidate;
+        }
+      }
+      if (current.isNotEmpty) wrapped.add(current);
+      return wrapped.isEmpty ? <String>[''] : wrapped;
+    }
+
     final summaryRows = <Map<String, dynamic>>[];
     for (var sourceIndex = 0;
         sourceIndex < specifications.length;
@@ -6262,20 +6345,28 @@ class PdfService {
       final source = specifications[sourceIndex] is Map
           ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
           : <String, dynamic>{};
-      final lines = (source['specification'] ?? '')
+      final sourceLines = (source['specification'] ?? '')
           .toString()
           .split(RegExp(r'\r?\n'))
           .map((line) => line.trim())
           .where((line) => line.isNotEmpty)
           .toList();
-      final descriptionLines = lines.isEmpty ? <String>[''] : lines;
-      for (var start = 0; start < descriptionLines.length; start += 14) {
+      final descriptionLines = sourceLines.isEmpty
+          ? <String>['']
+          : <String>[
+              for (final line in sourceLines) ...wrapSummaryLine(line),
+            ];
+      const linesPerSummaryRow = 11;
+      for (var start = 0;
+          start < descriptionLines.length;
+          start += linesPerSummaryRow) {
         summaryRows.add(<String, dynamic>{
           ...source,
           '_sourceIndex': sourceIndex,
           '_itemNumber': sourceIndex + 1,
           '_continuation': start > 0,
-          '_descriptionLines': descriptionLines.skip(start).take(14).toList(),
+          '_descriptionLines':
+              descriptionLines.skip(start).take(linesPerSummaryRow).toList(),
         });
       }
     }
@@ -6287,7 +6378,7 @@ class PdfService {
     ];
     final pageRowCounts = <int>[];
     var nextRow = 0;
-    while (nextRow < summaryRows.length && pageRowCounts.length < 8) {
+    while (nextRow < summaryRows.length) {
       var usedHeight = 0.0;
       var count = 0;
       while (nextRow + count < summaryRows.length) {
@@ -6301,6 +6392,21 @@ class PdfService {
     }
     if (pageRowCounts.isEmpty) pageRowCounts.add(0);
     final pageCount = pageRowCounts.length;
+    // The template bundles three Summary sheets. Insert clean continuation
+    // pages if wrapped specifications need more than those available sheets.
+    const bundledSummaryPages = 3;
+    if (pageCount > bundledSummaryPages) {
+      final sourceSize = document.pages[startPageIndex].size;
+      for (var extraPage = bundledSummaryPages;
+          extraPage < pageCount;
+          extraPage++) {
+        document.pages.insert(
+          startPageIndex + extraPage,
+          sourceSize,
+          PdfMargins()..all = 0,
+        );
+      }
+    }
     final black = PdfSolidBrush(PdfColor(0, 0, 0));
     final red = PdfSolidBrush(PdfColor(220, 0, 0));
     final white = PdfSolidBrush(PdfColor(255, 255, 255));
@@ -6365,20 +6471,22 @@ class PdfService {
       }
       const headerHeight = 40.0;
       const sectionHeight = 22.0;
+      final visibleSectionHeight = pageNumber == 0 ? sectionHeight : 0.0;
       final rowsOnPage = pageRowCounts[pageNumber];
       final pageStartRow = itemIndex;
       final rowsHeight = summaryRowHeights
           .skip(pageStartRow)
           .take(rowsOnPage)
           .fold<double>(0, (sum, height) => sum + height);
-      final dataBottom = tableTop + headerHeight + sectionHeight + rowsHeight;
+      final dataBottom =
+          tableTop + headerHeight + visibleSectionHeight + rowsHeight;
       // Outer borders span the whole table. Internal column dividers skip the
       // merged "Specifications:" row, matching the source template.
       for (final x in <double>[left, right]) {
         page.graphics
             .drawLine(gridPen, Offset(x, tableTop), Offset(x, dataBottom));
       }
-      final sectionBottom = tableTop + headerHeight + sectionHeight;
+      final sectionBottom = tableTop + headerHeight + visibleSectionHeight;
       for (final x in <double>[itemRight, descriptionRight]) {
         page.graphics.drawLine(
           gridPen,
@@ -6419,16 +6527,18 @@ class PdfService {
         );
       }
       var y = tableTop + headerHeight;
-      page.graphics.drawString(
-        'Specifications:',
-        headerFont,
-        brush: black,
-        bounds: Rect.fromLTWH(
-            left + 4, y, descriptionRight - left - 8, sectionHeight),
-        format: PdfStringFormat(lineAlignment: PdfVerticalAlignment.middle),
-      );
-      y += sectionHeight;
-      page.graphics.drawLine(gridPen, Offset(left, y), Offset(right, y));
+      if (pageNumber == 0) {
+        page.graphics.drawString(
+          'Specifications:',
+          headerFont,
+          brush: black,
+          bounds: Rect.fromLTWH(
+              left + 4, y, descriptionRight - left - 8, sectionHeight),
+          format: PdfStringFormat(lineAlignment: PdfVerticalAlignment.middle),
+        );
+        y += sectionHeight;
+        page.graphics.drawLine(gridPen, Offset(left, y), Offset(right, y));
+      }
       for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
         final specification = summaryRows[itemIndex];
         final sourceIndex = specification['_sourceIndex'] as int;
