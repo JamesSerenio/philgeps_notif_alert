@@ -295,11 +295,11 @@ class PdfService {
       snapshotDocument.dispose();
     }
 
-    // These two attachment sheets are intentionally excluded from the final
-    // bid document. Remove the higher page first so PDF page 44 does not shift
-    // before it is deleted (PDF page numbers are one-based).
-    if (document.pages.count >= 45) document.pages.removeAt(44);
-    if (document.pages.count >= 44) document.pages.removeAt(43);
+    // _replaceAfsSection already removes the complete 18-page legacy AFS and
+    // attachment range before inserting the clean AFS template. Do not remove
+    // fixed page indexes here: the replacement can contain fewer pages, which
+    // moves NFCC and Technical Specifications into indexes 43-44 and caused
+    // those required sections to be deleted.
 
     // Replace NFCC only after all page moves/removals. Otherwise the newly
     // inserted template can itself be moved or removed by the operations
