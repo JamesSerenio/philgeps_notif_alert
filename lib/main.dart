@@ -40,7 +40,13 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    NotificationService.initialize();
+    unawaited(
+      NotificationService.initialize().catchError(
+        (Object error, StackTrace stackTrace) {
+          debugPrint('Notification initialization skipped: $error');
+        },
+      ),
+    );
   });
 
   FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
@@ -110,19 +116,21 @@ class NotificationService {
           'New PhilGEPS post detected.';
       final url = message.data['url'] ?? 'https://notices.philgeps.gov.ph/';
 
+      final context = navigatorKey.currentContext;
+      if (context == null) return;
       showDialog(
-        context: navigatorKey.currentContext!,
+        context: context,
         builder: (_) => AlertDialog(
           title: Text(title),
           content: Text(body),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(navigatorKey.currentContext!),
+              onPressed: () => Navigator.pop(context),
               child: const Text('Close'),
             ),
             TextButton(
               onPressed: () {
-                Navigator.pop(navigatorKey.currentContext!);
+                Navigator.pop(context);
                 openPhilgepsLink(url);
               },
               child: const Text('Open'),
@@ -137,10 +145,16 @@ class NotificationService {
       if (url != null) openPhilgepsLink(url);
     });
 
-    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage != null) {
-      final url = initialMessage.data['url'];
-      if (url != null) openPhilgepsLink(url);
+    // getInitialMessage is intended for app launches from a terminated state.
+    // On Web, the Firebase JS bridge can try to clean up an iframe that is no
+    // longer attached during hot reload and throw removeChild(null).
+    if (!kIsWeb) {
+      final initialMessage =
+          await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null) {
+        final url = initialMessage.data['url'];
+        if (url != null) openPhilgepsLink(url);
+      }
     }
   }
 }

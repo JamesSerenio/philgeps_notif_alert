@@ -223,12 +223,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     try {
       final row = await SupabaseConfig.client
           .from('bid_schedule_requirements')
-          .select('delivery_weeks_months,is_manual_override')
+          // Keep this compatible with deployments created before the optional
+          // is_manual_override migration was applied.
+          .select('delivery_weeks_months')
           .eq('reference_number', referenceNumber)
           .maybeSingle();
-      final isManualOverride = row?['is_manual_override'] == true;
       final saved = (row?['delivery_weeks_months'] ?? '').toString().trim();
-      if (mounted && isManualOverride && saved.isNotEmpty) {
+      if (mounted && saved.isNotEmpty) {
         setState(() => deliveredWeeksMonthsController.text = saved);
       }
     } catch (error) {
@@ -258,7 +259,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         {
           'reference_number': referenceNumber,
           'delivery_weeks_months': deliveredWeeksMonthsController.text.trim(),
-          'is_manual_override': true,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
         onConflict: 'reference_number',
