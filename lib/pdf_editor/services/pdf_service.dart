@@ -2498,6 +2498,7 @@ class PdfService {
         logicalRows.add(<String, dynamic>{
           ...source,
           'specification': chunks[chunkIndex].join('\n'),
+          '_sourceIndex': sourceIndex,
           '_itemNumber': sourceIndex + 1,
           '_continuation': chunkIndex > 0,
           if (chunkIndex > 0) 'quantity': '',
@@ -2651,7 +2652,7 @@ class PdfService {
     var technicalPageForLayout = 0;
     for (var rowIndex = 0; rowIndex < rowHeights.length; rowIndex++) {
       final height = rowHeights[rowIndex];
-      final tableTop = technicalPageForLayout == 0 ? firstTableTop : 36.0;
+      final tableTop = technicalPageForLayout == 0 ? firstTableTop : 54.0;
       final availableHeight = firstPage.getClientSize().height -
           tableTop -
           headerHeight -
@@ -2822,7 +2823,7 @@ class PdfService {
     for (var technicalPage = 0; technicalPage < pageCount; technicalPage++) {
       final page = document.pages[46 + technicalPage];
       final pageSize = page.getClientSize();
-      final tableTop = technicalPage == 0 ? firstTableTop : 36.0;
+      final tableTop = technicalPage == 0 ? firstTableTop : 54.0;
       final rowsOnPage = pageRowCounts[technicalPage];
       final pageStartItemIndex = itemIndex;
       final tableRowsHeight = rowHeights
@@ -2830,6 +2831,21 @@ class PdfService {
           .take(rowsOnPage)
           .fold<double>(0, (total, height) => total + height);
       final tableBottom = tableTop + headerHeight + tableRowsHeight;
+
+      if (technicalPage > 0) {
+        page.graphics.drawString(
+          'TECHNICAL SPECIFICATIONS (CONTINUATION)',
+          boldFont,
+          brush: blackBrush,
+          bounds: Rect.fromLTWH(
+            columns.first,
+            20,
+            columns.last - columns.first,
+            22,
+          ),
+          format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        );
+      }
 
       // Remove the fixed template rows and its old signature block.
       page.graphics.drawRectangle(
@@ -2868,7 +2884,8 @@ class PdfService {
         final nextItem = currentIndex + 1 < renderRows.length
             ? '${renderRows[currentIndex + 1]['_itemNumber']}'
             : null;
-        final isInternalItemLine = currentItem == nextItem;
+        final isPageBottom = row == rowsOnPage - 1;
+        final isInternalItemLine = !isPageBottom && currentItem == nextItem;
         if (isInternalItemLine) {
           // Keep Item No., Qty, and Unit visually merged for all lines under
           // one item. Only Specification (and optional Parameter) plus
@@ -2931,14 +2948,23 @@ class PdfService {
         final specification = renderRows[itemIndex];
         final isContinuation = specification['_continuation'] == true;
         final itemNumber = '${specification['_itemNumber']}';
-        final previousItemNumber = itemIndex == 0
-            ? null
-            : '${renderRows[itemIndex - 1]['_itemNumber']}';
+        final previousItemNumber =
+            row == 0 ? null : '${renderRows[itemIndex - 1]['_itemNumber']}';
+        final startsContinuationPage = row == 0 && isContinuation;
+        final sourceIndex = specification['_sourceIndex'] as int;
+        final original = sourceIndex < specifications.length &&
+                specifications[sourceIndex] is Map
+            ? specifications[sourceIndex] as Map
+            : const {};
         final texts = <String>[
-          isContinuation || itemNumber == previousItemNumber ? '' : itemNumber,
+          itemNumber == previousItemNumber ? '' : itemNumber,
           (specification['specification'] ?? '').toString(),
-          (specification['quantity'] ?? '').toString(),
-          (specification['unit'] ?? '').toString(),
+          startsContinuationPage
+              ? (original['quantity'] ?? '').toString()
+              : (specification['quantity'] ?? '').toString(),
+          startsContinuationPage
+              ? (original['unit'] ?? '').toString()
+              : (specification['unit'] ?? '').toString(),
           if (hasAnyParameter) (specification['parameter'] ?? '').toString(),
           'COMPLY',
         ];
