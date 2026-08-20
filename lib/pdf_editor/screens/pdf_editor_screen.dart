@@ -138,6 +138,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isGenerating = false;
   String? errorMessage;
   String? previewViewType;
+  bool showCompactPreview = false;
 
   @override
   void initState() {
@@ -739,6 +740,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       setState(() {
         generatedPdf = bytes;
         previewViewType = viewType;
+        showCompactPreview = true;
       });
     } catch (error) {
       if (!mounted) return;
@@ -1824,12 +1826,19 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           Positioned.fill(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 900;
+                final isWide = constraints.maxWidth >= 1000;
+                final compactHorizontalPadding =
+                    constraints.maxWidth < 480 ? 10.0 : 16.0;
 
                 final formPanel = Container(
                   width: isWide ? 380 : double.infinity,
                   color: const Color(0xFFF4F7F5),
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+                  padding: EdgeInsets.fromLTRB(
+                    compactHorizontalPadding,
+                    14,
+                    compactHorizontalPadding,
+                    18,
+                  ),
                   child: ListView(
                     children: [
                       sectionHeading(
@@ -1959,14 +1968,50 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                   );
                 }
 
+                final compactSwitcher = Material(
+                  color: Colors.white,
+                  elevation: 1,
+                  child: SafeArea(
+                    top: false,
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _CompactPanelButton(
+                              icon: Icons.edit_document,
+                              label: 'Form',
+                              selected: !showCompactPreview,
+                              onPressed: () =>
+                                  setState(() => showCompactPreview = false),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _CompactPanelButton(
+                              icon: Icons.picture_as_pdf_outlined,
+                              label: previewViewType == null
+                                  ? 'PDF Preview'
+                                  : 'View PDF',
+                              selected: showCompactPreview,
+                              onPressed: () =>
+                                  setState(() => showCompactPreview = true),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+
                 return Column(
                   children: [
-                    SizedBox(
-                      height: 420,
-                      child: formPanel,
-                    ),
+                    compactSwitcher,
                     const Divider(height: 1),
-                    Expanded(child: previewPanel),
+                    Expanded(
+                      child: showCompactPreview ? previewPanel : formPanel,
+                    ),
                   ],
                 );
               },
@@ -1977,6 +2022,54 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               child: _PdfGenerationOverlay(),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _CompactPanelButton extends StatelessWidget {
+  const _CompactPanelButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected ? Colors.white : const Color(0xFF0B5D3B);
+    return Material(
+      color: selected ? const Color(0xFF0B5D3B) : const Color(0xFFEAF3EE),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 42),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: foreground),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foreground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
