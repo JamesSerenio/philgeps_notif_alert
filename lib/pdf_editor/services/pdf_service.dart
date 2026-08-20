@@ -645,6 +645,9 @@ class PdfService {
   /// cannot abort the entire document with "character 9971".
   static String _pdfSafeText(String value) => value
       .replaceAll('\u2714', '\u2713')
+      // Some previously saved specifications contain U+26F3 in place of the
+      // check marker. Standard PDF fonts cannot measure or draw that glyph.
+      .replaceAll('\u26F3', '\u2713')
       .replaceAll('\u221A', '\u2713')
       // This function also receives JSON-encoded form values. Use escaped
       // newline sequences so replacing a legacy separator cannot insert a
@@ -3051,26 +3054,31 @@ class PdfService {
     const horizontalMargin = 36.0;
     const baseSpecificationWidth = 158.0 - 52.0;
     const baseTableWidth = 582.0 - 24.0;
-    final specificationWidth =
-        (firstPageSize.width - horizontalMargin * 2) *
-                baseSpecificationWidth /
-                baseTableWidth -
-            6;
-    final measuringFont =
-        PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final specificationWidth = (firstPageSize.width - horizontalMargin * 2) *
+            baseSpecificationWidth /
+            baseTableWidth -
+        6;
+    final measuringFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
 
     List<String> wrapPriceSpecificationLine(String sourceLine) {
-      final words = sourceLine.trim().split(RegExp(r'\s+'));
+      final markerMatch = RegExp(
+        r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
+        caseSensitive: false,
+      ).firstMatch(sourceLine);
+      final marker = markerMatch?.group(1);
+      final content = markerMatch == null
+          ? sourceLine.trim()
+          : sourceLine.substring(markerMatch.end).trim();
+      final words = content.split(RegExp(r'\s+'));
       if (words.isEmpty || (words.length == 1 && words.first.isEmpty)) {
-        return <String>[''];
+        return <String>[marker ?? ''];
       }
       final wrapped = <String>[];
       var current = '';
       for (final word in words) {
         final candidate = current.isEmpty ? word : '$current $word';
         if (current.isNotEmpty &&
-            measuringFont.measureString(candidate).width >
-                specificationWidth) {
+            measuringFont.measureString(candidate).width > specificationWidth) {
           wrapped.add(current);
           current = word;
         } else {
@@ -3078,6 +3086,10 @@ class PdfService {
         }
       }
       if (current.isNotEmpty) wrapped.add(current);
+      if (marker != null && wrapped.isNotEmpty) {
+        final safeMarker = marker == '✔' || marker == '⛳' ? '✓' : marker;
+        wrapped[0] = '$safeMarker ${wrapped[0]}';
+      }
       return wrapped.isEmpty ? <String>[''] : wrapped;
     }
 
@@ -3097,9 +3109,7 @@ class PdfService {
       // measuring font, so tightly packing fourteen lines could clip the last
       // one at the cell border.
       const linesPerPriceRow = 11;
-      for (var start = 0;
-          start < lines.length;
-          start += linesPerPriceRow) {
+      for (var start = 0; start < lines.length; start += linesPerPriceRow) {
         final continuation = start > 0;
         priceRows.add(<String, dynamic>{
           ...source,
@@ -6313,13 +6323,20 @@ class PdfService {
         summaryLeft + (summaryRight - summaryLeft) * .67;
     final summaryDescriptionWidth =
         summaryDescriptionRight - summaryItemRight - 8;
-    final summaryMeasuringFont =
-        PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final summaryMeasuringFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
 
     List<String> wrapSummaryLine(String sourceLine) {
-      final words = sourceLine.trim().split(RegExp(r'\s+'));
+      final markerMatch = RegExp(
+        r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
+        caseSensitive: false,
+      ).firstMatch(sourceLine);
+      final marker = markerMatch?.group(1);
+      final content = markerMatch == null
+          ? sourceLine.trim()
+          : sourceLine.substring(markerMatch.end).trim();
+      final words = content.split(RegExp(r'\s+'));
       if (words.isEmpty || (words.length == 1 && words.first.isEmpty)) {
-        return <String>[''];
+        return <String>[marker ?? ''];
       }
       final wrapped = <String>[];
       var current = '';
@@ -6335,6 +6352,10 @@ class PdfService {
         }
       }
       if (current.isNotEmpty) wrapped.add(current);
+      if (marker != null && wrapped.isNotEmpty) {
+        final safeMarker = marker == '✔' || marker == '⛳' ? '✓' : marker;
+        wrapped[0] = '$safeMarker ${wrapped[0]}';
+      }
       return wrapped.isEmpty ? <String>[''] : wrapped;
     }
 
