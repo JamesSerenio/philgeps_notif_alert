@@ -1,9 +1,49 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:philgeps_notif_alert/pdf_editor/services/pdf_service.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('generates one item with separated technical specification lines',
+      () async {
+    final specifications = <Map<String, String>>[
+      {
+        'specification': <String>[
+          'Installation of 18 units Solar Street Lights with Concrete Pedestal',
+          '✓ Integrated 120 Watts Solar Street Lights True Rated',
+          '✓ 12V/200W Solar Panel',
+          '✓ 10-15 Years of Life Span',
+          '✓ 12V/90 (+1.5)Ah Life PO4 Voltage Capacity',
+          '✓ 6,600lm Common 12W LED True Rated 6+X/Intelligent Power Control All Night Lighting with PC Outdoor Optical Lens High Light Temperature 6m/20ft Streetlight Lamp Pole w/ Base Plate and High Tensile Anchored Bolt w/ Nuts and Washers/ High Temperature Paint (TAPERED)',
+        ].join('\n\n'),
+        'quantity': '1',
+        'unit': 'lot',
+        'parameter': '',
+      },
+    ];
+    final bytes = await PdfService.generateBidDocs(
+      values: {
+        'submittedBy': 'MARLJONE BLAIRE B. TINGTING',
+        'bidderName': 'MIKATA PRIME CORPORATION',
+        'municipality': 'Malitbog',
+        'procuringEntity': 'MUNICIPALITY OF MALITBOG, BUKIDNON',
+        'projectTitle':
+            'SUPPLY AND INSTALLATION OF BARANGAY STREET LIGHTING SYSTEM',
+        'referenceNumber': '13179760',
+        'date': 'August 20, 2026',
+        'technicalSpecifications': jsonEncode(specifications),
+        'priceSchedule': jsonEncode(<Map<String, String>>[
+          {'totalPricePerUnit': '999000', 'deduction': ''},
+        ]),
+        'deliveredWeeksMonths': '60 Day/s',
+        'bidSecuringDeclarationWithTable': 'true',
+      },
+    );
+    expect(bytes, isNotEmpty);
+  });
 
   test('uses the selected signatory on the Omnibus Sworn Statement', () async {
     final bytes = await PdfService.generateBidDocs(
@@ -74,8 +114,7 @@ void main() {
     );
     final document = PdfDocument(inputBytes: bytes);
     final extractor = PdfTextExtractor(document);
-    final compactText =
-        extractor.extractText().replaceAll(RegExp(r'\s+'), '');
+    final compactText = extractor.extractText().replaceAll(RegExp(r'\s+'), '');
     final declarationPageIndex = extractor
         .extractTextLines()
         .firstWhere(
