@@ -2474,7 +2474,7 @@ class PdfService {
     // A single equipment item may contain many newline-separated details.
     // Split it into continuation rows so readable text can flow to the next
     // Technical Specifications page instead of being shrunk or clipped.
-    final renderRows = <Map<String, dynamic>>[];
+    final logicalRows = <Map<String, dynamic>>[];
     for (var sourceIndex = 0;
         sourceIndex < specifications.length;
         sourceIndex++) {
@@ -2495,7 +2495,7 @@ class PdfService {
               for (final line in addedLines) <String>[line],
             ];
       for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-        renderRows.add(<String, dynamic>{
+        logicalRows.add(<String, dynamic>{
           ...source,
           'specification': chunks[chunkIndex].join('\n'),
           '_itemNumber': sourceIndex + 1,
@@ -2507,7 +2507,7 @@ class PdfService {
       }
     }
 
-    final hasAnyParameter = renderRows.any(
+    final hasAnyParameter = logicalRows.any(
       (row) => (row['parameter'] ?? '').toString().trim().isNotEmpty,
     );
     // When no item has an optional parameter, remove that column completely
@@ -2572,6 +2572,50 @@ class PdfService {
     );
     final specificationWidth = columns[2] - columns[1] - 6;
     final parameterWidth = hasAnyParameter ? columns[5] - columns[4] - 6 : 0.0;
+    // A logical Add line can still wrap into many visual lines. Split it by
+    // measured PDF height before calculating pages so no row can draw outside
+    // its border or overlap the signature block.
+    final renderRows = <Map<String, dynamic>>[];
+    for (final logicalRow in logicalRows) {
+      final sourceText = (logicalRow['specification'] ?? '').toString();
+      final sourceLines = sourceText
+          .replaceAll('\u2029', '\n')
+          .split(RegExp(r'\r?\n'))
+          .toList();
+      final chunks = _chunkMarkedSpecificationLines(
+        sourceLines.isEmpty ? <String>[''] : sourceLines,
+        regularFont,
+        specificationWidth,
+        220,
+      );
+      final parameterText = (logicalRow['parameter'] ?? '').toString();
+      final parameterChunks = !hasAnyParameter || parameterText.trim().isEmpty
+          ? <List<String>>[]
+          : _chunkMarkedSpecificationLines(
+              parameterText.split(RegExp(r'\r?\n')),
+              regularFont,
+              parameterWidth,
+              220,
+            );
+      final chunkCount = chunks.length > parameterChunks.length
+          ? chunks.length
+          : parameterChunks.length;
+      for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
+        final continuation =
+            logicalRow['_continuation'] == true || chunkIndex > 0;
+        renderRows.add(<String, dynamic>{
+          ...logicalRow,
+          'specification':
+              chunkIndex < chunks.length ? chunks[chunkIndex].join('\n') : '',
+          'parameter': chunkIndex < parameterChunks.length
+              ? parameterChunks[chunkIndex].join('\n')
+              : '',
+          '_continuation': continuation,
+          if (continuation) 'quantity': '',
+          if (continuation) 'unit': '',
+        });
+      }
+    }
     final rowHeights = <double>[
       for (final value in renderRows)
         (() {
@@ -2607,15 +2651,12 @@ class PdfService {
     var technicalPageForLayout = 0;
     for (var rowIndex = 0; rowIndex < rowHeights.length; rowIndex++) {
       final height = rowHeights[rowIndex];
-      final page = document.pages[46 + technicalPageForLayout];
       final tableTop = technicalPageForLayout == 0 ? firstTableTop : 36.0;
-      final availableHeight = page.getClientSize().height -
+      final availableHeight = firstPage.getClientSize().height -
           tableTop -
           headerHeight -
           signatureSpace;
-      if (rowsOnCurrentPage > 0 &&
-          usedHeight + height > availableHeight &&
-          technicalPageForLayout < 2) {
+      if (rowsOnCurrentPage > 0 && usedHeight + height > availableHeight) {
         pageRowCounts.add(rowsOnCurrentPage);
         technicalPageForLayout++;
         rowsOnCurrentPage = 0;
@@ -2626,6 +2667,19 @@ class PdfService {
     }
     pageRowCounts.add(rowsOnCurrentPage);
     final pageCount = pageRowCounts.length;
+    const bundledTechnicalPages = 3;
+    if (pageCount > bundledTechnicalPages) {
+      final sourceSize = document.pages[46].size;
+      for (var extraPage = bundledTechnicalPages;
+          extraPage < pageCount;
+          extraPage++) {
+        document.pages.insert(
+          46 + extraPage,
+          sourceSize,
+          PdfMargins()..all = 0,
+        );
+      }
+    }
     var itemIndex = 0;
 
     const statementText =
@@ -4690,7 +4744,10 @@ class PdfService {
     PdfFont font,
     double width,
   ) {
-    final markerPattern = RegExp(r'^\s*(âœ“|â€¢|â—‹|â– |âž¢)\s*');
+    final markerPattern = RegExp(
+      r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
+      caseSensitive: false,
+    );
     var totalHeight = 0.0;
 
     for (final rawLine in text.replaceAll('\u2029', '\n').split('\n')) {
@@ -4719,10 +4776,43 @@ class PdfService {
     double width,
     double maximumHeight,
   ) {
+    final markerPattern = RegExp(
+      r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
+      caseSensitive: false,
+    );
+    final visualLines = <String>[];
+    for (final sourceLine in sourceLines) {
+      final match = markerPattern.firstMatch(sourceLine);
+      final marker = match?.group(1);
+      final content = match == null
+          ? sourceLine.trim()
+          : sourceLine.substring(match.end).trim();
+      final contentWidth = (width - (marker == null ? 0 : 14))
+          .clamp(1.0, double.infinity)
+          .toDouble();
+      final wrapped = <String>[];
+      var currentLine = '';
+      for (final word in content.split(RegExp(r'\s+'))) {
+        if (word.isEmpty) continue;
+        final candidate = currentLine.isEmpty ? word : '$currentLine $word';
+        if (currentLine.isNotEmpty &&
+            font.measureString(candidate).width > contentWidth) {
+          wrapped.add(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = candidate;
+        }
+      }
+      if (currentLine.isNotEmpty) wrapped.add(currentLine);
+      if (wrapped.isEmpty) wrapped.add('');
+      if (marker != null) wrapped[0] = '$marker ${wrapped[0]}'.trimRight();
+      visualLines.addAll(wrapped);
+    }
+
     final chunks = <List<String>>[];
     var current = <String>[];
 
-    for (final line in sourceLines) {
+    for (final line in visualLines) {
       final candidate = <String>[...current, line];
       final candidateHeight = _measureMarkedSpecificationTextHeight(
         candidate.join('\n'),
@@ -6076,19 +6166,10 @@ class PdfService {
       return '$name\n$details';
     }
 
-    // Schedule rows can contain complete, multi-line technical descriptions.
-    // Size and paginate them by their rendered content instead of forcing every
-    // row into a fixed 23-point box (which clipped everything after line one).
-    int wrappedLineCount(String value) {
-      const approximateCharactersPerLine = 32;
-      final lines = value.split(RegExp(r'\r?\n'));
-      return lines.fold<int>(0, (count, line) {
-        final length = line.trim().length;
-        return count +
-            (length == 0 ? 1 : (length / approximateCharactersPerLine).ceil());
-      });
-    }
-
+    final scheduleMeasuringFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
+    final schedulePageWidth =
+        document.pages[startPageIndex].getClientSize().width;
+    final scheduleSpecificationWidth = (schedulePageWidth - 84) * .37 - 6;
     final scheduleRows = <Map<String, dynamic>>[];
     for (var sourceIndex = 0;
         sourceIndex < specifications.length;
@@ -6103,13 +6184,21 @@ class PdfService {
           .toList();
       final rows = logicalLines.isEmpty ? <String>[''] : logicalLines;
       for (var logicalIndex = 0; logicalIndex < rows.length; logicalIndex++) {
-        scheduleRows.add(<String, dynamic>{
-          ...source,
-          '_sourceIndex': sourceIndex,
-          '_itemNumber': sourceIndex + 1,
-          '_continuation': logicalIndex > 0,
-          '_description': rows[logicalIndex],
-        });
+        final chunks = _chunkMarkedSpecificationLines(
+          rows[logicalIndex].split(RegExp(r'\r?\n')),
+          scheduleMeasuringFont,
+          scheduleSpecificationWidth,
+          220,
+        );
+        for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+          scheduleRows.add(<String, dynamic>{
+            ...source,
+            '_sourceIndex': sourceIndex,
+            '_itemNumber': sourceIndex + 1,
+            '_continuation': logicalIndex > 0 || chunkIndex > 0,
+            '_description': chunks[chunkIndex].join('\n'),
+          });
+        }
       }
     }
 
@@ -6117,8 +6206,13 @@ class PdfService {
       for (final value in scheduleRows)
         (() {
           final description = (value['_description'] ?? '').toString();
-          return (wrappedLineCount(description) * 15.0 + 10.0)
-              .clamp(23.0, 500.0)
+          return (_measureMarkedSpecificationTextHeight(
+                    description,
+                    scheduleMeasuringFont,
+                    scheduleSpecificationWidth,
+                  ) +
+                  10)
+              .clamp(23.0, 240.0)
               .toDouble();
         })(),
     ];
