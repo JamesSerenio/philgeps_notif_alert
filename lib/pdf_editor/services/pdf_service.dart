@@ -2587,7 +2587,7 @@ class PdfService {
         sourceLines.isEmpty ? <String>[''] : sourceLines,
         regularFont,
         specificationWidth,
-        220,
+        200,
       );
       final parameterText = (logicalRow['parameter'] ?? '').toString();
       final parameterChunks = !hasAnyParameter || parameterText.trim().isEmpty
@@ -2596,7 +2596,7 @@ class PdfService {
               parameterText.split(RegExp(r'\r?\n')),
               regularFont,
               parameterWidth,
-              220,
+              200,
             );
       final chunkCount = chunks.length > parameterChunks.length
           ? chunks.length
@@ -2643,7 +2643,7 @@ class PdfService {
               measuredSpecification.height > measuredParameter.height
                   ? measuredSpecification.height
                   : measuredParameter.height;
-          return (contentHeight + 8).clamp(minimumRowHeight, 245).toDouble();
+          return (contentHeight + 14).clamp(minimumRowHeight, 230).toDouble();
         })(),
     ];
     final pageRowCounts = <int>[];
@@ -2833,6 +2833,13 @@ class PdfService {
       final tableBottom = tableTop + headerHeight + tableRowsHeight;
 
       if (technicalPage > 0) {
+        // Bundled continuation templates contain old sample rows near the top.
+        // Clear the complete page first so no stale fragments (for example
+        // "(Frame)") remain above or behind the rebuilt continuation table.
+        page.graphics.drawRectangle(
+          brush: whiteBrush,
+          bounds: Rect.fromLTWH(0, 0, pageSize.width, pageSize.height),
+        );
         page.graphics.drawString(
           'TECHNICAL SPECIFICATIONS (CONTINUATION)',
           boldFont,
