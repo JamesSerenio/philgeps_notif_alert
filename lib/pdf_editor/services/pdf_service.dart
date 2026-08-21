@@ -3192,6 +3192,7 @@ class PdfService {
             ...source,
             '_sourceIndex': sourceIndex,
             '_itemNumber': sourceIndex + 1,
+            '_logicalLineIndex': logicalIndex,
             '_continuation': continuation,
             '_descriptionLines':
                 lines.skip(start).take(linesPerPriceRow).toList(),
@@ -3512,14 +3513,20 @@ class PdfService {
           ),
         );
         y += rowHeight;
-        final nextIsSameItem = row < rowCount - 1 &&
-            itemIndex + 1 < priceRows.length &&
-            priceRows[itemIndex + 1]['_sourceIndex'] == sourceIndex;
-        page.graphics.drawLine(
-          gridPen,
-          Offset(nextIsSameItem ? columns[1] : columns.first, y),
-          Offset(nextIsSameItem ? columns[2] : columns.last, y),
-        );
+        final hasNextRowOnPage = row < rowCount - 1;
+        final nextRow = hasNextRowOnPage ? priceRows[itemIndex + 1] : null;
+        final nextIsSameItem = nextRow != null &&
+            nextRow['_sourceIndex'] == sourceIndex;
+        final nextIsSameLogicalLine = nextIsSameItem &&
+            nextRow['_logicalLineIndex'] ==
+                specification['_logicalLineIndex'];
+        if (!nextIsSameLogicalLine) {
+          page.graphics.drawLine(
+            gridPen,
+            Offset(nextIsSameItem ? columns[1] : columns.first, y),
+            Offset(nextIsSameItem ? columns[2] : columns.last, y),
+          );
+        }
       }
       if (pageNumber == pageCount - 1) {
         const totalRowHeight = 18.0;
@@ -6226,6 +6233,7 @@ class PdfService {
             ...source,
             '_sourceIndex': sourceIndex,
             '_itemNumber': sourceIndex + 1,
+            '_logicalLineIndex': logicalIndex,
             '_continuation': logicalIndex > 0 || chunkIndex > 0,
             '_description': chunks[chunkIndex].join('\n'),
           });
@@ -6475,14 +6483,20 @@ class PdfService {
           }
         }
         y += rowHeight;
-        final nextIsSameItem = row < rowsOnPage - 1 &&
-            itemIndex + 1 < scheduleRows.length &&
-            scheduleRows[itemIndex + 1]['_sourceIndex'] == sourceIndex;
-        page.graphics.drawLine(
-          gridPen,
-          Offset(nextIsSameItem ? columns[1] : left, y),
-          Offset(nextIsSameItem ? columns[2] : right, y),
-        );
+        final hasNextRowOnPage = row < rowsOnPage - 1;
+        final nextRow = hasNextRowOnPage ? scheduleRows[itemIndex + 1] : null;
+        final nextIsSameItem = nextRow != null &&
+            nextRow['_sourceIndex'] == sourceIndex;
+        final nextIsSameLogicalLine = nextIsSameItem &&
+            nextRow['_logicalLineIndex'] ==
+                specification['_logicalLineIndex'];
+        if (!nextIsSameLogicalLine) {
+          page.graphics.drawLine(
+            gridPen,
+            Offset(nextIsSameItem ? columns[1] : left, y),
+            Offset(nextIsSameItem ? columns[2] : right, y),
+          );
+        }
       }
       if (pageNumber == pageCount - 1) {
         _drawTechnicalSpecificationsSignatureAt(page, values, y + 25);
