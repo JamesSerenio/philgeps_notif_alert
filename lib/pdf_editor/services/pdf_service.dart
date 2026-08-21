@@ -3223,13 +3223,23 @@ class PdfService {
     final pageRowCounts = <int>[];
     var nextItem = 0;
     while (nextItem < priceRows.length) {
+      final isFirstPage = pageRowCounts.isEmpty;
+      // Only the final page needs to reserve room for TOTAL and the complete
+      // signature block. Continuation pages can use the lower part of the
+      // sheet, avoiding a tiny table followed by a large empty area.
+      final finalPageCapacity = isFirstPage ? 215.0 : 260.0;
+      final regularPageCapacity = isFirstPage ? 340.0 : 420.0;
+      final remainingHeight = itemHeights
+          .skip(nextItem)
+          .fold<double>(0, (sum, height) => sum + height);
+      final availableHeight = remainingHeight <= finalPageCapacity
+          ? finalPageCapacity
+          : regularPageCapacity;
       var usedHeight = 0.0;
       var count = 0;
       while (nextItem + count < priceRows.length) {
         final height = itemHeights[nextItem + count];
-        // Reserve room for TOTAL and the signature block on whichever page
-        // becomes the last Price Schedule page.
-        if (count > 0 && usedHeight + height > 200) break;
+        if (count > 0 && usedHeight + height > availableHeight) break;
         usedHeight += height;
         count++;
       }
