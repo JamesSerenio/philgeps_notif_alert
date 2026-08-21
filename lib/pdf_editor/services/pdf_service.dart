@@ -2652,7 +2652,7 @@ class PdfService {
     var technicalPageForLayout = 0;
     for (var rowIndex = 0; rowIndex < rowHeights.length; rowIndex++) {
       final height = rowHeights[rowIndex];
-      final tableTop = technicalPageForLayout == 0 ? firstTableTop : 54.0;
+      final tableTop = technicalPageForLayout == 0 ? firstTableTop : 28.0;
       final availableHeight = firstPage.getClientSize().height -
           tableTop -
           headerHeight -
@@ -2823,7 +2823,7 @@ class PdfService {
     for (var technicalPage = 0; technicalPage < pageCount; technicalPage++) {
       final page = document.pages[46 + technicalPage];
       final pageSize = page.getClientSize();
-      final tableTop = technicalPage == 0 ? firstTableTop : 54.0;
+      final tableTop = technicalPage == 0 ? firstTableTop : 28.0;
       final rowsOnPage = pageRowCounts[technicalPage];
       final pageStartItemIndex = itemIndex;
       final tableRowsHeight = rowHeights
@@ -2839,18 +2839,6 @@ class PdfService {
         page.graphics.drawRectangle(
           brush: whiteBrush,
           bounds: Rect.fromLTWH(0, 0, pageSize.width, pageSize.height),
-        );
-        page.graphics.drawString(
-          'TECHNICAL SPECIFICATIONS (CONTINUATION)',
-          boldFont,
-          brush: blackBrush,
-          bounds: Rect.fromLTWH(
-            columns.first,
-            20,
-            columns.last - columns.first,
-            22,
-          ),
-          format: PdfStringFormat(alignment: PdfTextAlignment.center),
         );
       }
 
