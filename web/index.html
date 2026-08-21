@@ -37,6 +37,13 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- Syncfusion's web PDF viewer renders pages through PDF.js instead of
+       relying on the browser's inconsistent inline PDF/iframe support. -->
+  <script type="module">
+    import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+    window.pdfjsLib = pdfjsLib;
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

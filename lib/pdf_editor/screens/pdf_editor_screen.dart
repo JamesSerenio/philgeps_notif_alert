@@ -1,13 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html;
 import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
-import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../services/pdf_service.dart';
 import '../../utils/supabase_client.dart';
@@ -137,7 +136,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   Uint8List? generatedPdf;
   bool isGenerating = false;
   String? errorMessage;
-  String? previewViewType;
   bool showCompactPreview = false;
 
   @override
@@ -723,23 +721,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
       if (!mounted) return;
 
-      final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
-      final blobUrl = html.Url.createObjectUrlFromBlob(blob);
-      final viewType = 'generated-pdf-${DateTime.now().microsecondsSinceEpoch}';
-
-      ui_web.platformViewRegistry.registerViewFactory(
-        viewType,
-        (int viewId) => html.IFrameElement()
-          ..src = blobUrl
-          ..style.border = 'none'
-          ..style.width = '100%'
-          ..style.height = '100%'
-          ..allowFullscreen = true,
-      );
-
       setState(() {
         generatedPdf = bytes;
-        previewViewType = viewType;
         showCompactPreview = true;
       });
     } catch (error) {
@@ -1935,7 +1918,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
                 final previewPanel = Container(
                   color: const Color(0xFFF2F2F2),
-                  child: previewViewType == null
+                  child: generatedPdf == null
                       ? const Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -1952,9 +1935,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                             ],
                           ),
                         )
-                      : HtmlElementView(
-                          key: ValueKey(previewViewType),
-                          viewType: previewViewType!,
+                      : SfPdfViewer.memory(
+                          generatedPdf!,
+                          key: ValueKey(generatedPdf),
+                          canShowScrollHead: true,
+                          canShowScrollStatus: true,
                         ),
                 );
 
@@ -1991,7 +1976,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                           Expanded(
                             child: _CompactPanelButton(
                               icon: Icons.picture_as_pdf_outlined,
-                              label: previewViewType == null
+                              label: generatedPdf == null
                                   ? 'PDF Preview'
                                   : 'View PDF',
                               selected: showCompactPreview,
