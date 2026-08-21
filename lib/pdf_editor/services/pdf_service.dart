@@ -659,8 +659,9 @@ class PdfService {
     String text,
     PdfFont font,
     PdfBrush brush,
-    Rect bounds,
-  ) {
+    Rect bounds, {
+    bool centerVertically = true,
+  }) {
     final markerPattern = RegExp(r'^\s*(✓|•|○|■|➢)\s*');
     final entries = <({String? marker, String content, double height})>[];
     for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
@@ -681,8 +682,12 @@ class PdfService {
       ));
     }
     final totalHeight = entries.fold<double>(0, (sum, row) => sum + row.height);
-    var top = bounds.top +
-        ((bounds.height - totalHeight) / 2).clamp(0, bounds.height).toDouble();
+    var top = bounds.top;
+    if (centerVertically) {
+      top += ((bounds.height - totalHeight) / 2)
+          .clamp(0, bounds.height)
+          .toDouble();
+    }
     final markerPen = PdfPen(PdfColor(0, 0, 0), width: 1.15);
     final markerBrush = PdfSolidBrush(PdfColor(0, 0, 0));
 
@@ -3205,8 +3210,13 @@ class PdfService {
 
     final itemHeights = <double>[
       for (final row in priceRows)
-        ((row['_descriptionLines'] as List).length * 17.0 + 8.0)
-            .clamp(34.0, 260.0)
+        (_measureMarkedSpecificationTextHeight(
+                  (row['_descriptionLines'] as List).join('\n'),
+                  measuringFont,
+                  specificationWidth,
+                ) +
+                2)
+            .clamp(30.0, 260.0)
             .toDouble(),
     ];
     final pageRowCounts = <int>[];
@@ -3507,10 +3517,11 @@ class PdfService {
           black,
           Rect.fromLTWH(
             columns[1] + 3,
-            y + 3,
+            y + 1,
             columns[2] - columns[1] - 6,
-            rowHeight - 6,
+            rowHeight - 2,
           ),
+          centerVertically: false,
         );
         y += rowHeight;
         final hasNextRowOnPage = row < rowCount - 1;
@@ -6247,10 +6258,10 @@ class PdfService {
           final description = (value['_description'] ?? '').toString();
           return (_measureMarkedSpecificationTextHeight(
                     description,
-                    scheduleMeasuringFont,
-                    scheduleSpecificationWidth,
-                  ) +
-                  10)
+                  scheduleMeasuringFont,
+                  scheduleSpecificationWidth,
+                ) +
+                  2)
               .clamp(23.0, 240.0)
               .toDouble();
         })(),
@@ -6467,6 +6478,7 @@ class PdfService {
               rowFont,
               black,
               cellBounds,
+              centerVertically: false,
             );
           } else {
             page.graphics.drawString(
