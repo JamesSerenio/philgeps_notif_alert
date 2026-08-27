@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:html' as html;
+import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
 
@@ -738,6 +740,62 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         });
       }
     }
+  }
+
+  String get _generatedPdfFileName {
+    final reference = referenceNumberController.text
+        .trim()
+        .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
+    return reference.isEmpty
+        ? 'bid-documents.pdf'
+        : 'bid-documents-$reference.pdf';
+  }
+
+  void _downloadGeneratedPdf() {
+    final bytes = generatedPdf;
+    if (bytes == null) return;
+
+    final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)
+      ..download = _generatedPdfFileName
+      ..style.display = 'none';
+    html.document.body?.append(anchor);
+    anchor.click();
+    anchor.remove();
+    Timer(const Duration(seconds: 10), () => html.Url.revokeObjectUrl(url));
+  }
+
+  void _printGeneratedPdf() {
+    final bytes = generatedPdf;
+    if (bytes == null) return;
+
+    final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    // Opening the PDF in a user-initiated tab works with mobile/tablet popup
+    // rules and gives those browsers their native print/share destination UI.
+    final printWindow = html.window.open(url, '_blank');
+    if (printWindow.closed == true) {
+      html.Url.revokeObjectUrl(url);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please allow pop-ups to print the PDF.'),
+        ),
+      );
+      return;
+    }
+
+    Timer(const Duration(milliseconds: 1500), () {
+      if (printWindow.closed != true) {
+        try {
+          js_util.callMethod<void>(printWindow, 'print', const <Object>[]);
+        } catch (_) {
+          // Some mobile PDF viewers do not expose window.print. The opened
+          // PDF remains available so Print can be selected from its menu.
+        }
+      }
+    });
+    Timer(const Duration(minutes: 2), () => html.Url.revokeObjectUrl(url));
   }
 
   Widget formField({
@@ -1935,11 +1993,52 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                             ],
                           ),
                         )
-                      : SfPdfViewer.memory(
-                          generatedPdf!,
-                          key: ValueKey(generatedPdf),
-                          canShowScrollHead: true,
-                          canShowScrollStatus: true,
+                      : Column(
+                          children: [
+                            Material(
+                              color: Colors.white,
+                              elevation: 1,
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: _downloadGeneratedPdf,
+                                        icon: const Icon(
+                                          Icons.download,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Download PDF'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: _printGeneratedPdf,
+                                        icon: const Icon(Icons.print, size: 18),
+                                        label: const Text('Print'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFF0B5D3B),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: SfPdfViewer.memory(
+                                generatedPdf!,
+                                key: ValueKey(generatedPdf),
+                                canShowScrollHead: true,
+                                canShowScrollStatus: true,
+                              ),
+                            ),
+                          ],
                         ),
                 );
 
