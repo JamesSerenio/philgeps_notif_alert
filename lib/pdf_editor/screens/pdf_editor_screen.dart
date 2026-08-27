@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
-import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
+import 'dart:ui_web' as ui_web;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -138,6 +139,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   Uint8List? generatedPdf;
   bool isGenerating = false;
   String? errorMessage;
+  String? previewViewType;
   bool showCompactPreview = false;
 
   @override
@@ -723,8 +725,24 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
       if (!mounted) return;
 
+      // Keep the original browser PDF viewer on desktop/laptop, where its
+      // built-in download and print toolbar already works well.
+      final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
+      final blobUrl = html.Url.createObjectUrlFromBlob(blob);
+      final viewType = 'generated-pdf-${DateTime.now().microsecondsSinceEpoch}';
+      ui_web.platformViewRegistry.registerViewFactory(
+        viewType,
+        (int viewId) => html.IFrameElement()
+          ..src = blobUrl
+          ..style.border = 'none'
+          ..style.width = '100%'
+          ..style.height = '100%'
+          ..allowFullscreen = true,
+      );
+
       setState(() {
         generatedPdf = bytes;
+        previewViewType = viewType;
         showCompactPreview = true;
       });
     } catch (error) {
@@ -785,16 +803,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       return;
     }
 
-    Timer(const Duration(milliseconds: 1500), () {
-      if (printWindow.closed != true) {
-        try {
-          js_util.callMethod<void>(printWindow, 'print', const <Object>[]);
-        } catch (_) {
-          // Some mobile PDF viewers do not expose window.print. The opened
-          // PDF remains available so Print can be selected from its menu.
-        }
-      }
-    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Use Print or Share from the opened PDF menu.'),
+      ),
+    );
     Timer(const Duration(minutes: 2), () => html.Url.revokeObjectUrl(url));
   }
 
@@ -1868,6 +1881,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final isWide = constraints.maxWidth >= 1000;
+                final isMobileOrTabletWeb = kIsWeb &&
+                    (defaultTargetPlatform == TargetPlatform.android ||
+                        defaultTargetPlatform == TargetPlatform.iOS);
+                final useDesktopBrowserPdfViewer =
+                    isWide && !isMobileOrTabletWeb;
                 final compactHorizontalPadding =
                     constraints.maxWidth < 480 ? 10.0 : 16.0;
 
@@ -1993,53 +2011,67 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                             ],
                           ),
                         )
-                      : Column(
-                          children: [
-                            Material(
-                              color: Colors.white,
-                              elevation: 1,
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: _downloadGeneratedPdf,
-                                        icon: const Icon(
-                                          Icons.download,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Download PDF'),
-                                      ),
+                      : useDesktopBrowserPdfViewer && previewViewType != null
+                          ? HtmlElementView(
+                              key: ValueKey(previewViewType),
+                              viewType: previewViewType!,
+                            )
+                          : Column(
+                              children: [
+                                Material(
+                                  color: Colors.white,
+                                  elevation: 1,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      10,
+                                      8,
+                                      10,
+                                      8,
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: _printGeneratedPdf,
-                                        icon: const Icon(Icons.print, size: 18),
-                                        label: const Text('Print'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              const Color(0xFF0B5D3B),
-                                          foregroundColor: Colors.white,
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: _downloadGeneratedPdf,
+                                            icon: const Icon(
+                                              Icons.download,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Download PDF'),
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            onPressed: _printGeneratedPdf,
+                                            icon: const Icon(
+                                              Icons.print,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Print'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xFF0B5D3B),
+                                              foregroundColor: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
+                                Expanded(
+                                  child: SfPdfViewer.memory(
+                                    generatedPdf!,
+                                    key: ValueKey(generatedPdf),
+                                    canShowScrollHead: true,
+                                    canShowScrollStatus: true,
+                                    initialZoomLevel: 1,
+                                    maxZoomLevel: 3,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Expanded(
-                              child: SfPdfViewer.memory(
-                                generatedPdf!,
-                                key: ValueKey(generatedPdf),
-                                canShowScrollHead: true,
-                                canShowScrollStatus: true,
-                              ),
-                            ),
-                          ],
-                        ),
                 );
 
                 if (isWide) {
