@@ -33,6 +33,16 @@ class PdfService {
       inputBytes: templateBytes,
     );
 
+    // A loaded Syncfusion document uses incremental updates by default. That
+    // leaves the original bid template and the edited revision in one file.
+    // Chrome normally opens the newest revision, while Edge/File Explorer can
+    // resolve the older cross-reference and show the untouched template.
+    // Force a complete rewrite so every PDF reader receives one authoritative
+    // revision with the current project data.
+    document.fileStructure.incrementalUpdate = false;
+    document.fileStructure.crossReferenceType =
+        PdfCrossReferenceType.crossReferenceTable;
+
     // PDF work on Flutter Web shares the UI thread. Yield between the major
     // stages so loading indicators can continue receiving animation frames.
     await yieldToBrowser();
