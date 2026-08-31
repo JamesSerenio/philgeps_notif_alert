@@ -29,9 +29,32 @@ class PdfService {
 
     final Uint8List templateBytes = templateData.buffer.asUint8List();
 
-    final PdfDocument document = PdfDocument(
+    final PdfDocument sourceTemplateDocument = PdfDocument(
       inputBytes: templateBytes,
     );
+    // Never edit the loaded template document directly. Syncfusion saves
+    // loaded PDFs incrementally, and Chromium-based readers disagree about
+    // which revision/page tree is current. Build a brand-new document whose
+    // pages use the template only as a background; every edit then belongs to
+    // the single new document revision.
+    final PdfDocument document = PdfDocument();
+    document.pageSettings.margins.all = 0;
+    for (var pageIndex = 0;
+        pageIndex < sourceTemplateDocument.pages.count;
+        pageIndex++) {
+      final sourcePage = sourceTemplateDocument.pages[pageIndex];
+      final targetPage = document.pages.insert(
+        document.pages.count,
+        sourcePage.size,
+        PdfMargins()..all = 0,
+      );
+      targetPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        Offset.zero,
+        sourcePage.size,
+      );
+      if (pageIndex % 4 == 3) await yieldToBrowser();
+    }
 
     // PDF work on Flutter Web shares the UI thread. Yield between the major
     // stages so loading indicators can continue receiving animation frames.
@@ -349,6 +372,7 @@ class PdfService {
         PdfCrossReferenceType.crossReferenceTable;
     final List<int> outputBytes = await document.save();
     document.dispose();
+    sourceTemplateDocument.dispose();
     return Uint8List.fromList(outputBytes);
   }
 
