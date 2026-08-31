@@ -71,6 +71,12 @@ class PdfService {
       _drawSlccPrivateRow(document.pages[20], values);
     }
 
+    // Rebuild the editable Technical Specifications sheets on genuinely blank
+    // pages. Painting white over the bundled rows leaves the old content in
+    // the PDF page stream, and external readers can render that stream above
+    // the edits even though Chrome's in-app preview looks correct.
+    _replacePagesWithBlank(document, 46, 3);
+
     // Page 47 technical specifications header follows the current bid data.
     if (document.pages.count > 46) {
       _drawTechnicalSpecificationsHeader(document.pages[46], values);
@@ -89,6 +95,7 @@ class PdfService {
     final priceScheduleStartPage = _findPriceScheduleStartPage(document);
     var priceSchedulePageCount = 1;
     if (priceScheduleStartPage >= 0) {
+      _replacePagesWithBlank(document, priceScheduleStartPage, 8);
       priceSchedulePageCount = _drawPriceSchedule(
         document,
         values,
@@ -100,6 +107,7 @@ class PdfService {
     final bidPriceSummaryStartPage = _findBidPriceSummaryStartPage(document);
     var bidPriceSummaryPageCount = 1;
     if (bidPriceSummaryStartPage >= 0) {
+      _replacePagesWithBlank(document, bidPriceSummaryStartPage, 3);
       bidPriceSummaryPageCount = _drawBidPriceSummary(
         document,
         values,
@@ -112,6 +120,7 @@ class PdfService {
         _findScheduleRequirementsStartPage(document);
     var scheduleRequirementsPageCount = 1;
     if (scheduleRequirementsStartPage >= 0) {
+      _replacePagesWithBlank(document, scheduleRequirementsStartPage, 2);
       scheduleRequirementsPageCount = _drawScheduleRequirements(
         document,
         values,
@@ -341,6 +350,30 @@ class PdfService {
     final List<int> outputBytes = await document.save();
     document.dispose();
     return Uint8List.fromList(outputBytes);
+  }
+
+  static void _replacePagesWithBlank(
+    PdfDocument document,
+    int startIndex,
+    int requestedCount,
+  ) {
+    if (startIndex < 0 || startIndex >= document.pages.count) return;
+    final availableCount =
+        requestedCount.clamp(0, document.pages.count - startIndex).toInt();
+    final pageSizes = <Size>[
+      for (var offset = 0; offset < availableCount; offset++)
+        document.pages[startIndex + offset].size,
+    ];
+    for (var offset = 0; offset < availableCount; offset++) {
+      document.pages.removeAt(startIndex);
+    }
+    for (var offset = 0; offset < pageSizes.length; offset++) {
+      document.pages.insert(
+        startIndex + offset,
+        pageSizes[offset],
+        PdfMargins()..all = 0,
+      );
+    }
   }
 
   static Future<void> _replaceSlccSection(
@@ -1487,6 +1520,18 @@ class PdfService {
       alignment: PdfTextAlignment.left,
       lineAlignment: PdfVerticalAlignment.top,
       wordWrap: PdfWordWrapType.word,
+    );
+
+    graphics.drawString(
+      'TECHNICAL SPECIFICATIONS',
+      PdfStandardFont(
+        PdfFontFamily.timesRoman,
+        14,
+        style: PdfFontStyle.bold,
+      ),
+      brush: blackBrush,
+      bounds: const Rect.fromLTWH(30, 42, 545, 20),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center),
     );
 
     // Redraw the complete block so old Sumilao values cannot remain visible.
