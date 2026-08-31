@@ -17,6 +17,9 @@ class PdfService {
   static Future<Uint8List> generateBidDocs({
     required Map<String, String> values,
   }) async {
+    Future<void> yieldToBrowser() =>
+        Future<void>.delayed(const Duration(milliseconds: 1));
+
     values = values.map(
       (key, value) => MapEntry(key, _pdfSafeText(value)),
     );
@@ -32,7 +35,7 @@ class PdfService {
 
     // PDF work on Flutter Web shares the UI thread. Yield between the major
     // stages so loading indicators can continue receiving animation frames.
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await yieldToBrowser();
 
     // Clean replacement for Page 1.
     if (document.pages.count > 0) {
@@ -166,7 +169,12 @@ class PdfService {
           ),
         );
       }
+      // Large bid documents map dozens of pages. Let Flutter Web paint the
+      // progress overlay and let Chrome process input between each page.
+      await yieldToBrowser();
     }
+
+    await yieldToBrowser();
 
     // Remove unused continuation templates only after all original page-index
     // mappings have been applied.
@@ -207,6 +215,7 @@ class PdfService {
     if (technicalSpecificationPageCount < 2) {
       document.pages.removeAt(47);
     }
+    await yieldToBrowser();
 
     final useDeclarationWithTable =
         values['bidSecuringDeclarationWithTable'] != 'false';
@@ -218,7 +227,7 @@ class PdfService {
       await _replaceBidSecuringDeclarationWithoutTable(document, values);
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await yieldToBrowser();
 
     // The scanned official receipt is only a sample attachment in the source
     // template and is not required in the generated bid documents.
@@ -241,20 +250,29 @@ class PdfService {
         pageIndex: omnibusPageIndex + 1,
       );
     }
+    await yieldToBrowser();
     // Run this after mapped fields and optional-page removals so the old
     // signature block cannot be drawn back over the cleaned manpower page.
     _drawManpowerSignature(document, values);
+    await yieldToBrowser();
     _drawAfterSalesServiceCertificate(document, values);
+    await yieldToBrowser();
     _drawProductWarrantyCertificate(document, values);
+    await yieldToBrowser();
     _drawJuratPlaceholders(document, values);
+    await yieldToBrowser();
     _drawBidForm(document, values);
+    await yieldToBrowser();
     _drawSecretaryCertificate(document, values);
+    await yieldToBrowser();
 
     // Replace the two legacy editable SLCC sheets only after every original
     // page mapping is complete. This keeps all following section indexes
     // stable while the document is being prepared.
     await _replaceSlccSection(document, values);
+    await yieldToBrowser();
     await _replaceAfsSection(document);
+    await yieldToBrowser();
 
     // Reverse final PDF pages 29-43 while preserving every page exactly.
     // Export them as templates first, remove the original range, then insert
@@ -278,6 +296,7 @@ class PdfService {
       ];
       for (var page = 0; page < reversePageCount; page++) {
         document.pages.removeAt(reverseStartIndex);
+        if (page % 3 == 2) await yieldToBrowser();
       }
       for (var index = 0; index < reversedTemplates.length; index++) {
         final source = reversedTemplates[index];
@@ -291,6 +310,7 @@ class PdfService {
           Offset.zero,
           source.size,
         );
+        if (index % 3 == 2) await yieldToBrowser();
       }
       snapshotDocument.dispose();
     }
@@ -305,11 +325,13 @@ class PdfService {
     // inserted template can itself be moved or removed by the operations
     // above, leaving the legacy NFCC page in the final document.
     await _replaceNfccPage(document, values);
+    await yieldToBrowser();
 
     if (values['slccTemplateType']?.trim().toLowerCase() == 'none') {
       _removeSlccSection(document);
     }
 
+    await yieldToBrowser();
     final List<int> outputBytes = await document.save();
     document.dispose();
 
@@ -348,6 +370,7 @@ class PdfService {
         page < 3 && slccPageIndex < document.pages.count;
         page++) {
       document.pages.removeAt(slccPageIndex);
+      await Future<void>.delayed(const Duration(milliseconds: 1));
     }
 
     const a4Size = Size(595.28, 841.89);
@@ -375,6 +398,7 @@ class PdfService {
         offset,
         fittedSize,
       );
+      await Future<void>.delayed(const Duration(milliseconds: 1));
     }
     sourceDocument.dispose();
   }
@@ -395,6 +419,9 @@ class PdfService {
         page < legacyAfsPageCount && afsPageIndex < document.pages.count;
         page++) {
       document.pages.removeAt(afsPageIndex);
+      if (page % 3 == 2) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
     }
 
     const a4Size = Size(595.28, 841.89);
@@ -421,6 +448,7 @@ class PdfService {
         ),
         fittedSize,
       );
+      await Future<void>.delayed(const Duration(milliseconds: 1));
     }
     sourceDocument.dispose();
   }
