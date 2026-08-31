@@ -332,44 +332,8 @@ class PdfService {
     }
 
     await yieldToBrowser();
-    final List<int> editedBytes = await document.save();
+    final List<int> outputBytes = await document.save();
     document.dispose();
-
-    // Syncfusion saves loaded PDFs incrementally. Some desktop PDF readers
-    // resolve the original template revision instead of the latest edits.
-    // Rebuild every final page into a brand-new document so the downloaded
-    // file has one cross-reference table and one authoritative revision.
-    final editedDocument = PdfDocument(inputBytes: editedBytes);
-    final cleanDocument = PdfDocument();
-    cleanDocument.fileStructure.crossReferenceType =
-        PdfCrossReferenceType.crossReferenceTable;
-    cleanDocument.pageSettings.size = PdfPageSize.a4;
-    cleanDocument.pageSettings.margins.all = 0;
-    for (var pageIndex = 0;
-        pageIndex < editedDocument.pages.count;
-        pageIndex++) {
-      final sourcePage = editedDocument.pages[pageIndex];
-      final pageSize = sourcePage.size;
-      final targetPage = cleanDocument.pages.add();
-      final targetSize = targetPage.getClientSize();
-      final scale = (targetSize.width / pageSize.width)
-          .clamp(0.0, targetSize.height / pageSize.height)
-          .toDouble();
-      final fittedSize = Size(pageSize.width * scale, pageSize.height * scale);
-      targetPage.graphics.drawPdfTemplate(
-        sourcePage.createTemplate(),
-        Offset(
-          (targetSize.width - fittedSize.width) / 2,
-          (targetSize.height - fittedSize.height) / 2,
-        ),
-        fittedSize,
-      );
-      if (pageIndex % 2 == 1) await yieldToBrowser();
-    }
-
-    final List<int> outputBytes = await cleanDocument.save();
-    cleanDocument.dispose();
-    editedDocument.dispose();
     return Uint8List.fromList(outputBytes);
   }
 

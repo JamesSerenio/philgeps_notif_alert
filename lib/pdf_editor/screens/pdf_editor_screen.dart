@@ -140,6 +140,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   String? generatedPdfFileName;
   String? previewBlobUrl;
   int contentRevision = 0;
+  String? lastObservedContentSignature;
+  final Map<TextEditingController, String> metadataTextSnapshots = {};
   bool isGenerating = false;
   String? errorMessage;
   String? previewViewType;
@@ -203,7 +205,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       procuringEntityController,
       submittedByController,
     ]) {
-      controller.addListener(_invalidateGeneratedPdf);
+      metadataTextSnapshots[controller] = controller.text;
+      controller.addListener(_handleMetadataTextChanged);
     }
     _loadSlcc();
     _loadTechnicalSpecifications();
@@ -704,6 +707,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       await _saveAfterSalesSettings();
       final generatedProjectTitle = projectTitleController.text.trim();
       final generatedReferenceNumber = referenceNumberController.text.trim();
+      lastObservedContentSignature = _currentContentSignature();
       final generatedRevision = contentRevision;
       final bytes = await PdfService.generateBidDocs(
         values: {
@@ -854,6 +858,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   void _invalidateGeneratedPdf() {
+    final currentSignature = _currentContentSignature();
+    if (currentSignature == lastObservedContentSignature) return;
+    lastObservedContentSignature = currentSignature;
     contentRevision++;
     if (generatedPdf == null || isGenerating || !mounted) return;
     final oldBlobUrl = previewBlobUrl;
@@ -869,6 +876,52 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         html.Url.revokeObjectUrl(oldBlobUrl);
       });
     }
+  }
+
+  String _currentContentSignature() {
+    return jsonEncode({
+      'province': provinceController.text,
+      'municipality': municipalityController.text,
+      'projectTitle': projectTitleController.text,
+      'referenceNumber': referenceNumberController.text,
+      'date': dateController.text,
+      'bidderName': bidderNameController.text,
+      'procuringEntity': procuringEntityController.text,
+      'submittedBy': submittedByController.text,
+      'slccTemplate': selectedSlccTemplate,
+      'bidDeclarationWithTable': useBidSecuringDeclarationWithTable,
+      'includeScheduleTotal': includeTotalInScheduleRequirements,
+      'deliveryPeriod': deliveredWeeksMonthsController.text,
+      'afterSalesYears': afterSalesYearsController.text,
+      'warrantyYears': warrantyYearsController.text,
+      'technicalSpecifications': [
+        for (final entry in technicalSpecifications)
+          [
+            entry.specification.text,
+            entry.quantity.text,
+            entry.unit.text,
+            entry.parameter.text,
+          ],
+      ],
+      'priceSchedule': [
+        for (final entry in priceScheduleEntries)
+          [entry.totalPricePerUnit.text, entry.deduction.text],
+      ],
+    });
+  }
+
+  void _handleMetadataTextChanged() {
+    var textChanged = false;
+    for (final entry in metadataTextSnapshots.entries) {
+      final currentText = entry.key.text;
+      if (entry.value != currentText) {
+        metadataTextSnapshots[entry.key] = currentText;
+        textChanged = true;
+      }
+    }
+    // TextEditingController listeners also fire for cursor movement and text
+    // selection. Keep the generated PDF visible unless actual text changed.
+    if (textChanged) _invalidateGeneratedPdf();
   }
 
   void _downloadGeneratedPdf() {
@@ -1956,8 +2009,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       procuringEntityController,
       submittedByController,
     ]) {
-      controller.removeListener(_invalidateGeneratedPdf);
+      controller.removeListener(_handleMetadataTextChanged);
     }
+    metadataTextSnapshots.clear();
     final oldBlobUrl = previewBlobUrl;
     if (oldBlobUrl != null) html.Url.revokeObjectUrl(oldBlobUrl);
     provinceController.dispose();
@@ -2138,9 +2192,49 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                           ),
                         )
                       : useDesktopBrowserPdfViewer && previewViewType != null
-                          ? HtmlElementView(
-                              key: ValueKey(previewViewType),
-                              viewType: previewViewType!,
+                          ? Column(
+                              children: [
+                                Material(
+                                  color: Colors.white,
+                                  elevation: 2,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.end,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: _downloadGeneratedPdf,
+                                          icon: const Icon(Icons.download),
+                                          label: const Text(
+                                            'Download Latest PDF',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        ElevatedButton.icon(
+                                          onPressed: _printGeneratedPdf,
+                                          icon: const Icon(Icons.print),
+                                          label: const Text('Print'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xFF0B5D3B),
+                                            foregroundColor: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: HtmlElementView(
+                                    key: ValueKey(previewViewType),
+                                    viewType: previewViewType!,
+                                  ),
+                                ),
+                              ],
                             )
                           : Column(
                               children: [
