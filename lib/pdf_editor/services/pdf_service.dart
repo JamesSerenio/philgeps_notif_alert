@@ -3321,9 +3321,16 @@ class PdfService {
       final availableHeight = remainingHeight <= finalPageCapacity
           ? finalPageCapacity
           : regularPageCapacity;
+      final mustLeaveFinalPage = remainingHeight > finalPageCapacity;
       var usedHeight = 0.0;
       var count = 0;
       while (nextItem + count < priceRows.length) {
+        final isLastRemainingRow =
+            nextItem + count == priceRows.length - 1;
+        // A regular page must not consume the final row. Otherwise TOTAL and
+        // the signature block are appended to a page that was filled using
+        // the larger non-final capacity and get clipped below the page.
+        if (mustLeaveFinalPage && count > 0 && isLastRemainingRow) break;
         final height = itemHeights[nextItem + count];
         if (count > 0 && usedHeight + height > availableHeight) break;
         usedHeight += height;
