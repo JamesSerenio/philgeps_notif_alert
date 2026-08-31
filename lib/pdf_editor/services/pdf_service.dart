@@ -2587,9 +2587,8 @@ class PdfService {
       if (decoded is List) specifications = decoded.take(72).toList();
     }
 
-    // A single equipment item may contain many newline-separated details.
-    // Split it into continuation rows so readable text can flow to the next
-    // Technical Specifications page instead of being shrunk or clipped.
+    // One editor item is one table item. Blank lines and added lines belong in
+    // the same specification cell; they must not create extra bordered rows.
     final logicalRows = <Map<String, dynamic>>[];
     for (var sourceIndex = 0;
         sourceIndex < specifications.length;
@@ -2597,31 +2596,12 @@ class PdfService {
       final source = specifications[sourceIndex] is Map
           ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
           : <String, dynamic>{};
-      final addedLines = (source['specification'] ?? '')
-          .toString()
-          .replaceAll('\u2029', '\n\n')
-          .split(RegExp(r'\r?\n\s*\r?\n'))
-          .where((line) => line.trim().isNotEmpty)
-          .toList();
-      final chunks = addedLines.isEmpty
-          ? <List<String>>[
-              <String>[''],
-            ]
-          : <List<String>>[
-              for (final line in addedLines) <String>[line],
-            ];
-      for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-        logicalRows.add(<String, dynamic>{
-          ...source,
-          'specification': chunks[chunkIndex].join('\n'),
-          '_sourceIndex': sourceIndex,
-          '_itemNumber': sourceIndex + 1,
-          '_continuation': chunkIndex > 0,
-          if (chunkIndex > 0) 'quantity': '',
-          if (chunkIndex > 0) 'unit': '',
-          if (chunkIndex > 0) 'parameter': '',
-        });
-      }
+      logicalRows.add(<String, dynamic>{
+        ...source,
+        '_sourceIndex': sourceIndex,
+        '_itemNumber': sourceIndex + 1,
+        '_continuation': false,
+      });
     }
 
     final hasAnyParameter = logicalRows.any(
@@ -2703,7 +2683,7 @@ class PdfService {
         sourceLines.isEmpty ? <String>[''] : sourceLines,
         regularFont,
         specificationWidth,
-        200,
+        520,
       );
       final parameterText = (logicalRow['parameter'] ?? '').toString();
       final parameterChunks = !hasAnyParameter || parameterText.trim().isEmpty
@@ -2712,7 +2692,7 @@ class PdfService {
               parameterText.split(RegExp(r'\r?\n')),
               regularFont,
               parameterWidth,
-              200,
+              520,
             );
       final chunkCount = chunks.length > parameterChunks.length
           ? chunks.length
@@ -2759,7 +2739,7 @@ class PdfService {
               measuredSpecification.height > measuredParameter.height
                   ? measuredSpecification.height
                   : measuredParameter.height;
-          return (contentHeight + 14).clamp(minimumRowHeight, 230).toDouble();
+          return (contentHeight + 14).clamp(minimumRowHeight, 540).toDouble();
         })(),
     ];
     final pageRowCounts = <int>[];
@@ -2997,28 +2977,7 @@ class PdfService {
             : null;
         final isPageBottom = row == rowsOnPage - 1;
         final isInternalItemLine = !isPageBottom && currentItem == nextItem;
-        if (isInternalItemLine) {
-          // Keep Item No., Qty, and Unit visually merged for all lines under
-          // one item. Only Specification (and optional Parameter) plus
-          // Compliance receive a separator for every added line.
-          page.graphics.drawLine(
-            gridPen,
-            Offset(columns[1], horizontalY),
-            Offset(columns[2], horizontalY),
-          );
-          if (hasAnyParameter) {
-            page.graphics.drawLine(
-              gridPen,
-              Offset(columns[4], horizontalY),
-              Offset(columns[5], horizontalY),
-            );
-          }
-          page.graphics.drawLine(
-            gridPen,
-            Offset(columns[columns.length - 2], horizontalY),
-            Offset(columns.last, horizontalY),
-          );
-        } else {
+        if (!isInternalItemLine) {
           page.graphics.drawLine(
             gridPen,
             Offset(columns.first, horizontalY),
@@ -3081,7 +3040,10 @@ class PdfService {
         ];
         final rowHeight = rowHeights[itemIndex];
         for (var column = 0; column < texts.length; column++) {
-          final isMergedColumn = column == 0 || column == 2 || column == 3;
+          final isMergedColumn = column == 0 ||
+              column == 2 ||
+              column == 3 ||
+              column == texts.length - 1;
           if (isMergedColumn && itemNumber == previousItemNumber) continue;
           var cellHeight = rowHeight - 2;
           if (isMergedColumn) {
@@ -3295,30 +3257,31 @@ class PdfService {
       final source = specifications[sourceIndex] is Map
           ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
           : <String, dynamic>{};
-      // Leave vertical breathing room around every continuation. On Web the
-      // marked-text renderer can use a slightly taller baseline than the
-      // measuring font, so tightly packing fourteen lines could clip the last
-      // one at the cell border.
-      const linesPerPriceRow = 11;
+      // Keep each continuation short enough to leave a safe bottom margin.
+      // The marked-text renderer can use taller baselines than measureString
+      // on Web, so packing too many visual lines can clip the last details.
+      const linesPerPriceRow = 16;
+      final visualLines = <String>[];
       final logicalLines = priceSpecificationLines(source['specification']);
-      for (var logicalIndex = 0;
-          logicalIndex < logicalLines.length;
-          logicalIndex++) {
-        final lines = wrapPriceSpecificationLine(logicalLines[logicalIndex]);
-        for (var start = 0; start < lines.length; start += linesPerPriceRow) {
-          final continuation = logicalIndex > 0 || start > 0;
-          priceRows.add(<String, dynamic>{
-            ...source,
-            '_sourceIndex': sourceIndex,
-            '_itemNumber': sourceIndex + 1,
-            '_logicalLineIndex': logicalIndex,
-            '_continuation': continuation,
-            '_descriptionLines':
-                lines.skip(start).take(linesPerPriceRow).toList(),
-            if (continuation) 'quantity': '',
-            if (continuation) 'unit': '',
-          });
+      for (final logicalLine in logicalLines) {
+        for (final explicitLine in logicalLine.split(RegExp(r'\r?\n'))) {
+          visualLines.addAll(wrapPriceSpecificationLine(explicitLine));
         }
+      }
+      if (visualLines.isEmpty) visualLines.add('');
+      for (var start = 0; start < visualLines.length; start += linesPerPriceRow) {
+        final continuation = start > 0;
+        priceRows.add(<String, dynamic>{
+          ...source,
+          '_sourceIndex': sourceIndex,
+          '_itemNumber': sourceIndex + 1,
+          '_logicalLineIndex': 0,
+          '_continuation': continuation,
+          '_descriptionLines':
+              visualLines.skip(start).take(linesPerPriceRow).toList(),
+          if (continuation) 'quantity': '',
+          if (continuation) 'unit': '',
+        });
       }
     }
 
@@ -3330,7 +3293,7 @@ class PdfService {
                   specificationWidth,
                 ) +
                 2)
-            .clamp(30.0, 260.0)
+            .clamp(30.0, 600.0)
             .toDouble(),
     ];
     final pageRowCounts = <int>[];
@@ -3340,8 +3303,11 @@ class PdfService {
       // Only the final page needs to reserve room for TOTAL and the complete
       // signature block. Continuation pages can use the lower part of the
       // sheet, avoiding a tiny table followed by a large empty area.
-      final finalPageCapacity = isFirstPage ? 215.0 : 260.0;
-      final regularPageCapacity = isFirstPage ? 340.0 : 420.0;
+      // The final sheet must also fit TOTAL and the full signature block.
+      // When the remaining rows exceed this reserved capacity, keep a row for
+      // a new page instead of squeezing it below the printable table area.
+      final finalPageCapacity = isFirstPage ? 300.0 : 360.0;
+      final regularPageCapacity = isFirstPage ? 430.0 : 500.0;
       final remainingHeight = itemHeights
           .skip(nextItem)
           .fold<double>(0, (sum, height) => sum + height);
@@ -6730,30 +6696,27 @@ class PdfService {
       final source = specifications[sourceIndex] is Map
           ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
           : <String, dynamic>{};
-      final sourceLines = (source['specification'] ?? '')
+      const linesPerSummaryRow = 16;
+      final visualLines = <String>[];
+      final explicitLines = (source['specification'] ?? '')
           .toString()
-          .split(RegExp(r'\r?\n\s*\r?\n'))
-          .map((line) => line.trim())
-          .where((line) => line.isNotEmpty)
-          .toList();
-      const linesPerSummaryRow = 11;
-      final logicalLines = sourceLines.isEmpty ? <String>[''] : sourceLines;
-      for (var logicalIndex = 0;
-          logicalIndex < logicalLines.length;
-          logicalIndex++) {
-        final descriptionLines = wrapSummaryLine(logicalLines[logicalIndex]);
-        for (var start = 0;
-            start < descriptionLines.length;
-            start += linesPerSummaryRow) {
-          summaryRows.add(<String, dynamic>{
-            ...source,
-            '_sourceIndex': sourceIndex,
-            '_itemNumber': sourceIndex + 1,
-            '_continuation': logicalIndex > 0 || start > 0,
-            '_descriptionLines':
-                descriptionLines.skip(start).take(linesPerSummaryRow).toList(),
-          });
-        }
+          .replaceAll('\u2029', '\n')
+          .split(RegExp(r'\r?\n'));
+      for (final explicitLine in explicitLines) {
+        visualLines.addAll(wrapSummaryLine(explicitLine));
+      }
+      if (visualLines.isEmpty) visualLines.add('');
+      for (var start = 0;
+          start < visualLines.length;
+          start += linesPerSummaryRow) {
+        summaryRows.add(<String, dynamic>{
+          ...source,
+          '_sourceIndex': sourceIndex,
+          '_itemNumber': sourceIndex + 1,
+          '_continuation': start > 0,
+          '_descriptionLines':
+              visualLines.skip(start).take(linesPerSummaryRow).toList(),
+        });
       }
     }
     final summaryRowHeights = <double>[
@@ -6991,11 +6954,13 @@ class PdfService {
         final nextIsSameItem = row < rowsOnPage - 1 &&
             itemIndex + 1 < summaryRows.length &&
             summaryRows[itemIndex + 1]['_sourceIndex'] == sourceIndex;
-        page.graphics.drawLine(
-          gridPen,
-          Offset(nextIsSameItem ? itemRight : left, y),
-          Offset(nextIsSameItem ? descriptionRight : right, y),
-        );
+        if (!nextIsSameItem) {
+          page.graphics.drawLine(
+            gridPen,
+            Offset(left, y),
+            Offset(right, y),
+          );
+        }
       }
 
       if (pageNumber == pageCount - 1) {
