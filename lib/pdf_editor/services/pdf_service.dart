@@ -343,20 +343,26 @@ class PdfService {
     final cleanDocument = PdfDocument();
     cleanDocument.fileStructure.crossReferenceType =
         PdfCrossReferenceType.crossReferenceTable;
+    cleanDocument.pageSettings.size = PdfPageSize.a4;
+    cleanDocument.pageSettings.margins.all = 0;
     for (var pageIndex = 0;
         pageIndex < editedDocument.pages.count;
         pageIndex++) {
       final sourcePage = editedDocument.pages[pageIndex];
       final pageSize = sourcePage.size;
-      final targetPage = cleanDocument.pages.insert(
-        cleanDocument.pages.count,
-        pageSize,
-        PdfMargins()..all = 0,
-      );
+      final targetPage = cleanDocument.pages.add();
+      final targetSize = targetPage.getClientSize();
+      final scale = (targetSize.width / pageSize.width)
+          .clamp(0.0, targetSize.height / pageSize.height)
+          .toDouble();
+      final fittedSize = Size(pageSize.width * scale, pageSize.height * scale);
       targetPage.graphics.drawPdfTemplate(
         sourcePage.createTemplate(),
-        Offset.zero,
-        pageSize,
+        Offset(
+          (targetSize.width - fittedSize.width) / 2,
+          (targetSize.height - fittedSize.height) / 2,
+        ),
+        fittedSize,
       );
       if (pageIndex % 2 == 1) await yieldToBrowser();
     }
