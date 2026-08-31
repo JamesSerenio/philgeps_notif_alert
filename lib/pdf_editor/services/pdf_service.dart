@@ -1033,8 +1033,11 @@ class PdfService {
       var lineCount = 1;
       var currentLine = '';
 
-      for (final word in text.split(RegExp(r'\s+'))) {
-        final candidate = currentLine.isEmpty ? word : '$currentLine $word';
+      for (final word
+          in _pdfStandardFontSafeText(text).split(RegExp(r'\s+'))) {
+        final candidate = _pdfStandardFontSafeText(
+          currentLine.isEmpty ? word : '$currentLine $word',
+        );
 
         if (currentLine.isNotEmpty &&
             font.measureString(candidate).width > maximumWidth) {
@@ -3220,9 +3223,11 @@ class PdfService {
         caseSensitive: false,
       ).firstMatch(sourceLine);
       final marker = markerMatch?.group(1);
-      final content = markerMatch == null
-          ? sourceLine.trim()
-          : sourceLine.substring(markerMatch.end).trim();
+      final content = _pdfStandardFontSafeText(
+        markerMatch == null
+            ? sourceLine.trim()
+            : sourceLine.substring(markerMatch.end).trim(),
+      );
       final words = content.split(RegExp(r'\s+'));
       if (words.isEmpty || (words.length == 1 && words.first.isEmpty)) {
         return <String>[marker ?? ''];
@@ -3230,7 +3235,9 @@ class PdfService {
       final wrapped = <String>[];
       var current = '';
       for (final word in words) {
-        final candidate = current.isEmpty ? word : '$current $word';
+        final candidate = _pdfStandardFontSafeText(
+          current.isEmpty ? word : '$current $word',
+        );
         if (current.isNotEmpty &&
             measuringFont.measureString(candidate).width > specificationWidth) {
           wrapped.add(current);
@@ -6647,9 +6654,11 @@ class PdfService {
         caseSensitive: false,
       ).firstMatch(sourceLine);
       final marker = markerMatch?.group(1);
-      final content = markerMatch == null
-          ? sourceLine.trim()
-          : sourceLine.substring(markerMatch.end).trim();
+      final content = _pdfStandardFontSafeText(
+        markerMatch == null
+            ? sourceLine.trim()
+            : sourceLine.substring(markerMatch.end).trim(),
+      );
       final words = content.split(RegExp(r'\s+'));
       if (words.isEmpty || (words.length == 1 && words.first.isEmpty)) {
         return <String>[marker ?? ''];
@@ -6657,7 +6666,9 @@ class PdfService {
       final wrapped = <String>[];
       var current = '';
       for (final word in words) {
-        final candidate = current.isEmpty ? word : '$current $word';
+        final candidate = _pdfStandardFontSafeText(
+          current.isEmpty ? word : '$current $word',
+        );
         if (current.isNotEmpty &&
             summaryMeasuringFont.measureString(candidate).width >
                 summaryDescriptionWidth) {
