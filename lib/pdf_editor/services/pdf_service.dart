@@ -29,33 +29,9 @@ class PdfService {
 
     final Uint8List templateBytes = templateData.buffer.asUint8List();
 
-    final PdfDocument sourceTemplateDocument = PdfDocument(
+    final PdfDocument document = PdfDocument(
       inputBytes: templateBytes,
     );
-    // Never edit the loaded template document directly. Syncfusion saves
-    // loaded PDFs incrementally, and Chromium-based readers disagree about
-    // which revision/page tree is current. Build a brand-new document whose
-    // pages use the template only as a background; every edit then belongs to
-    // the single new document revision.
-    final PdfDocument document = PdfDocument();
-    document.pageSettings.margins.all = 0;
-    for (var pageIndex = 0;
-        pageIndex < sourceTemplateDocument.pages.count;
-        pageIndex++) {
-      final sourcePage = sourceTemplateDocument.pages[pageIndex];
-      // `insert(0)` expects an existing page-tree parent and throws an
-      // unexpected-null error for a brand-new document. Configure the next
-      // page and use `add()` so Syncfusion creates that parent correctly.
-      document.pageSettings.size = sourcePage.size;
-      document.pageSettings.margins.all = 0;
-      final targetPage = document.pages.add();
-      targetPage.graphics.drawPdfTemplate(
-        sourcePage.createTemplate(),
-        Offset.zero,
-        sourcePage.size,
-      );
-      if (pageIndex % 4 == 3) await yieldToBrowser();
-    }
 
     // PDF work on Flutter Web shares the UI thread. Yield between the major
     // stages so loading indicators can continue receiving animation frames.
@@ -99,8 +75,6 @@ class PdfService {
     // pages. Painting white over the bundled rows leaves the old content in
     // the PDF page stream, and external readers can render that stream above
     // the edits even though Chrome's in-app preview looks correct.
-    _replacePagesWithBlank(document, 46, 3);
-
     // Page 47 technical specifications header follows the current bid data.
     if (document.pages.count > 46) {
       _drawTechnicalSpecificationsHeader(document.pages[46], values);
@@ -119,7 +93,6 @@ class PdfService {
     final priceScheduleStartPage = _findPriceScheduleStartPage(document);
     var priceSchedulePageCount = 1;
     if (priceScheduleStartPage >= 0) {
-      _replacePagesWithBlank(document, priceScheduleStartPage, 8);
       priceSchedulePageCount = _drawPriceSchedule(
         document,
         values,
@@ -131,7 +104,6 @@ class PdfService {
     final bidPriceSummaryStartPage = _findBidPriceSummaryStartPage(document);
     var bidPriceSummaryPageCount = 1;
     if (bidPriceSummaryStartPage >= 0) {
-      _replacePagesWithBlank(document, bidPriceSummaryStartPage, 3);
       bidPriceSummaryPageCount = _drawBidPriceSummary(
         document,
         values,
@@ -144,7 +116,6 @@ class PdfService {
         _findScheduleRequirementsStartPage(document);
     var scheduleRequirementsPageCount = 1;
     if (scheduleRequirementsStartPage >= 0) {
-      _replacePagesWithBlank(document, scheduleRequirementsStartPage, 2);
       scheduleRequirementsPageCount = _drawScheduleRequirements(
         document,
         values,
@@ -365,34 +336,27 @@ class PdfService {
     }
 
     await yieldToBrowser();
-    final List<int> outputBytes = await document.save();
-    document.dispose();
-    sourceTemplateDocument.dispose();
-    return Uint8List.fromList(outputBytes);
-  }
-
-  static void _replacePagesWithBlank(
-    PdfDocument document,
-    int startIndex,
-    int requestedCount,
-  ) {
-    if (startIndex < 0 || startIndex >= document.pages.count) return;
-    final availableCount =
-        requestedCount.clamp(0, document.pages.count - startIndex).toInt();
-    final pageSizes = <Size>[
-      for (var offset = 0; offset < availableCount; offset++)
-        document.pages[startIndex + offset].size,
-    ];
-    for (var offset = 0; offset < availableCount; offset++) {
-      document.pages.removeAt(startIndex);
-    }
-    for (var offset = 0; offset < pageSizes.length; offset++) {
-      document.pages.insert(
-        startIndex + offset,
-        pageSizes[offset],
-        PdfMargins()..all = 0,
+    // Consolidate the final appearance into a brand-new page tree. Keep the
+    // edited source alive until the clean document has been saved because its
+    // page templates are referenced lazily by Syncfusion.
+    final PdfDocument cleanDocument = PdfDocument();
+    cleanDocument.pageSettings.margins.all = 0;
+    for (var pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
+      final sourcePage = document.pages[pageIndex];
+      cleanDocument.pageSettings.size = sourcePage.size;
+      cleanDocument.pageSettings.margins.all = 0;
+      final cleanPage = cleanDocument.pages.add();
+      cleanPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        Offset.zero,
+        sourcePage.size,
       );
+      if (pageIndex % 4 == 3) await yieldToBrowser();
     }
+    final List<int> outputBytes = await cleanDocument.save();
+    cleanDocument.dispose();
+    document.dispose();
+    return Uint8List.fromList(outputBytes);
   }
 
   static Future<void> _replaceSlccSection(
