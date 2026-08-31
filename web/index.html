@@ -44,23 +44,65 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
     window.pdfjsLib = pdfjsLib;
   </script>
-  <!-- Re-save incremental PDFs entirely in the browser so Edge/File Manager
-       sees the same final revision as the in-app viewer. This also preserves
-       imported SLCC pages and vector table content without flattening. -->
+  <!-- Export the exact PDF.js-rendered appearance into a clean PDF. The
+       Syncfusion output contains incremental revisions that Edge and pdf-lib
+       can resolve differently; PDF.js already resolves the same latest
+       revision shown in the app preview. -->
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script>
     window.normalizePdfBytes = async function (inputBytes) {
-      if (!window.PDFLib) {
-        throw new Error('PDF normalizer failed to load.');
+      if (!window.PDFLib || !window.pdfjsLib) {
+        throw new Error('PDF export libraries failed to load.');
       }
       const input = inputBytes instanceof Uint8Array
         ? inputBytes
         : new Uint8Array(inputBytes);
-      const document = await window.PDFLib.PDFDocument.load(input, {
-        ignoreEncryption: true,
-        updateMetadata: false,
-      });
-      return document.save({
+      const source = await window.pdfjsLib.getDocument({
+        data: input.slice(),
+        useWorkerFetch: true,
+      }).promise;
+      const output = await window.PDFLib.PDFDocument.create();
+
+      // Render sequentially to keep memory bounded on tablets and phones.
+      // 1.7x keeps small table text readable without creating oversized files.
+      for (let pageNumber = 1; pageNumber <= source.numPages; pageNumber++) {
+        const sourcePage = await source.getPage(pageNumber);
+        const pdfSize = sourcePage.getViewport({ scale: 1 });
+        const renderSize = sourcePage.getViewport({ scale: 1.7 });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(renderSize.width);
+        canvas.height = Math.ceil(renderSize.height);
+        const context = canvas.getContext('2d', { alpha: false });
+        context.fillStyle = '#FFFFFF';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        await sourcePage.render({
+          canvasContext: context,
+          viewport: renderSize,
+          background: '#FFFFFF',
+        }).promise;
+        const jpegBlob = await new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => blob ? resolve(blob) : reject(new Error('Page export failed.')),
+            'image/jpeg',
+            0.94,
+          );
+        });
+        const jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer());
+        const image = await output.embedJpg(jpegBytes);
+        const targetPage = output.addPage([pdfSize.width, pdfSize.height]);
+        targetPage.drawImage(image, {
+          x: 0,
+          y: 0,
+          width: pdfSize.width,
+          height: pdfSize.height,
+        });
+        sourcePage.cleanup();
+        canvas.width = 1;
+        canvas.height = 1;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      await source.destroy();
+      return output.save({
         useObjectStreams: false,
         addDefaultPage: false,
         objectsPerTick: 50,
