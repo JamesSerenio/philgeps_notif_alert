@@ -33,16 +33,6 @@ class PdfService {
       inputBytes: templateBytes,
     );
 
-    // A loaded Syncfusion document uses incremental updates by default. That
-    // leaves the original bid template and the edited revision in one file.
-    // Chrome normally opens the newest revision, while Edge/File Explorer can
-    // resolve the older cross-reference and show the untouched template.
-    // Force a complete rewrite so every PDF reader receives one authoritative
-    // revision with the current project data.
-    document.fileStructure.incrementalUpdate = false;
-    document.fileStructure.crossReferenceType =
-        PdfCrossReferenceType.crossReferenceTable;
-
     // PDF work on Flutter Web shares the UI thread. Yield between the major
     // stages so loading indicators can continue receiving animation frames.
     await yieldToBrowser();
@@ -342,9 +332,38 @@ class PdfService {
     }
 
     await yieldToBrowser();
-    final List<int> outputBytes = await document.save();
+    final List<int> editedBytes = await document.save();
     document.dispose();
 
+    // Syncfusion saves loaded PDFs incrementally. Some desktop PDF readers
+    // resolve the original template revision instead of the latest edits.
+    // Rebuild every final page into a brand-new document so the downloaded
+    // file has one cross-reference table and one authoritative revision.
+    final editedDocument = PdfDocument(inputBytes: editedBytes);
+    final cleanDocument = PdfDocument();
+    cleanDocument.fileStructure.crossReferenceType =
+        PdfCrossReferenceType.crossReferenceTable;
+    for (var pageIndex = 0;
+        pageIndex < editedDocument.pages.count;
+        pageIndex++) {
+      final sourcePage = editedDocument.pages[pageIndex];
+      final pageSize = sourcePage.size;
+      final targetPage = cleanDocument.pages.insert(
+        cleanDocument.pages.count,
+        pageSize,
+        PdfMargins()..all = 0,
+      );
+      targetPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        Offset.zero,
+        pageSize,
+      );
+      if (pageIndex % 2 == 1) await yieldToBrowser();
+    }
+
+    final List<int> outputBytes = await cleanDocument.save();
+    cleanDocument.dispose();
+    editedDocument.dispose();
     return Uint8List.fromList(outputBytes);
   }
 
