@@ -332,6 +332,12 @@ class PdfService {
     }
 
     await yieldToBrowser();
+    // All intermediate page edits and snapshot saves are complete. Force the
+    // final file to contain one canonical cross-reference table so external
+    // readers do not select stale incremental revisions from the template.
+    document.fileStructure.incrementalUpdate = false;
+    document.fileStructure.crossReferenceType =
+        PdfCrossReferenceType.crossReferenceTable;
     final List<int> outputBytes = await document.save();
     document.dispose();
     return Uint8List.fromList(outputBytes);

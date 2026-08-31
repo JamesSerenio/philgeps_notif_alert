@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
-import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
 import 'dart:ui_web' as ui_web;
@@ -138,14 +137,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
 
   Uint8List? generatedPdf;
-  Uint8List? normalizedPdfForDownload;
   String? generatedPdfFileName;
   String? previewBlobUrl;
   int contentRevision = 0;
   String? lastObservedContentSignature;
   final Map<TextEditingController, String> metadataTextSnapshots = {};
   bool isGenerating = false;
-  bool isPreparingDownload = false;
   String? errorMessage;
   String? previewViewType;
   bool showCompactPreview = false;
@@ -785,7 +782,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
       setState(() {
         generatedPdf = bytes;
-        normalizedPdfForDownload = null;
         generatedPdfFileName = fileName;
         previewBlobUrl = blobUrl;
         previewViewType = viewType;
@@ -870,7 +866,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     final oldBlobUrl = previewBlobUrl;
     setState(() {
       generatedPdf = null;
-      normalizedPdfForDownload = null;
       generatedPdfFileName = null;
       previewBlobUrl = null;
       previewViewType = null;
@@ -929,62 +924,18 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     if (textChanged) _invalidateGeneratedPdf();
   }
 
-  Future<void> _downloadGeneratedPdf() async {
-    final generatedBytes = generatedPdf;
-    if (generatedBytes == null || isPreparingDownload) return;
-
-    setState(() => isPreparingDownload = true);
-    try {
-      var bytes = normalizedPdfForDownload;
-      if (bytes == null) {
-        if (!js_util.hasProperty(html.window, 'normalizePdfBytes')) {
-          throw Exception(
-            'PDF normalizer is not available. Refresh the page and try again.',
-          );
-        }
-        final promise = js_util.callMethod<Object>(
-          html.window,
-          'normalizePdfBytes',
-          <Object>[generatedBytes],
-        );
-        final normalized = await js_util.promiseToFuture<Object?>(promise);
-        if (normalized is Uint8List) {
-          bytes = normalized;
-        } else if (normalized != null) {
-          final length = js_util.getProperty<int>(normalized, 'length');
-          bytes = Uint8List.fromList([
-            for (var index = 0; index < length; index++)
-              js_util.getProperty<num>(normalized, index).toInt(),
-          ]);
-        }
-        if (bytes == null || bytes.isEmpty) {
-          throw Exception('The browser returned an empty PDF.');
-        }
-        if (!mounted) return;
-        normalizedPdfForDownload = bytes;
-      }
-
-      final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..download = generatedPdfFileName ?? 'bid-documents.pdf'
-        ..style.display = 'none';
-      html.document.body?.append(anchor);
-      anchor.click();
-      anchor.remove();
-      Timer(const Duration(seconds: 10), () => html.Url.revokeObjectUrl(url));
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not prepare a compatible PDF download. $error',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => isPreparingDownload = false);
-    }
+  void _downloadGeneratedPdf() {
+    final bytes = generatedPdf;
+    if (bytes == null) return;
+    final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)
+      ..download = generatedPdfFileName ?? 'bid-documents.pdf'
+      ..style.display = 'none';
+    html.document.body?.append(anchor);
+    anchor.click();
+    anchor.remove();
+    Timer(const Duration(seconds: 10), () => html.Url.revokeObjectUrl(url));
   }
 
   void _printGeneratedPdf() {
@@ -2255,23 +2206,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                                           MainAxisAlignment.end,
                                       children: [
                                         OutlinedButton.icon(
-                                          onPressed: isPreparingDownload
-                                              ? null
-                                              : _downloadGeneratedPdf,
-                                          icon: isPreparingDownload
-                                              ? const SizedBox(
-                                                  width: 16,
-                                                  height: 16,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                  ),
-                                                )
-                                              : const Icon(Icons.download),
-                                          label: Text(
-                                            isPreparingDownload
-                                                ? 'Preparing PDF...'
-                                                : 'Download Latest PDF',
+                                          onPressed: _downloadGeneratedPdf,
+                                          icon: const Icon(Icons.download),
+                                          label: const Text(
+                                            'Download Latest PDF',
                                           ),
                                         ),
                                         const SizedBox(width: 10),
@@ -2313,27 +2251,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                                       children: [
                                         Expanded(
                                           child: OutlinedButton.icon(
-                                            onPressed: isPreparingDownload
-                                                ? null
-                                                : _downloadGeneratedPdf,
-                                            icon: isPreparingDownload
-                                                ? const SizedBox(
-                                                    width: 16,
-                                                    height: 16,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                                  )
-                                                : const Icon(
-                                                    Icons.download,
-                                                    size: 18,
-                                                  ),
-                                            label: Text(
-                                              isPreparingDownload
-                                                  ? 'Preparing...'
-                                                  : 'Download PDF',
+                                            onPressed: _downloadGeneratedPdf,
+                                            icon: const Icon(
+                                              Icons.download,
+                                              size: 18,
                                             ),
+                                            label: const Text('Download PDF'),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
