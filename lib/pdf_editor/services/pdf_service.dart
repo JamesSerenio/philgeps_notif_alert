@@ -336,26 +336,22 @@ class PdfService {
     }
 
     await yieldToBrowser();
-    // Consolidate the final appearance into a brand-new page tree. Keep the
-    // edited source alive until the clean document has been saved because its
-    // page templates are referenced lazily by Syncfusion.
-    final PdfDocument cleanDocument = PdfDocument();
-    cleanDocument.pageSettings.margins.all = 0;
-    for (var pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
-      final sourcePage = document.pages[pageIndex];
-      cleanDocument.pageSettings.size = sourcePage.size;
-      cleanDocument.pageSettings.margins.all = 0;
-      final cleanPage = cleanDocument.pages.add();
-      cleanPage.graphics.drawPdfTemplate(
-        sourcePage.createTemplate(),
-        Offset.zero,
-        sourcePage.size,
-      );
-      if (pageIndex % 4 == 3) await yieldToBrowser();
-    }
-    final List<int> outputBytes = await cleanDocument.save();
-    cleanDocument.dispose();
+    // First commit every edit using Syncfusion's normal loaded-document path.
+    // Reopen those committed bytes before requesting a full save; at this
+    // point its object/xref tables are initialized, unlike when the flag is
+    // applied to the original template at the start of generation.
+    final List<int> committedBytes = await document.save();
     document.dispose();
+    await yieldToBrowser();
+
+    final PdfDocument finalizedDocument = PdfDocument(
+      inputBytes: Uint8List.fromList(committedBytes),
+    );
+    finalizedDocument.fileStructure.incrementalUpdate = false;
+    finalizedDocument.fileStructure.crossReferenceType =
+        PdfCrossReferenceType.crossReferenceTable;
+    final List<int> outputBytes = await finalizedDocument.save();
+    finalizedDocument.dispose();
     return Uint8List.fromList(outputBytes);
   }
 
