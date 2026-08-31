@@ -924,7 +924,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     if (textChanged) _invalidateGeneratedPdf();
   }
 
-  void _downloadGeneratedPdf() {
+  Future<void> _downloadGeneratedPdf() async {
+    // Never reuse the bytes currently displayed in the preview. They may have
+    // been produced by an older running build even when the form values have
+    // not changed. Rebuild first so "Download Latest PDF" always means the
+    // current generator and current editor data.
+    await generatePdf();
+    if (!mounted || isGenerating || errorMessage != null) return;
     final bytes = generatedPdf;
     if (bytes == null) return;
     final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
