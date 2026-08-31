@@ -44,6 +44,29 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
     window.pdfjsLib = pdfjsLib;
   </script>
+  <!-- Re-save incremental PDFs entirely in the browser so Edge/File Manager
+       sees the same final revision as the in-app viewer. This also preserves
+       imported SLCC pages and vector table content without flattening. -->
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script>
+    window.normalizePdfBytes = async function (inputBytes) {
+      if (!window.PDFLib) {
+        throw new Error('PDF normalizer failed to load.');
+      }
+      const input = inputBytes instanceof Uint8Array
+        ? inputBytes
+        : new Uint8Array(inputBytes);
+      const document = await window.PDFLib.PDFDocument.load(input, {
+        ignoreEncryption: true,
+        updateMetadata: false,
+      });
+      return document.save({
+        useObjectStreams: false,
+        addDefaultPage: false,
+        objectsPerTick: 50,
+      });
+    };
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

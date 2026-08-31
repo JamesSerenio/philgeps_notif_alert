@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
 import 'dart:ui_web' as ui_web;
@@ -936,22 +937,29 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     try {
       var bytes = normalizedPdfForDownload;
       if (bytes == null) {
-        final response = await http
-            .post(
-              Uri.parse(
-                'https://philgepsnotifalert-production.up.railway.app/'
-                'normalize-pdf',
-              ),
-              headers: const {'Content-Type': 'application/pdf'},
-              body: generatedBytes,
-            )
-            .timeout(const Duration(minutes: 3));
-        if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+        if (!js_util.hasProperty(html.window, 'normalizePdfBytes')) {
           throw Exception(
-            'PDF download preparation failed (${response.statusCode}).',
+            'PDF normalizer is not available. Refresh the page and try again.',
           );
         }
-        bytes = response.bodyBytes;
+        final promise = js_util.callMethod<Object>(
+          html.window,
+          'normalizePdfBytes',
+          <Object>[generatedBytes],
+        );
+        final normalized = await js_util.promiseToFuture<Object?>(promise);
+        if (normalized is Uint8List) {
+          bytes = normalized;
+        } else if (normalized != null) {
+          final length = js_util.getProperty<int>(normalized, 'length');
+          bytes = Uint8List.fromList([
+            for (var index = 0; index < length; index++)
+              js_util.getProperty<num>(normalized, index).toInt(),
+          ]);
+        }
+        if (bytes == null || bytes.isEmpty) {
+          throw Exception('The browser returned an empty PDF.');
+        }
         if (!mounted) return;
         normalizedPdfForDownload = bytes;
       }

@@ -4,7 +4,6 @@ import { chromium } from "playwright";
 import cron from "node-cron";
 import admin from "firebase-admin";
 import { createClient } from "@supabase/supabase-js";
-import { PDFDocument } from "pdf-lib";
 
 const app = express();
 
@@ -13,37 +12,6 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// Consolidate Syncfusion's incremental PDF into one authoritative revision.
-// This preserves imported SLCC pages, vector tables, text, and annotations;
-// unlike drawing every page as a template, it does not flatten or lose layers.
-app.post(
-  "/normalize-pdf",
-  express.raw({ type: "application/pdf", limit: "100mb" }),
-  async (req, res) => {
-    try {
-      if (!req.body || req.body.length === 0) {
-        return res.status(400).json({ error: "PDF body is required." });
-      }
-      const document = await PDFDocument.load(req.body, {
-        ignoreEncryption: true,
-        updateMetadata: false,
-      });
-      const normalized = await document.save({
-        useObjectStreams: false,
-        addDefaultPage: false,
-        objectsPerTick: 50,
-      });
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.status(200).send(Buffer.from(normalized));
-    } catch (error) {
-      console.error("PDF normalization failed:", error);
-      return res.status(422).json({
-        error: "Unable to normalize the generated PDF.",
-      });
-    }
-  }
-);
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY =
