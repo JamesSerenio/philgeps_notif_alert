@@ -7,6 +7,20 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('removes invisible copied formatting characters before PDF rendering',
+      () async {
+    final bytes = await PdfService.generateBidDocs(
+      values: const {
+        'projectTitle': 'Supply\u2064 and Delivery',
+        'technicalSpecifications':
+            '[{"specification":"Generator Set\u2064 50KVA","quantity":"1","unit":"unit","parameter":""}]',
+        'priceSchedule': '[]',
+      },
+    );
+
+    expect(bytes, isNotEmpty);
+  });
+
   test('generates one item with separated technical specification lines',
       () async {
     final specifications = <Map<String, String>>[

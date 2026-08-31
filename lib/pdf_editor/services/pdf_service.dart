@@ -644,6 +644,20 @@ class PdfService {
   /// common pasted checkmarks before any page is drawn so one specification
   /// cannot abort the entire document with "character 9971".
   static String _pdfSafeText(String value) => value
+      // Remove invisible direction/isolation characters commonly carried by
+      // text copied from web pages and office documents. PdfStandardFont
+      // cannot encode these controls (for example U+2064 / decimal 8292),
+      // even though they have no visible appearance in the resulting PDF.
+      .replaceAll(
+        RegExp(
+          '[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]',
+        ),
+        '',
+      )
+      // Also handle a JSON payload that contains the escaped form before it
+      // is decoded into the individual specification fields.
+      .replaceAll(r'\u2064', '')
+      .replaceAll('\u00A0', ' ')
       .replaceAll('\u2714', '\u2713')
       // Some previously saved specifications contain U+26F3 in place of the
       // check marker. Standard PDF fonts cannot measure or draw that glyph.
