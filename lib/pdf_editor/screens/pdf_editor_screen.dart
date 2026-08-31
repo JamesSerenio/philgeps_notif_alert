@@ -1464,8 +1464,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
-  double _number(String value) =>
-      double.tryParse(value.replaceAll(',', '').trim()) ?? 0;
+  double _number(String value) {
+    final normalized = value.replaceAll(',', '').trim();
+    final direct = double.tryParse(normalized);
+    if (direct != null) return direct;
+    final match =
+        RegExp(r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)').firstMatch(normalized);
+    return double.tryParse(match?.group(0) ?? '') ?? 0;
+  }
 
   String _money(double value) {
     final parts = value.toStringAsFixed(2).split('.');

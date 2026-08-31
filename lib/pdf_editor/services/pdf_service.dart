@@ -723,6 +723,15 @@ class PdfService {
     return result.toString();
   }
 
+  static String _numericPart(dynamic value) {
+    final text = (value ?? '').toString().replaceAll(',', '').trim();
+    final match = RegExp(r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)').firstMatch(text);
+    return match?.group(0) ?? '';
+  }
+
+  static double _pdfNumber(dynamic value) =>
+      double.tryParse(_numericPart(value)) ?? 0;
+
   static void _drawMarkedSpecificationText(
     PdfGraphics graphics,
     String text,
@@ -3179,9 +3188,7 @@ class PdfService {
       if (decoded is List) savedPrices = decoded.take(72).toList();
     }
 
-    double number(dynamic value) =>
-        double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ??
-        0;
+    double number(dynamic value) => _pdfNumber(value);
     String money(double value) {
       final parts = value.toStringAsFixed(2).split('.');
       final grouped = parts.first.replaceAllMapped(
@@ -3534,11 +3541,13 @@ class PdfService {
             (number(saved['totalPricePerUnit']) - number(saved['deduction']))
                 .clamp(0, double.infinity)
                 .toDouble();
+        final rawQuantity = (specification['quantity'] ?? '').toString();
+        final parsedQuantityText = _numericPart(rawQuantity);
         final quantityText = isContinuation
             ? ''
-            : (specification['quantity'] ?? '').toString().trim().isEmpty
+            : parsedQuantityText.isEmpty
                 ? '1'
-                : specification['quantity'].toString();
+                : parsedQuantityText;
         final unitText = isContinuation
             ? ''
             : (specification['unit'] ?? '').toString().trim().isEmpty
@@ -5288,9 +5297,7 @@ class PdfService {
       final decoded = _pdfSafeDecodedValue(jsonDecode(encodedPrices));
       if (decoded is List) prices = decoded;
     }
-    double number(dynamic value) =>
-        double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ??
-        0;
+    double number(dynamic value) => _pdfNumber(value);
     var total = 0.0;
     for (var index = 0; index < specifications.length; index++) {
       final specification = specifications[index] is Map
@@ -6284,9 +6291,7 @@ class PdfService {
       if (decoded is List) savedPrices = decoded.take(72).toList();
     }
 
-    double number(dynamic value) =>
-        double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ??
-        0;
+    double number(dynamic value) => _pdfNumber(value);
     String money(double value) {
       final parts = value.toStringAsFixed(2).split('.');
       final grouped = parts.first.replaceAllMapped(
@@ -6517,7 +6522,7 @@ class PdfService {
         final specification = scheduleRows[itemIndex];
         final sourceIndex = specification['_sourceIndex'] as int;
         final isContinuation = specification['_continuation'] == true;
-        final quantity = (specification['quantity'] ?? '').toString().trim();
+        final quantity = _numericPart(specification['quantity']);
         final unit = (specification['unit'] ?? '').toString().trim();
         final saved =
             sourceIndex < savedPrices.length && savedPrices[sourceIndex] is Map
@@ -6626,9 +6631,7 @@ class PdfService {
       if (decoded is List) savedPrices = decoded.take(72).toList();
     }
 
-    double number(dynamic value) =>
-        double.tryParse((value ?? '').toString().replaceAll(',', '').trim()) ??
-        0;
+    double number(dynamic value) => _pdfNumber(value);
     String money(double value) {
       final parts = value.toStringAsFixed(2).split('.');
       final grouped = parts.first.replaceAllMapped(
@@ -7147,7 +7150,7 @@ class PdfService {
       }
       final specification = specifications[index] as Map;
       final description = (specification['specification'] ?? '').toString();
-      final quantity = (specification['quantity'] ?? '').toString();
+      final quantity = _numericPart(specification['quantity']);
       final unit = (specification['unit'] ?? '').toString();
 
       void drawCell(
