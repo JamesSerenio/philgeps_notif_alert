@@ -43,11 +43,12 @@ class PdfService {
         pageIndex < sourceTemplateDocument.pages.count;
         pageIndex++) {
       final sourcePage = sourceTemplateDocument.pages[pageIndex];
-      final targetPage = document.pages.insert(
-        document.pages.count,
-        sourcePage.size,
-        PdfMargins()..all = 0,
-      );
+      // `insert(0)` expects an existing page-tree parent and throws an
+      // unexpected-null error for a brand-new document. Configure the next
+      // page and use `add()` so Syncfusion creates that parent correctly.
+      document.pageSettings.size = sourcePage.size;
+      document.pageSettings.margins.all = 0;
+      final targetPage = document.pages.add();
       targetPage.graphics.drawPdfTemplate(
         sourcePage.createTemplate(),
         Offset.zero,
@@ -364,12 +365,6 @@ class PdfService {
     }
 
     await yieldToBrowser();
-    // All intermediate page edits and snapshot saves are complete. Force the
-    // final file to contain one canonical cross-reference table so external
-    // readers do not select stale incremental revisions from the template.
-    document.fileStructure.incrementalUpdate = false;
-    document.fileStructure.crossReferenceType =
-        PdfCrossReferenceType.crossReferenceTable;
     final List<int> outputBytes = await document.save();
     document.dispose();
     sourceTemplateDocument.dispose();
