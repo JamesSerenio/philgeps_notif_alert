@@ -685,6 +685,44 @@ class PdfService {
     return value;
   }
 
+  /// PdfStandardFont only supports a Windows-1252-sized character set. This
+  /// final guard is used immediately before measuring/drawing user content so
+  /// an invisible or unsupported Unicode rune can never reach Syncfusion.
+  static String _pdfStandardFontSafeText(String value) {
+    final result = StringBuffer();
+    for (final rune in value.runes) {
+      switch (rune) {
+        case 0x2018:
+        case 0x2019:
+          result.write("'");
+          continue;
+        case 0x201C:
+        case 0x201D:
+          result.write('"');
+          continue;
+        case 0x2013:
+        case 0x2014:
+          result.write('-');
+          continue;
+        case 0x2022:
+          result.write('*');
+          continue;
+        case 0x2713:
+        case 0x2714:
+          result.write('v');
+          continue;
+      }
+      if (rune == 0x0A ||
+          rune == 0x0D ||
+          rune == 0x09 ||
+          (rune >= 0x20 && rune <= 0x7E) ||
+          (rune >= 0xA0 && rune <= 0xFF)) {
+        result.writeCharCode(rune);
+      }
+    }
+    return result.toString();
+  }
+
   static void _drawMarkedSpecificationText(
     PdfGraphics graphics,
     String text,
@@ -699,8 +737,9 @@ class PdfService {
     for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
       final match = markerPattern.firstMatch(sourceLine);
       final marker = match?.group(1);
-      final content =
-          match == null ? sourceLine : sourceLine.substring(match.end);
+      final content = _pdfStandardFontSafeText(
+        match == null ? sourceLine : sourceLine.substring(match.end),
+      );
       final contentWidth = bounds.width - (marker == null ? 0 : 14);
       final measured = font.measureString(
         content.isEmpty ? ' ' : content,
@@ -4836,8 +4875,9 @@ class PdfService {
 
     for (final rawLine in text.replaceAll('\u2029', '\n').split('\n')) {
       final match = markerPattern.firstMatch(rawLine);
-      final content =
-          match == null ? rawLine.trim() : rawLine.substring(match.end).trim();
+      final content = _pdfStandardFontSafeText(
+        match == null ? rawLine.trim() : rawLine.substring(match.end).trim(),
+      );
       final rawContentWidth = width - (match == null ? 0 : 14);
       final contentWidth = rawContentWidth < 1.0 ? 1.0 : rawContentWidth;
       final measured = font.measureString(
@@ -4871,9 +4911,11 @@ class PdfService {
     for (final sourceLine in sourceLines) {
       final match = markerPattern.firstMatch(sourceLine);
       final marker = match?.group(1);
-      final content = match == null
-          ? sourceLine.trim()
-          : sourceLine.substring(match.end).trim();
+      final content = _pdfStandardFontSafeText(
+        match == null
+            ? sourceLine.trim()
+            : sourceLine.substring(match.end).trim(),
+      );
       final contentWidth = (width - (marker == null ? 0 : 14))
           .clamp(1.0, double.infinity)
           .toDouble();
@@ -4881,7 +4923,9 @@ class PdfService {
       var currentLine = '';
       for (final word in content.split(RegExp(r'\s+'))) {
         if (word.isEmpty) continue;
-        final candidate = currentLine.isEmpty ? word : '$currentLine $word';
+        final candidate = _pdfStandardFontSafeText(
+          currentLine.isEmpty ? word : '$currentLine $word',
+        );
         if (currentLine.isNotEmpty &&
             font.measureString(candidate).width > contentWidth) {
           wrapped.add(currentLine);
