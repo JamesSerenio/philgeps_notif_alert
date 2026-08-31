@@ -644,6 +644,7 @@ class PdfService {
   /// common pasted checkmarks before any page is drawn so one specification
   /// cannot abort the entire document with "character 9971".
   static String _pdfSafeText(String value) => value
+      .replaceAll(String.fromCharCode(8292), '')
       // Remove invisible direction/isolation characters commonly carried by
       // text copied from web pages and office documents. PdfStandardFont
       // cannot encode these controls (for example U+2064 / decimal 8292),
@@ -668,6 +669,22 @@ class PdfService {
       // raw control character inside a JSON string literal.
       .replaceAll('\u2029', r'\n\n');
 
+  static dynamic _pdfSafeDecodedValue(dynamic value) {
+    if (value is String) return _pdfSafeText(value);
+    if (value is List) {
+      return <dynamic>[
+        for (final item in value) _pdfSafeDecodedValue(item),
+      ];
+    }
+    if (value is Map) {
+      return <dynamic, dynamic>{
+        for (final entry in value.entries)
+          entry.key: _pdfSafeDecodedValue(entry.value),
+      };
+    }
+    return value;
+  }
+
   static void _drawMarkedSpecificationText(
     PdfGraphics graphics,
     String text,
@@ -676,6 +693,7 @@ class PdfService {
     Rect bounds, {
     bool centerVertically = true,
   }) {
+    text = _pdfSafeText(text);
     final markerPattern = RegExp(r'^\s*(✓|•|○|■|➢)\s*');
     final entries = <({String? marker, String content, double height})>[];
     for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
@@ -2486,7 +2504,8 @@ class PdfService {
     List<dynamic> specifications = const [];
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded = jsonDecode(encodedSpecifications);
+      final decoded =
+          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded.take(72).toList();
     }
 
@@ -3109,11 +3128,12 @@ class PdfService {
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     final encodedPrices = values['priceSchedule'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded = jsonDecode(encodedSpecifications);
+      final decoded =
+          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded.take(72).toList();
     }
     if (encodedPrices.isNotEmpty) {
-      final decoded = jsonDecode(encodedPrices);
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedPrices));
       if (decoded is List) savedPrices = decoded.take(72).toList();
     }
 
@@ -4807,6 +4827,7 @@ class PdfService {
     PdfFont font,
     double width,
   ) {
+    text = _pdfSafeText(text);
     final markerPattern = RegExp(
       r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
       caseSensitive: false,
@@ -4839,6 +4860,9 @@ class PdfService {
     double width,
     double maximumHeight,
   ) {
+    sourceLines = <String>[
+      for (final line in sourceLines) _pdfSafeText(line),
+    ];
     final markerPattern = RegExp(
       r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
       caseSensitive: false,
@@ -5205,11 +5229,12 @@ class PdfService {
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     final encodedPrices = values['priceSchedule'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded = jsonDecode(encodedSpecifications);
+      final decoded =
+          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded;
     }
     if (encodedPrices.isNotEmpty) {
-      final decoded = jsonDecode(encodedPrices);
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedPrices));
       if (decoded is List) prices = decoded;
     }
     double number(dynamic value) =>
@@ -6195,7 +6220,7 @@ class PdfService {
     List<dynamic> specifications = const [];
     final encoded = values['technicalSpecifications'] ?? '';
     if (encoded.isNotEmpty) {
-      final decoded = jsonDecode(encoded);
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encoded));
       if (decoded is List) specifications = decoded.take(72).toList();
     }
     final delivery = (values['deliveredWeeksMonths'] ?? '').trim();
@@ -6204,7 +6229,7 @@ class PdfService {
     List<dynamic> savedPrices = const [];
     final encodedPrices = values['priceSchedule'] ?? '';
     if (encodedPrices.isNotEmpty) {
-      final decoded = jsonDecode(encodedPrices);
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedPrices));
       if (decoded is List) savedPrices = decoded.take(72).toList();
     }
 
@@ -6541,11 +6566,12 @@ class PdfService {
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     final encodedPrices = values['priceSchedule'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded = jsonDecode(encodedSpecifications);
+      final decoded =
+          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded.take(72).toList();
     }
     if (encodedPrices.isNotEmpty) {
-      final decoded = jsonDecode(encodedPrices);
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedPrices));
       if (decoded is List) savedPrices = decoded.take(72).toList();
     }
 
@@ -7000,7 +7026,8 @@ class PdfService {
     List<dynamic> specifications = const [];
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded = jsonDecode(encodedSpecifications);
+      final decoded =
+          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded;
     }
 
