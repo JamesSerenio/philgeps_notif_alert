@@ -137,6 +137,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
 
   Uint8List? generatedPdf;
+  String? generatedPdfFileName;
+  String? previewBlobUrl;
+  int contentRevision = 0;
   bool isGenerating = false;
   String? errorMessage;
   String? previewViewType;
@@ -190,6 +193,18 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     afterSalesYearsController.addListener(_scheduleAfterSalesSave);
     warrantyYearsController = TextEditingController(text: '2');
     warrantyYearsController.addListener(_scheduleAfterSalesSave);
+    for (final controller in <TextEditingController>[
+      provinceController,
+      municipalityController,
+      projectTitleController,
+      referenceNumberController,
+      dateController,
+      bidderNameController,
+      procuringEntityController,
+      submittedByController,
+    ]) {
+      controller.addListener(_invalidateGeneratedPdf);
+    }
     _loadSlcc();
     _loadTechnicalSpecifications();
     _loadUnitSuggestions();
@@ -244,6 +259,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   void _scheduleRequirementsSave() {
     if (isLoadingScheduleRequirements) return;
+    _invalidateGeneratedPdf();
     hasPendingDeliveryPeriodOverride = true;
     scheduleRequirementsSaveTimer?.cancel();
     scheduleRequirementsSaveTimer = Timer(
@@ -318,6 +334,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   void _scheduleAfterSalesSave() {
     if (isLoadingAfterSales) return;
+    _invalidateGeneratedPdf();
     afterSalesSaveTimer?.cancel();
     afterSalesSaveTimer = Timer(
       const Duration(milliseconds: 700),
@@ -540,6 +557,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   void _schedulePriceScheduleSave() {
     if (isLoadingPriceSchedule) return;
+    _invalidateGeneratedPdf();
     priceScheduleSaveTimer?.cancel();
     priceScheduleSaveTimer = Timer(
       const Duration(milliseconds: 700),
@@ -575,6 +593,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   void _scheduleTechnicalSpecificationsSave() {
     if (isLoadingTechnicalSpecifications) return;
+    _invalidateGeneratedPdf();
     technicalSpecificationsSaveTimer?.cancel();
     technicalSpecificationsSaveTimer = Timer(
       const Duration(milliseconds: 700),
@@ -683,12 +702,15 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         await _saveScheduleRequirements();
       }
       await _saveAfterSalesSettings();
+      final generatedProjectTitle = projectTitleController.text.trim();
+      final generatedReferenceNumber = referenceNumberController.text.trim();
+      final generatedRevision = contentRevision;
       final bytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
           'municipality': municipalityController.text.trim(),
-          'projectTitle': projectTitleController.text.trim(),
-          'referenceNumber': referenceNumberController.text.trim(),
+          'projectTitle': generatedProjectTitle,
+          'referenceNumber': generatedReferenceNumber,
           'date': dateController.text.trim(),
           'bidderName': bidderNameController.text.trim(),
           'procuringEntity': procuringEntityController.text.trim(),
@@ -724,9 +746,23 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       );
 
       if (!mounted) return;
+      if (generatedRevision != contentRevision) {
+        setState(() {
+          errorMessage =
+              'The form changed while the PDF was being generated. Click Generate PDF again to download the latest data.';
+        });
+        return;
+      }
+
+      final fileName = _buildGeneratedPdfFileName(
+        generatedProjectTitle,
+        generatedReferenceNumber,
+        DateTime.now(),
+      );
 
       // Keep the original browser PDF viewer on desktop/laptop, where its
       // built-in download and print toolbar already works well.
+      final previousBlobUrl = previewBlobUrl;
       final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
       final blobUrl = html.Url.createObjectUrlFromBlob(blob);
       final viewType = 'generated-pdf-${DateTime.now().microsecondsSinceEpoch}';
@@ -742,9 +778,17 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
       setState(() {
         generatedPdf = bytes;
+        generatedPdfFileName = fileName;
+        previewBlobUrl = blobUrl;
         previewViewType = viewType;
         showCompactPreview = true;
       });
+
+      if (previousBlobUrl != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          html.Url.revokeObjectUrl(previousBlobUrl);
+        });
+      }
     } catch (error, stackTrace) {
       if (!mounted) return;
 
@@ -779,13 +823,52 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
   }
 
-  String get _generatedPdfFileName {
-    final reference = referenceNumberController.text
-        .trim()
-        .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
-    return reference.isEmpty
-        ? 'bid-documents.pdf'
-        : 'bid-documents-$reference.pdf';
+  String _buildGeneratedPdfFileName(
+    String projectTitle,
+    String referenceNumber,
+    DateTime generatedAt,
+  ) {
+    String safePart(String value, int maximumLength) {
+      final sanitized = value
+          .replaceAll(RegExp(r'[^A-Za-z0-9 _()-]+'), '')
+          .trim()
+          .replaceAll(RegExp(r'\s+'), '_');
+      return sanitized.length <= maximumLength
+          ? sanitized
+          : sanitized.substring(0, maximumLength);
+    }
+
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+    final safeTitle = safePart(projectTitle, 80);
+    final safeReference = safePart(referenceNumber, 40);
+    final stamp = '${generatedAt.year}'
+        '${twoDigits(generatedAt.month)}${twoDigits(generatedAt.day)}-'
+        '${twoDigits(generatedAt.hour)}${twoDigits(generatedAt.minute)}'
+        '${twoDigits(generatedAt.second)}';
+    final identity = <String>[
+      if (safeTitle.isNotEmpty) safeTitle,
+      if (safeReference.isNotEmpty) safeReference,
+      stamp,
+    ].join('-');
+    return '${identity.isEmpty ? 'bid-documents-$stamp' : identity}.pdf';
+  }
+
+  void _invalidateGeneratedPdf() {
+    contentRevision++;
+    if (generatedPdf == null || isGenerating || !mounted) return;
+    final oldBlobUrl = previewBlobUrl;
+    setState(() {
+      generatedPdf = null;
+      generatedPdfFileName = null;
+      previewBlobUrl = null;
+      previewViewType = null;
+      showCompactPreview = false;
+    });
+    if (oldBlobUrl != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        html.Url.revokeObjectUrl(oldBlobUrl);
+      });
+    }
   }
 
   void _downloadGeneratedPdf() {
@@ -795,7 +878,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
     final url = html.Url.createObjectUrlFromBlob(blob);
     final anchor = html.AnchorElement(href: url)
-      ..download = _generatedPdfFileName
+      ..download = generatedPdfFileName ?? 'bid-documents.pdf'
       ..style.display = 'none';
     html.document.body?.append(anchor);
     anchor.click();
@@ -1129,6 +1212,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             selected: {selectedSlccTemplate},
             onSelectionChanged: (selection) {
               setState(() => selectedSlccTemplate = selection.first);
+              _invalidateGeneratedPdf();
               _scheduleSlccSave();
             },
           ),
@@ -1173,6 +1257,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           onChanged: (value) {
             if (value != null) {
               setState(() => useBidSecuringDeclarationWithTable = value);
+              _invalidateGeneratedPdf();
             }
           },
         ),
@@ -1186,6 +1271,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           onChanged: (value) {
             if (value != null) {
               setState(() => useBidSecuringDeclarationWithTable = value);
+              _invalidateGeneratedPdf();
             }
           },
         ),
@@ -1754,6 +1840,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             setState(() {
               includeTotalInScheduleRequirements = value ?? false;
             });
+            _invalidateGeneratedPdf();
           },
         ),
         formField(
@@ -1859,6 +1946,20 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   @override
   void dispose() {
+    for (final controller in <TextEditingController>[
+      provinceController,
+      municipalityController,
+      projectTitleController,
+      referenceNumberController,
+      dateController,
+      bidderNameController,
+      procuringEntityController,
+      submittedByController,
+    ]) {
+      controller.removeListener(_invalidateGeneratedPdf);
+    }
+    final oldBlobUrl = previewBlobUrl;
+    if (oldBlobUrl != null) html.Url.revokeObjectUrl(oldBlobUrl);
     provinceController.dispose();
     municipalityController.dispose();
     projectTitleController.dispose();
