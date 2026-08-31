@@ -745,11 +745,30 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         previewViewType = viewType;
         showCompactPreview = true;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
 
+      // Include the first useful stack frame while diagnosing PDF font/data
+      // failures. The exception text alone only reports a character code and
+      // does not reveal which PDF section attempted to draw it.
+      final allStackLines = stackTrace
+          .toString()
+          .split('\n')
+          .where((line) => line.trim().isNotEmpty)
+          .toList();
+      final appStackLines = allStackLines
+          .where((line) =>
+              line.contains('pdf_service.dart') ||
+              line.contains('pdf_editor_screen.dart'))
+          .take(4)
+          .toList();
+      final stackLines = (appStackLines.isNotEmpty
+              ? appStackLines
+              : allStackLines.take(6))
+          .join('\n');
+
       setState(() {
-        errorMessage = error.toString();
+        errorMessage = '$error\n$stackLines';
       });
     } finally {
       if (mounted) {
