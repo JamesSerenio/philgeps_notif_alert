@@ -697,19 +697,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
         return response.bodyBytes;
       }
-
-      debugPrint(
-        'Compatible PDF renderer unavailable (${response.statusCode}); '
-        'using the generated PDF directly.',
+      throw Exception(
+        'Clean PDF rewrite failed (${response.statusCode}). The original '
+        'incremental PDF was not used because it can expose obsolete pages.',
       );
     } catch (error) {
-      debugPrint(
-        'Compatible PDF renderer request failed; '
-        'using the generated PDF directly: $error',
-      );
+      if (error is Exception) rethrow;
+      throw Exception('Clean PDF rewrite failed: $error');
     }
-
-    return source;
   }
 
   Future<void> generatePdf() async {

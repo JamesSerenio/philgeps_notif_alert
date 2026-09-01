@@ -20,7 +20,9 @@ aptPkgs = [
   "libxfixes3",
   "libxrandr2",
   "libgbm1",
-  "libasound2"
+  "libasound2",
+  "ghostscript",
+  "poppler-utils"
 ]
 
 [phases.install]

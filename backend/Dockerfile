@@ -9,7 +9,7 @@ RUN npm install
 # Rewrites generated PDFs into one standards-compliant revision so Safari,
 # Edge, WPS, Chrome, and Brave all render the same pages.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ghostscript \
+    && apt-get install -y --no-install-recommends ghostscript poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . .

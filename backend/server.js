@@ -7,10 +7,11 @@ import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { inflateSync } from "node:zlib";
 
 const app = express();
 
@@ -19,6 +20,72 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 const execFileAsync = promisify(execFile);
+
+/**
+ * Syncfusion's web writer can append plain page commands while declaring the
+ * stream as /FlateDecode. Repair those dictionaries without changing byte
+ * offsets: /Length already describes the plain bytes, and replacing /Filter
+ * with spaces keeps every existing xref offset valid for the rendering pass.
+ */
+function repairInvalidFlateStreams(pdfBytes) {
+  const repaired = Buffer.from(pdfBytes);
+  const streamToken = Buffer.from("stream");
+  let searchFrom = 0;
+  let repairedCount = 0;
+
+  while (searchFrom < repaired.length) {
+    const streamAt = repaired.indexOf(streamToken, searchFrom);
+    if (streamAt < 0) break;
+    const dictionaryAt = repaired.lastIndexOf(Buffer.from("<<"), streamAt);
+    const dictionaryEnd = repaired.lastIndexOf(Buffer.from(">>"), streamAt);
+    if (dictionaryAt < 0 || dictionaryEnd < dictionaryAt) {
+      searchFrom = streamAt + streamToken.length;
+      continue;
+    }
+    if (
+      repaired
+        .subarray(dictionaryEnd + 2, streamAt)
+        .toString("latin1")
+        .trim() !== ""
+    ) {
+      searchFrom = streamAt + streamToken.length;
+      continue;
+    }
+
+    const dictionary = repaired
+      .subarray(dictionaryAt, dictionaryEnd + 2)
+      .toString("latin1");
+    const lengthMatch = dictionary.match(/\/Length\s+(\d+)\b/);
+    const filterMatch = /\/Filter\s*\/FlateDecode\b/.exec(dictionary);
+    if (!lengthMatch || !filterMatch) {
+      searchFrom = streamAt + streamToken.length;
+      continue;
+    }
+
+    let dataAt = streamAt + streamToken.length;
+    if (repaired[dataAt] === 13) dataAt += 1;
+    if (repaired[dataAt] === 10) dataAt += 1;
+    const declaredLength = Number(lengthMatch[1]);
+    const dataEnd = dataAt + declaredLength;
+    if (!Number.isSafeInteger(declaredLength) || dataEnd > repaired.length) {
+      throw new Error("Invalid PDF stream /Length.");
+    }
+
+    try {
+      inflateSync(repaired.subarray(dataAt, dataEnd));
+    } catch {
+      const filterAt = dictionaryAt + filterMatch.index;
+      repaired.fill(32, filterAt, filterAt + filterMatch[0].length);
+      repairedCount += 1;
+    }
+    // Continue from the token rather than trusting this stream's length for
+    // traversal. A malformed declaration must not cause later streams to be
+    // skipped during the repair scan.
+    searchFrom = streamAt + streamToken.length;
+  }
+
+  return { bytes: repaired, repairedCount };
+}
 
 app.post(
   "/normalize-pdf",
@@ -78,46 +145,45 @@ app.post(
 
     const jobDirectory = path.join(tmpdir(), `pdf-render-${randomUUID()}`);
     const inputPath = path.join(jobDirectory, "input.pdf");
-    let browser;
+    const outputPath = path.join(jobDirectory, "output.pdf");
     try {
       await mkdir(jobDirectory, { recursive: true });
-      await writeFile(inputPath, req.body);
-      browser = await chromium.launch({ headless: true, channel: "chromium" });
-      const page = await browser.newPage({
-        viewport: { width: 1400, height: 1100 },
-        deviceScaleFactor: 2,
-      });
-      await page.goto(`file://${inputPath}`, {
-        waitUntil: "load",
-        timeout: 120000,
-      });
-      await page.waitForTimeout(2500);
+      const repairedSource = repairInvalidFlateStreams(req.body);
+      await writeFile(inputPath, repairedSource.bytes);
 
-      // Hide thumbnails and select Fit-to-page in Chromium's PDF viewer.
-      await page.mouse.click(31, 28);
-      await page.waitForTimeout(250);
-      await page.mouse.click(725, 28);
-      await page.waitForTimeout(500);
+      // Execute the repaired current revision and rasterize every page. This
+      // discards the template's old object graph instead of copying or
+      // appending any of its page /Contents streams.
+      const pagePattern = path.join(jobDirectory, "page-%04d.png");
+      await execFileAsync(
+        "gs",
+        [
+          "-q",
+          "-dNOPAUSE",
+          "-dBATCH",
+          "-dSAFER",
+          "-dShowAnnots=true",
+          "-sDEVICE=png16m",
+          "-r144",
+          "-dTextAlphaBits=4",
+          "-dGraphicsAlphaBits=4",
+          `-sOutputFile=${pagePattern}`,
+          inputPath,
+        ],
+        { maxBuffer: 10 * 1024 * 1024 },
+      );
+
+      const renderedPages = (await readdir(jobDirectory))
+        .filter((name) => /^page-\d{4}\.png$/.test(name))
+        .sort();
+      if (renderedPages.length === 0) {
+        throw new Error("Ghostscript did not render any PDF pages.");
+      }
 
       const output = await PDFDocument.create();
-      let previousImage;
-      for (let pageNumber = 1; pageNumber <= 120; pageNumber += 1) {
-        await page.mouse.click(510, 28);
-        await page.keyboard.press("Control+A");
-        await page.keyboard.type(String(pageNumber));
-        await page.keyboard.press("Enter");
-        await page.waitForTimeout(180);
-        const image = await page.screenshot({
-          type: "jpeg",
-          quality: 92,
-          clip: { x: 333, y: 59, width: 732, height: 1034 },
-        });
-
-        // The viewer clamps an out-of-range page number to the final page.
-        // Stop when that same final page is captured for a second time.
-        if (previousImage && Buffer.compare(previousImage, image) === 0) break;
-        previousImage = image;
-        const embedded = await output.embedJpg(image);
+      for (const renderedPage of renderedPages) {
+        const image = await readFile(path.join(jobDirectory, renderedPage));
+        const embedded = await output.embedPng(image);
         const pdfPage = output.addPage([595.28, 841.89]);
         pdfPage.drawImage(embedded, {
           x: 0,
@@ -131,17 +197,83 @@ app.post(
         useObjectStreams: false,
         objectsPerTick: 25,
       });
+
+      // This is a newly-created image-backed PDF. It cannot reference any
+      // page, /Contents array, xref revision, or content stream from the
+      // source template. pdf-lib writes matching stream lengths and applies
+      // only the filters that correspond to the encoded stream bytes.
+      await writeFile(outputPath, compatibleBytes);
+
+      // Validate with three independent consumers before returning the file:
+      // pdf-lib parses the complete rewritten structure, Ghostscript parses
+      // and executes every page stream, and Poppler extracts all text.
+      const parsedOutput = await PDFDocument.load(compatibleBytes, {
+        ignoreEncryption: false,
+        updateMetadata: false,
+      });
+      if (parsedOutput.getPageCount() === 0) {
+        throw new Error("The compatible PDF contains no pages.");
+      }
+      await execFileAsync(
+        "gs",
+        [
+          "-q",
+          "-dNOPAUSE",
+          "-dBATCH",
+          "-dSAFER",
+          "-sDEVICE=nullpage",
+          outputPath,
+        ],
+        { maxBuffer: 10 * 1024 * 1024 },
+      );
+      const { stdout: extractedText } = await execFileAsync(
+        "pdftotext",
+        [outputPath, "-"],
+        { maxBuffer: 10 * 1024 * 1024 },
+      );
+      const popplerRenderPrefix = path.join(jobDirectory, "poppler-check");
+      await execFileAsync(
+        "pdftoppm",
+        [
+          "-f",
+          "1",
+          "-l",
+          "1",
+          "-singlefile",
+          "-png",
+          "-r",
+          "72",
+          outputPath,
+          popplerRenderPrefix,
+        ],
+        { maxBuffer: 10 * 1024 * 1024 },
+      );
+      const popplerRender = await readFile(`${popplerRenderPrefix}.png`);
+      if (popplerRender.length === 0) {
+        throw new Error("Poppler could not render the rewritten PDF.");
+      }
+      const forbiddenText = "sumilao";
+      const objectBytes = Buffer.from(compatibleBytes)
+        .toString("latin1")
+        .toLowerCase();
+      if (
+        objectBytes.includes(forbiddenText) ||
+        extractedText.toLowerCase().includes(forbiddenText)
+      ) {
+        throw new Error("Obsolete Sumilao content remains in the output PDF.");
+      }
+
       res.set({
         "Content-Type": "application/pdf",
         "Content-Length": String(compatibleBytes.length),
         "Cache-Control": "no-store",
+        "X-Repaired-Flate-Streams": String(repairedSource.repairedCount),
       });
       return res.send(Buffer.from(compatibleBytes));
     } catch (error) {
       console.error("Compatible PDF rendering failed:", error);
       return res.status(500).json({ error: "Compatible PDF rendering failed." });
     } finally {
-      if (browser) await browser.close().catch(() => {});
       await rm(jobDirectory, { recursive: true, force: true }).catch(() => {});
     }
   },
