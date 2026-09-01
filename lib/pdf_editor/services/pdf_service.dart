@@ -1490,6 +1490,12 @@ class PdfService {
       wordWrap: PdfWordWrapType.word,
     );
 
+    // Clear the bundled heading first. Otherwise the original template title
+    // remains underneath this updated heading and appears as doubled text.
+    graphics.drawRectangle(
+      brush: whiteBrush,
+      bounds: const Rect.fromLTWH(30, 34, 545, 34),
+    );
     graphics.drawString(
       'TECHNICAL SPECIFICATIONS',
       PdfStandardFont(

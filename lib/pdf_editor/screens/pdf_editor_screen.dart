@@ -682,23 +682,34 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   Future<Uint8List> _renderCompatiblePdf(Uint8List source) async {
-    final response = await http
-        .post(
-          Uri.parse(
-            'https://philgepsnotifalert-production.up.railway.app/'
-            'render-compatible-pdf',
-          ),
-          headers: const {'Content-Type': 'application/pdf'},
-          body: source,
-        )
-        .timeout(const Duration(minutes: 8));
-    if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-      throw Exception(
-        'Compatible PDF rendering failed (${response.statusCode}). '
-        'Deploy the latest Railway backend and try again.',
+    try {
+      final response = await http
+          .post(
+            Uri.parse(
+              'https://philgepsnotifalert-production.up.railway.app/'
+              'render-compatible-pdf',
+            ),
+            headers: const {'Content-Type': 'application/pdf'},
+            body: source,
+          )
+          .timeout(const Duration(minutes: 8));
+
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        return response.bodyBytes;
+      }
+
+      debugPrint(
+        'Compatible PDF renderer unavailable (${response.statusCode}); '
+        'using the generated PDF directly.',
+      );
+    } catch (error) {
+      debugPrint(
+        'Compatible PDF renderer request failed; '
+        'using the generated PDF directly: $error',
       );
     }
-    return response.bodyBytes;
+
+    return source;
   }
 
   Future<void> generatePdf() async {
