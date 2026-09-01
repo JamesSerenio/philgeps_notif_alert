@@ -681,29 +681,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
   }
 
-  Future<Uint8List> _normalizePdfForCompatibility(Uint8List source) async {
-    final response = await http
-        .post(
-          Uri.parse(
-            'https://philgepsnotifalert-production.up.railway.app/'
-            'normalize-pdf',
-          ),
-          headers: const {
-            'Content-Type': 'application/pdf',
-            'Cache-Control': 'no-store',
-          },
-          body: source,
-        )
-        .timeout(const Duration(minutes: 4));
-    if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-      throw Exception(
-        'PDF compatibility service failed (${response.statusCode}). '
-        'Deploy the latest Railway backend and try again.',
-      );
-    }
-    return response.bodyBytes;
-  }
-
   Future<void> generatePdf() async {
     setState(() {
       isGenerating = true;
@@ -732,7 +709,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       final generatedReferenceNumber = referenceNumberController.text.trim();
       lastObservedContentSignature = _currentContentSignature();
       final generatedRevision = contentRevision;
-      final generatedBytes = await PdfService.generateBidDocs(
+      final bytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
           'municipality': municipalityController.text.trim(),
@@ -772,7 +749,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         },
       );
 
-      final bytes = await _normalizePdfForCompatibility(generatedBytes);
       if (!mounted) return;
       if (generatedRevision != contentRevision) {
         setState(() {
