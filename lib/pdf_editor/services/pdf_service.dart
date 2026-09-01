@@ -1134,6 +1134,10 @@ class PdfService {
     required double businessAddressClearTop,
     required double businessAddressTop,
   }) {
+    // This source form uses landscape-width coordinates but some template
+    // revisions carry a /Rotate value that makes readers display it as a
+    // portrait sheet. Normalize the page orientation before adding fields.
+    page.rotation = PdfPageRotateAngle.rotateAngle0;
     final procuringEntity = (values['procuringEntity'] ?? '').trim();
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final referenceNumber = (values['referenceNumber'] ?? '').trim();
@@ -3183,11 +3187,40 @@ class PdfService {
     drawRow('Date', date, top + 95);
   }
 
+  static void _replacePagesWithBlankLandscape(
+    PdfDocument document,
+    int startPageIndex,
+    int pageCount,
+    Size pageSize,
+  ) {
+    final removableCount = pageCount
+        .clamp(0, document.pages.count - startPageIndex)
+        .toInt();
+    for (var index = 0; index < removableCount; index++) {
+      document.pages.removeAt(startPageIndex);
+    }
+    for (var index = 0; index < removableCount; index++) {
+      document.pages.insert(
+        startPageIndex + index,
+        pageSize,
+        PdfMargins()..all = 0,
+      );
+    }
+  }
+
   static int _drawPriceSchedule(
     PdfDocument document,
     Map<String, String> values,
     int startPageIndex,
   ) {
+    const bundledPriceSchedulePages = 8;
+    const landscapeA4 = Size(841.89, 595.28);
+    _replacePagesWithBlankLandscape(
+      document,
+      startPageIndex,
+      bundledPriceSchedulePages,
+      landscapeA4,
+    );
     List<dynamic> specifications = const [];
     List<dynamic> savedPrices = const [];
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
@@ -3331,8 +3364,8 @@ class PdfService {
       // The final sheet must also fit TOTAL and the full signature block.
       // When the remaining rows exceed this reserved capacity, keep a row for
       // a new page instead of squeezing it below the printable table area.
-      final finalPageCapacity = isFirstPage ? 300.0 : 360.0;
-      final regularPageCapacity = isFirstPage ? 430.0 : 500.0;
+      final finalPageCapacity = isFirstPage ? 220.0 : 280.0;
+      final regularPageCapacity = isFirstPage ? 360.0 : 420.0;
       final remainingHeight = itemHeights
           .skip(nextItem)
           .fold<double>(0, (sum, height) => sum + height);
@@ -3364,15 +3397,13 @@ class PdfService {
     // entered specifications need more than those templates, insert clean
     // continuation pages immediately after them instead of clipping rows or
     // drawing over the total/signature block.
-    const bundledPriceSchedulePages = 8;
     if (pageCount > bundledPriceSchedulePages) {
-      final sourceSize = document.pages[startPageIndex].size;
       for (var extraPage = bundledPriceSchedulePages;
           extraPage < pageCount;
           extraPage++) {
         document.pages.insert(
           startPageIndex + extraPage,
-          sourceSize,
+          landscapeA4,
           PdfMargins()..all = 0,
         );
       }
@@ -6300,6 +6331,14 @@ class PdfService {
     Map<String, String> values,
     int startPageIndex,
   ) {
+    const bundledSchedulePages = 3;
+    const landscapeA4 = Size(841.89, 595.28);
+    _replacePagesWithBlankLandscape(
+      document,
+      startPageIndex,
+      bundledSchedulePages,
+      landscapeA4,
+    );
     List<dynamic> specifications = const [];
     final encoded = values['technicalSpecifications'] ?? '';
     if (encoded.isNotEmpty) {
@@ -6391,7 +6430,7 @@ class PdfService {
     while (nextRow < scheduleRows.length) {
       // The first sheet has the document heading; continuation sheets have
       // more vertical room. Keep space below the table for the signature.
-      final availableHeight = pageRowCounts.isEmpty ? 410.0 : 545.0;
+      final availableHeight = pageRowCounts.isEmpty ? 230.0 : 380.0;
       var usedHeight = 0.0;
       var count = 0;
       while (nextRow + count < scheduleRows.length) {
@@ -6405,15 +6444,13 @@ class PdfService {
     }
     if (pageRowCounts.isEmpty) pageRowCounts.add(0);
     final pageCount = pageRowCounts.length;
-    const bundledSchedulePages = 3;
     if (pageCount > bundledSchedulePages) {
-      final sourceSize = document.pages[startPageIndex].size;
       for (var extraPage = bundledSchedulePages;
           extraPage < pageCount;
           extraPage++) {
         document.pages.insert(
           startPageIndex + extraPage,
-          sourceSize,
+          landscapeA4,
           PdfMargins()..all = 0,
         );
       }
@@ -6642,6 +6679,14 @@ class PdfService {
     Map<String, String> values,
     int startPageIndex,
   ) {
+    const bundledSummaryPages = 3;
+    const landscapeA4 = Size(841.89, 595.28);
+    _replacePagesWithBlankLandscape(
+      document,
+      startPageIndex,
+      bundledSummaryPages,
+      landscapeA4,
+    );
     List<dynamic> specifications = const [];
     List<dynamic> savedPrices = const [];
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
@@ -6768,15 +6813,13 @@ class PdfService {
     final pageCount = pageRowCounts.length;
     // The template bundles three Summary sheets. Insert clean continuation
     // pages if wrapped specifications need more than those available sheets.
-    const bundledSummaryPages = 3;
     if (pageCount > bundledSummaryPages) {
-      final sourceSize = document.pages[startPageIndex].size;
       for (var extraPage = bundledSummaryPages;
           extraPage < pageCount;
           extraPage++) {
         document.pages.insert(
           startPageIndex + extraPage,
-          sourceSize,
+          landscapeA4,
           PdfMargins()..all = 0,
         );
       }

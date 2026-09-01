@@ -184,12 +184,15 @@ app.post(
       for (const renderedPage of renderedPages) {
         const image = await readFile(path.join(jobDirectory, renderedPage));
         const embedded = await output.embedPng(image);
-        const pdfPage = output.addPage([595.28, 841.89]);
+        const isLandscape = embedded.width > embedded.height;
+        const pageWidth = isLandscape ? 841.89 : 595.28;
+        const pageHeight = isLandscape ? 595.28 : 841.89;
+        const pdfPage = output.addPage([pageWidth, pageHeight]);
         pdfPage.drawImage(embedded, {
           x: 0,
           y: 0,
-          width: 595.28,
-          height: 841.89,
+          width: pageWidth,
+          height: pageHeight,
         });
       }
 
