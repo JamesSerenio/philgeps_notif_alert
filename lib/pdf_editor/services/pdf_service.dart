@@ -336,13 +336,9 @@ class PdfService {
     }
 
     await yieldToBrowser();
-    // Write the current in-memory revision directly. A traditional full xref
-    // table uses Syncfusion's uninitialized `objNumbers` path on Web; an xref
-    // stream performs the same canonical full save without that code path.
-    document.fileStructure.version = PdfVersion.version1_7;
-    document.fileStructure.incrementalUpdate = false;
-    document.fileStructure.crossReferenceType =
-        PdfCrossReferenceType.crossReferenceStream;
+    // Keep Syncfusion's normal incremental output here. Chrome/PDFium resolves
+    // this revision correctly; the Railway compatibility service flattens its
+    // visible overlays into permanent page content for the other readers.
     final List<int> outputBytes = await document.save();
     document.dispose();
     return Uint8List.fromList(outputBytes);

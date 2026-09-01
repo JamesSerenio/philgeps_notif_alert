@@ -42,6 +42,8 @@ app.post(
           "-dBATCH",
           "-dSAFER",
           "-dQUIET",
+          "-dShowAnnots=true",
+          "-dPreserveAnnots=false",
           "-dDetectDuplicateImages=true",
           "-dCompressFonts=true",
           `-sOutputFile=${outputPath}`,
