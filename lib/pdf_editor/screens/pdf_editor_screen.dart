@@ -681,6 +681,29 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
   }
 
+  Future<Uint8List> _normalizePdfForCompatibility(Uint8List source) async {
+    final response = await http
+        .post(
+          Uri.parse(
+            'https://philgepsnotifalert-production.up.railway.app/'
+            'normalize-pdf',
+          ),
+          headers: const {
+            'Content-Type': 'application/pdf',
+            'Cache-Control': 'no-store',
+          },
+          body: source,
+        )
+        .timeout(const Duration(minutes: 4));
+    if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+      throw Exception(
+        'PDF compatibility service failed (${response.statusCode}). '
+        'Deploy the latest Railway backend and try again.',
+      );
+    }
+    return response.bodyBytes;
+  }
+
   Future<void> generatePdf() async {
     setState(() {
       isGenerating = true;
@@ -709,7 +732,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       final generatedReferenceNumber = referenceNumberController.text.trim();
       lastObservedContentSignature = _currentContentSignature();
       final generatedRevision = contentRevision;
-      final bytes = await PdfService.generateBidDocs(
+      final generatedBytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
           'municipality': municipalityController.text.trim(),
@@ -749,6 +772,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         },
       );
 
+      final bytes = await _normalizePdfForCompatibility(generatedBytes);
       if (!mounted) return;
       if (generatedRevision != contentRevision) {
         setState(() {
@@ -2197,105 +2221,17 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                           ),
                         )
                       : useDesktopBrowserPdfViewer && previewViewType != null
-                          ? Column(
-                              children: [
-                                Material(
-                                  color: Colors.white,
-                                  elevation: 2,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.end,
-                                      children: [
-                                        OutlinedButton.icon(
-                                          onPressed: _downloadGeneratedPdf,
-                                          icon: const Icon(Icons.download),
-                                          label: const Text(
-                                            'Download Latest PDF',
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        ElevatedButton.icon(
-                                          onPressed: _printGeneratedPdf,
-                                          icon: const Icon(Icons.print),
-                                          label: const Text('Print'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                const Color(0xFF0B5D3B),
-                                            foregroundColor: Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: HtmlElementView(
-                                    key: ValueKey(previewViewType),
-                                    viewType: previewViewType!,
-                                  ),
-                                ),
-                              ],
+                          ? HtmlElementView(
+                              key: ValueKey(previewViewType),
+                              viewType: previewViewType!,
                             )
-                          : Column(
-                              children: [
-                                Material(
-                                  color: Colors.white,
-                                  elevation: 1,
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      10,
-                                      8,
-                                      10,
-                                      8,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: OutlinedButton.icon(
-                                            onPressed: _downloadGeneratedPdf,
-                                            icon: const Icon(
-                                              Icons.download,
-                                              size: 18,
-                                            ),
-                                            label: const Text('Download PDF'),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: ElevatedButton.icon(
-                                            onPressed: _printGeneratedPdf,
-                                            icon: const Icon(
-                                              Icons.print,
-                                              size: 18,
-                                            ),
-                                            label: const Text('Print'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xFF0B5D3B),
-                                              foregroundColor: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: SfPdfViewer.memory(
-                                    generatedPdf!,
-                                    key: ValueKey(generatedPdf),
-                                    canShowScrollHead: true,
-                                    canShowScrollStatus: true,
-                                    initialZoomLevel: 1,
-                                    maxZoomLevel: 3,
-                                  ),
-                                ),
-                              ],
+                          : SfPdfViewer.memory(
+                              generatedPdf!,
+                              key: ValueKey(generatedPdf),
+                              canShowScrollHead: true,
+                              canShowScrollStatus: true,
+                              initialZoomLevel: 1,
+                              maxZoomLevel: 3,
                             ),
                 );
 

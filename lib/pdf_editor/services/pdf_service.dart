@@ -336,22 +336,15 @@ class PdfService {
     }
 
     await yieldToBrowser();
-    // First commit every edit using Syncfusion's normal loaded-document path.
-    // Reopen those committed bytes before requesting a full save; at this
-    // point its object/xref tables are initialized, unlike when the flag is
-    // applied to the original template at the start of generation.
-    final List<int> committedBytes = await document.save();
+    // Write the current in-memory revision directly. A traditional full xref
+    // table uses Syncfusion's uninitialized `objNumbers` path on Web; an xref
+    // stream performs the same canonical full save without that code path.
+    document.fileStructure.version = PdfVersion.version1_7;
+    document.fileStructure.incrementalUpdate = false;
+    document.fileStructure.crossReferenceType =
+        PdfCrossReferenceType.crossReferenceStream;
+    final List<int> outputBytes = await document.save();
     document.dispose();
-    await yieldToBrowser();
-
-    final PdfDocument finalizedDocument = PdfDocument(
-      inputBytes: Uint8List.fromList(committedBytes),
-    );
-    finalizedDocument.fileStructure.incrementalUpdate = false;
-    finalizedDocument.fileStructure.crossReferenceType =
-        PdfCrossReferenceType.crossReferenceTable;
-    final List<int> outputBytes = await finalizedDocument.save();
-    finalizedDocument.dispose();
     return Uint8List.fromList(outputBytes);
   }
 

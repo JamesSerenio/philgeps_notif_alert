@@ -4,6 +4,12 @@ import { chromium } from "playwright";
 import cron from "node-cron";
 import admin from "firebase-admin";
 import { createClient } from "@supabase/supabase-js";
+import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 
 const app = express();
 
@@ -11,6 +17,53 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
+const execFileAsync = promisify(execFile);
+
+app.post(
+  "/normalize-pdf",
+  express.raw({ type: "application/pdf", limit: "120mb" }),
+  async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length < 5) {
+      return res.status(400).json({ error: "A PDF body is required." });
+    }
+
+    const jobDirectory = path.join(tmpdir(), `pdf-${randomUUID()}`);
+    const inputPath = path.join(jobDirectory, "input.pdf");
+    const outputPath = path.join(jobDirectory, "output.pdf");
+    try {
+      await mkdir(jobDirectory, { recursive: true });
+      await writeFile(inputPath, req.body);
+      await execFileAsync(
+        "gs",
+        [
+          "-sDEVICE=pdfwrite",
+          "-dCompatibilityLevel=1.7",
+          "-dNOPAUSE",
+          "-dBATCH",
+          "-dSAFER",
+          "-dQUIET",
+          "-dDetectDuplicateImages=true",
+          "-dCompressFonts=true",
+          `-sOutputFile=${outputPath}`,
+          inputPath,
+        ],
+        { maxBuffer: 10 * 1024 * 1024 },
+      );
+      const normalizedPdf = await readFile(outputPath);
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Length": String(normalizedPdf.length),
+        "Cache-Control": "no-store",
+      });
+      return res.send(normalizedPdf);
+    } catch (error) {
+      console.error("PDF normalization failed:", error);
+      return res.status(500).json({ error: "PDF normalization failed." });
+    } finally {
+      await rm(jobDirectory, { recursive: true, force: true }).catch(() => {});
+    }
+  },
+);
 
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
