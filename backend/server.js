@@ -4,6 +4,7 @@ import { chromium } from "playwright";
 import cron from "node-cron";
 import admin from "firebase-admin";
 import { createClient } from "@supabase/supabase-js";
+import { PDFDocument } from "pdf-lib";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -62,6 +63,85 @@ app.post(
       console.error("PDF normalization failed:", error);
       return res.status(500).json({ error: "PDF normalization failed." });
     } finally {
+      await rm(jobDirectory, { recursive: true, force: true }).catch(() => {});
+    }
+  },
+);
+
+app.post(
+  "/render-compatible-pdf",
+  express.raw({ type: "application/pdf", limit: "120mb" }),
+  async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length < 5) {
+      return res.status(400).json({ error: "A PDF body is required." });
+    }
+
+    const jobDirectory = path.join(tmpdir(), `pdf-render-${randomUUID()}`);
+    const inputPath = path.join(jobDirectory, "input.pdf");
+    let browser;
+    try {
+      await mkdir(jobDirectory, { recursive: true });
+      await writeFile(inputPath, req.body);
+      browser = await chromium.launch({ headless: true, channel: "chromium" });
+      const page = await browser.newPage({
+        viewport: { width: 1400, height: 1100 },
+        deviceScaleFactor: 2,
+      });
+      await page.goto(`file://${inputPath}`, {
+        waitUntil: "load",
+        timeout: 120000,
+      });
+      await page.waitForTimeout(2500);
+
+      // Hide thumbnails and select Fit-to-page in Chromium's PDF viewer.
+      await page.mouse.click(31, 28);
+      await page.waitForTimeout(250);
+      await page.mouse.click(725, 28);
+      await page.waitForTimeout(500);
+
+      const output = await PDFDocument.create();
+      let previousImage;
+      for (let pageNumber = 1; pageNumber <= 120; pageNumber += 1) {
+        await page.mouse.click(510, 28);
+        await page.keyboard.press("Control+A");
+        await page.keyboard.type(String(pageNumber));
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(180);
+        const image = await page.screenshot({
+          type: "jpeg",
+          quality: 92,
+          clip: { x: 333, y: 59, width: 732, height: 1034 },
+        });
+
+        // The viewer clamps an out-of-range page number to the final page.
+        // Stop when that same final page is captured for a second time.
+        if (previousImage && Buffer.compare(previousImage, image) === 0) break;
+        previousImage = image;
+        const embedded = await output.embedJpg(image);
+        const pdfPage = output.addPage([595.28, 841.89]);
+        pdfPage.drawImage(embedded, {
+          x: 0,
+          y: 0,
+          width: 595.28,
+          height: 841.89,
+        });
+      }
+
+      const compatibleBytes = await output.save({
+        useObjectStreams: false,
+        objectsPerTick: 25,
+      });
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Length": String(compatibleBytes.length),
+        "Cache-Control": "no-store",
+      });
+      return res.send(Buffer.from(compatibleBytes));
+    } catch (error) {
+      console.error("Compatible PDF rendering failed:", error);
+      return res.status(500).json({ error: "Compatible PDF rendering failed." });
+    } finally {
+      if (browser) await browser.close().catch(() => {});
       await rm(jobDirectory, { recursive: true, force: true }).catch(() => {});
     }
   },

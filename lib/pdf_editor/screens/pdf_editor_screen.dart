@@ -681,6 +681,26 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
   }
 
+  Future<Uint8List> _renderCompatiblePdf(Uint8List source) async {
+    final response = await http
+        .post(
+          Uri.parse(
+            'https://philgepsnotifalert-production.up.railway.app/'
+            'render-compatible-pdf',
+          ),
+          headers: const {'Content-Type': 'application/pdf'},
+          body: source,
+        )
+        .timeout(const Duration(minutes: 8));
+    if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+      throw Exception(
+        'Compatible PDF rendering failed (${response.statusCode}). '
+        'Deploy the latest Railway backend and try again.',
+      );
+    }
+    return response.bodyBytes;
+  }
+
   Future<void> generatePdf() async {
     setState(() {
       isGenerating = true;
@@ -709,7 +729,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       final generatedReferenceNumber = referenceNumberController.text.trim();
       lastObservedContentSignature = _currentContentSignature();
       final generatedRevision = contentRevision;
-      final bytes = await PdfService.generateBidDocs(
+      final rawBytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
           'municipality': municipalityController.text.trim(),
@@ -749,6 +769,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         },
       );
 
+      final bytes = await _renderCompatiblePdf(rawBytes);
       if (!mounted) return;
       if (generatedRevision != contentRevision) {
         setState(() {
