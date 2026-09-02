@@ -3187,7 +3187,7 @@ class PdfService {
     drawRow('Date', date, top + 95);
   }
 
-  static void _replacePagesWithBlankLandscape(
+  static void _replacePagesWithBlankSize(
     PdfDocument document,
     int startPageIndex,
     int pageCount,
@@ -3215,7 +3215,7 @@ class PdfService {
   ) {
     const bundledPriceSchedulePages = 8;
     const landscapeA4 = Size(841.89, 595.28);
-    _replacePagesWithBlankLandscape(
+    _replacePagesWithBlankSize(
       document,
       startPageIndex,
       bundledPriceSchedulePages,
@@ -6332,12 +6332,12 @@ class PdfService {
     int startPageIndex,
   ) {
     const bundledSchedulePages = 3;
-    const landscapeA4 = Size(841.89, 595.28);
-    _replacePagesWithBlankLandscape(
+    const portraitA4 = Size(595.28, 841.89);
+    _replacePagesWithBlankSize(
       document,
       startPageIndex,
       bundledSchedulePages,
-      landscapeA4,
+      portraitA4,
     );
     List<dynamic> specifications = const [];
     final encoded = values['technicalSpecifications'] ?? '';
@@ -6430,7 +6430,7 @@ class PdfService {
     while (nextRow < scheduleRows.length) {
       // The first sheet has the document heading; continuation sheets have
       // more vertical room. Keep space below the table for the signature.
-      final availableHeight = pageRowCounts.isEmpty ? 230.0 : 380.0;
+      final availableHeight = pageRowCounts.isEmpty ? 410.0 : 545.0;
       var usedHeight = 0.0;
       var count = 0;
       while (nextRow + count < scheduleRows.length) {
@@ -6450,7 +6450,7 @@ class PdfService {
           extraPage++) {
         document.pages.insert(
           startPageIndex + extraPage,
-          landscapeA4,
+          portraitA4,
           PdfMargins()..all = 0,
         );
       }
@@ -6681,7 +6681,7 @@ class PdfService {
   ) {
     const bundledSummaryPages = 3;
     const landscapeA4 = Size(841.89, 595.28);
-    _replacePagesWithBlankLandscape(
+    _replacePagesWithBlankSize(
       document,
       startPageIndex,
       bundledSummaryPages,
