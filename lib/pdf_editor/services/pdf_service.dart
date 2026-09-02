@@ -6248,11 +6248,16 @@ class PdfService {
     }
     const legalLocation = 'Municipality of __________, __________, Philippines';
 
-    final lastPageIndex = document.pages.count - 1;
+    // The legal paragraphs belong to the Secretary Certificate continuation
+    // page, not to the final page of the generated document. Price Schedule
+    // and Summary pages may now follow this section.
+    final legalPageIndex = pageIndex + 1 < document.pages.count
+        ? pageIndex + 1
+        : pageIndex;
     TextLine? witnessLine;
     TextLine? subscribedLine;
     for (final line in lines) {
-      if (line.pageIndex != lastPageIndex) continue;
+      if (line.pageIndex != legalPageIndex) continue;
       final compactText =
           line.text.toUpperCase().replaceAll(RegExp('[^A-Z]'), '');
       if (compactText.contains('INWITNESSWHEREOF') ||
@@ -6271,8 +6276,7 @@ class PdfService {
       required double top,
       double height = 36,
     }) {
-      // These jurat paragraphs are always on the final generated page (61).
-      final targetPage = document.pages[document.pages.count - 1];
+      final targetPage = document.pages[legalPageIndex];
       final targetGraphics = targetPage.graphics;
       final left = sourceLine?.bounds.left ?? 51.0;
       final paragraphTop = sourceLine?.bounds.top ?? top;
