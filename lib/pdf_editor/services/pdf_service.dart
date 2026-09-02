@@ -221,6 +221,25 @@ class PdfService {
     }
     await yieldToBrowser();
 
+    // Move only Price Schedule and Summary while their generated section
+    // indexes are still deterministic. Schedule of Requirements stays in its
+    // original document position.
+    if (priceScheduleStartPage >= 0 && bidPriceSummaryStartPage >= 0) {
+      final removedTechnicalPages = 3 - technicalSpecificationPageCount;
+      final removedPricePages = 8 - priceSchedulePageCount;
+      final finalPriceStart = priceScheduleStartPage - removedTechnicalPages;
+      final finalSummaryStart =
+          bidPriceSummaryStartPage - removedTechnicalPages - removedPricePages;
+      await _movePriceAndSummaryToDocumentEnd(
+        document,
+        priceStart: finalPriceStart,
+        summaryStart: finalSummaryStart,
+        priceSchedulePageCount: priceSchedulePageCount,
+        summaryPageCount: bidPriceSummaryPageCount,
+      );
+      await yieldToBrowser();
+    }
+
     final useDeclarationWithTable =
         values['bidSecuringDeclarationWithTable'] != 'false';
     if (useDeclarationWithTable) {
@@ -338,12 +357,6 @@ class PdfService {
     await yieldToBrowser();
     await _moveBusinessPermitBeforeTaxClearance(document);
     await yieldToBrowser();
-    await _movePriceAndSummaryToDocumentEnd(
-      document,
-      priceSchedulePageCount: priceSchedulePageCount,
-      summaryPageCount: bidPriceSummaryPageCount,
-    );
-    await yieldToBrowser();
 
     // Keep Syncfusion's normal incremental output here. Chrome/PDFium resolves
     // this revision correctly; the Railway compatibility service flattens its
@@ -391,14 +404,11 @@ class PdfService {
 
   static Future<void> _movePriceAndSummaryToDocumentEnd(
     PdfDocument document, {
+    required int priceStart,
+    required int summaryStart,
     required int priceSchedulePageCount,
     required int summaryPageCount,
   }) async {
-    final priceStart = _findPriceScheduleStartPage(document);
-    // Cleanup removes unused bundled continuation sheets, leaving Summary
-    // immediately after the generated Price Schedule. Derive its final index
-    // from the actual Price start/count instead of its old template page.
-    final summaryStart = priceStart + priceSchedulePageCount;
     if (priceStart < 0 ||
         summaryStart <= priceStart ||
         summaryStart >= document.pages.count) {
@@ -408,9 +418,8 @@ class PdfService {
     final safePriceCount = priceSchedulePageCount
         .clamp(0, document.pages.count - priceStart)
         .toInt();
-    final safeSummaryCount = summaryPageCount
-        .clamp(0, document.pages.count - summaryStart)
-        .toInt();
+    final safeSummaryCount =
+        summaryPageCount.clamp(0, document.pages.count - summaryStart).toInt();
     if (safePriceCount == 0 || safeSummaryCount == 0) return;
 
     // Snapshot both completed sections before removing either range. Imported
@@ -1194,8 +1203,7 @@ class PdfService {
       var lineCount = 1;
       var currentLine = '';
 
-      for (final word
-          in _pdfStandardFontSafeText(text).split(RegExp(r'\s+'))) {
+      for (final word in _pdfStandardFontSafeText(text).split(RegExp(r'\s+'))) {
         final candidate = _pdfStandardFontSafeText(
           currentLine.isEmpty ? word : '$currentLine $word',
         );
@@ -2729,8 +2737,7 @@ class PdfService {
     List<dynamic> specifications = const [];
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded =
-          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded.take(72).toList();
     }
 
@@ -3311,9 +3318,8 @@ class PdfService {
     int pageCount,
     Size pageSize,
   ) {
-    final removableCount = pageCount
-        .clamp(0, document.pages.count - startPageIndex)
-        .toInt();
+    final removableCount =
+        pageCount.clamp(0, document.pages.count - startPageIndex).toInt();
     for (var index = 0; index < removableCount; index++) {
       document.pages.removeAt(startPageIndex);
     }
@@ -3344,8 +3350,7 @@ class PdfService {
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     final encodedPrices = values['priceSchedule'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded =
-          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded.take(72).toList();
     }
     if (encodedPrices.isNotEmpty) {
@@ -3445,7 +3450,9 @@ class PdfService {
         }
       }
       if (visualLines.isEmpty) visualLines.add('');
-      for (var start = 0; start < visualLines.length; start += linesPerPriceRow) {
+      for (var start = 0;
+          start < visualLines.length;
+          start += linesPerPriceRow) {
         final continuation = start > 0;
         priceRows.add(<String, dynamic>{
           ...source,
@@ -3494,8 +3501,7 @@ class PdfService {
       var usedHeight = 0.0;
       var count = 0;
       while (nextItem + count < priceRows.length) {
-        final isLastRemainingRow =
-            nextItem + count == priceRows.length - 1;
+        final isLastRemainingRow = nextItem + count == priceRows.length - 1;
         // A regular page must not consume the final row. Otherwise TOTAL and
         // the signature block are appended to a page that was filled using
         // the larger non-final capacity and get clipped below the page.
@@ -3789,11 +3795,10 @@ class PdfService {
         y += rowHeight;
         final hasNextRowOnPage = row < rowCount - 1;
         final nextRow = hasNextRowOnPage ? priceRows[itemIndex + 1] : null;
-        final nextIsSameItem = nextRow != null &&
-            nextRow['_sourceIndex'] == sourceIndex;
+        final nextIsSameItem =
+            nextRow != null && nextRow['_sourceIndex'] == sourceIndex;
         final nextIsSameLogicalLine = nextIsSameItem &&
-            nextRow['_logicalLineIndex'] ==
-                specification['_logicalLineIndex'];
+            nextRow['_logicalLineIndex'] == specification['_logicalLineIndex'];
         if (!nextIsSameLogicalLine) {
           page.graphics.drawLine(
             gridPen,
@@ -5463,8 +5468,7 @@ class PdfService {
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     final encodedPrices = values['priceSchedule'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded =
-          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded;
     }
     if (encodedPrices.isNotEmpty) {
@@ -6538,9 +6542,9 @@ class PdfService {
           final description = (value['_description'] ?? '').toString();
           return (_measureMarkedSpecificationTextHeight(
                     description,
-                  scheduleMeasuringFont,
-                  scheduleSpecificationWidth,
-                ) +
+                    scheduleMeasuringFont,
+                    scheduleSpecificationWidth,
+                  ) +
                   2)
               .clamp(23.0, 240.0)
               .toDouble();
@@ -6775,11 +6779,10 @@ class PdfService {
         y += rowHeight;
         final hasNextRowOnPage = row < rowsOnPage - 1;
         final nextRow = hasNextRowOnPage ? scheduleRows[itemIndex + 1] : null;
-        final nextIsSameItem = nextRow != null &&
-            nextRow['_sourceIndex'] == sourceIndex;
+        final nextIsSameItem =
+            nextRow != null && nextRow['_sourceIndex'] == sourceIndex;
         final nextIsSameLogicalLine = nextIsSameItem &&
-            nextRow['_logicalLineIndex'] ==
-                specification['_logicalLineIndex'];
+            nextRow['_logicalLineIndex'] == specification['_logicalLineIndex'];
         if (!nextIsSameLogicalLine) {
           page.graphics.drawLine(
             gridPen,
@@ -6813,8 +6816,7 @@ class PdfService {
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     final encodedPrices = values['priceSchedule'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded =
-          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded.take(72).toList();
     }
     if (encodedPrices.isNotEmpty) {
@@ -7272,8 +7274,7 @@ class PdfService {
     List<dynamic> specifications = const [];
     final encodedSpecifications = values['technicalSpecifications'] ?? '';
     if (encodedSpecifications.isNotEmpty) {
-      final decoded =
-          _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
+      final decoded = _pdfSafeDecodedValue(jsonDecode(encodedSpecifications));
       if (decoded is List) specifications = decoded;
     }
 
