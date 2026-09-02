@@ -338,6 +338,12 @@ class PdfService {
     await yieldToBrowser();
     await _moveBusinessPermitBeforeTaxClearance(document);
     await yieldToBrowser();
+    await _movePriceAndSummaryToDocumentEnd(
+      document,
+      priceSchedulePageCount: priceSchedulePageCount,
+      summaryPageCount: bidPriceSummaryPageCount,
+    );
+    await yieldToBrowser();
 
     // Keep Syncfusion's normal incremental output here. Chrome/PDFium resolves
     // this revision correctly; the Railway compatibility service flattens its
@@ -380,6 +386,72 @@ class PdfService {
       Offset.zero,
       sourceSize,
     );
+    snapshotDocument.dispose();
+  }
+
+  static Future<void> _movePriceAndSummaryToDocumentEnd(
+    PdfDocument document, {
+    required int priceSchedulePageCount,
+    required int summaryPageCount,
+  }) async {
+    final priceStart = _findPriceScheduleStartPage(document);
+    final summaryStart = _findBidPriceSummaryStartPage(document);
+    if (priceStart < 0 || summaryStart < 0 || priceStart >= summaryStart) return;
+
+    final safePriceCount = priceSchedulePageCount
+        .clamp(0, document.pages.count - priceStart)
+        .toInt();
+    final safeSummaryCount = summaryPageCount
+        .clamp(0, document.pages.count - summaryStart)
+        .toInt();
+    if (safePriceCount == 0 || safeSummaryCount == 0) return;
+
+    // Snapshot both completed sections before removing either range. Imported
+    // templates remain valid because this source document stays alive until
+    // every moved page has been appended to the destination document.
+    final snapshotBytes = await document.save();
+    final snapshotDocument = PdfDocument(inputBytes: snapshotBytes);
+    final pricePages = <({PdfTemplate template, Size size})>[
+      for (var index = 0; index < safePriceCount; index++)
+        (
+          template: snapshotDocument.pages[priceStart + index].createTemplate(),
+          size: snapshotDocument.pages[priceStart + index].size,
+        ),
+    ];
+    final summaryPages = <({PdfTemplate template, Size size})>[
+      for (var index = 0; index < safeSummaryCount; index++)
+        (
+          template:
+              snapshotDocument.pages[summaryStart + index].createTemplate(),
+          size: snapshotDocument.pages[summaryStart + index].size,
+        ),
+    ];
+
+    // Remove the later range first so the earlier Price Schedule indexes do
+    // not shift. Then append Price Schedule followed by Summary, making the
+    // Summary of Bid Prices the final section in the PDF.
+    for (var index = 0; index < safeSummaryCount; index++) {
+      document.pages.removeAt(summaryStart);
+    }
+    for (var index = 0; index < safePriceCount; index++) {
+      document.pages.removeAt(priceStart);
+    }
+
+    for (final source in <({PdfTemplate template, Size size})>[
+      ...pricePages,
+      ...summaryPages,
+    ]) {
+      final target = document.pages.insert(
+        document.pages.count,
+        source.size,
+        PdfMargins()..all = 0,
+      );
+      target.graphics.drawPdfTemplate(
+        source.template,
+        Offset.zero,
+        source.size,
+      );
+    }
     snapshotDocument.dispose();
   }
 
