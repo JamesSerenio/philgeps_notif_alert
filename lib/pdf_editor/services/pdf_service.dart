@@ -395,8 +395,15 @@ class PdfService {
     required int summaryPageCount,
   }) async {
     final priceStart = _findPriceScheduleStartPage(document);
-    final summaryStart = _findBidPriceSummaryStartPage(document);
-    if (priceStart < 0 || summaryStart < 0 || priceStart >= summaryStart) return;
+    // Cleanup removes unused bundled continuation sheets, leaving Summary
+    // immediately after the generated Price Schedule. Derive its final index
+    // from the actual Price start/count instead of its old template page.
+    final summaryStart = priceStart + priceSchedulePageCount;
+    if (priceStart < 0 ||
+        summaryStart <= priceStart ||
+        summaryStart >= document.pages.count) {
+      return;
+    }
 
     final safePriceCount = priceSchedulePageCount
         .clamp(0, document.pages.count - priceStart)
@@ -6415,7 +6422,10 @@ class PdfService {
 
   static int _findBidPriceSummaryStartPage(PdfDocument document) {
     final lines = PdfTextExtractor(document).extractTextLines(
-      startPageIndex: 55,
+      // Earlier optional-page removals can shift this generated section from
+      // its bundled-template position (page 56+) down into the low 50s.
+      // Search from page 41 so the final move-to-end pass can always find it.
+      startPageIndex: 40,
       endPageIndex: 66.clamp(0, document.pages.count - 1).toInt(),
     );
     for (final line in lines) {
