@@ -344,16 +344,18 @@ class PdfService {
     // moves NFCC and Technical Specifications into indexes 43-44 and caused
     // those required sections to be deleted.
 
-    // Replace NFCC only after all page moves/removals. Otherwise the newly
-    // inserted template can itself be moved or removed by the operations
-    // above, leaving the legacy NFCC page in the final document.
-    await _replaceNfccPage(document, values);
-    await yieldToBrowser();
-
+    // Remove only the legacy SLCC placeholders before resolving NFCC and
+    // Technical Specifications. Doing this after NFCC replacement can make
+    // Syncfusion retain stale shifted page references when SLCC is disabled.
     if (values['slccTemplateType']?.trim().toLowerCase() == 'none') {
       _removeSlccSection(document);
+      await yieldToBrowser();
     }
 
+    // Resolve and replace NFCC after every optional-page removal. It remains
+    // immediately before Technical Specifications, regardless of whether
+    // SLCC is present, and neither required section is removed for SLCC=None.
+    await _replaceNfccPage(document, values);
     await yieldToBrowser();
     await _moveBusinessPermitBeforeTaxClearance(document);
     await yieldToBrowser();

@@ -147,6 +147,8 @@ void main() {
     document.dispose();
 
     expect(pageCount, 61);
+    expect(compactText, contains('NETFINANCIALCONTRACTINGCAPACITY'));
+    expect(compactText, contains('TECHNICALSPECIFICATIONS'));
     expect(compactText, contains('ProjectIdentificationNo.:13118796'));
     // Covered template text remains in the PDF extraction stream even though
     // it is no longer visible, so verify the newly drawn recipient separately.
