@@ -98,7 +98,7 @@ void main() {
 
     expect(compactText, contains('CarlosRafaelA.Jamilo'));
     expect(
-        compactText, contains('SitioPuli,Carmen,CagayandeOro.MisamisOriental'));
+        compactText, contains('ZONE13,CARMEN,CAGAYANDEORO.MISAMISORIENTAL'));
     expect(compactText, contains('PROCUREMENTOF12-CHANNELCCTVPACKAGE'));
     expect(compactText, contains('MUNICIPALITYOFVILLANUEVA,MISAMISORIENTAL'));
     expect(compactText, contains('MunicipalityofSumilao'));

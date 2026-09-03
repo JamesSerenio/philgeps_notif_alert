@@ -12,7 +12,7 @@ class PdfService {
   const PdfService._();
 
   static const String _permanentBusinessAddress =
-      'SITIO PULI, CARMEN, CAGAYAN DE ORO CITY, MISAMIS ORIENTAL, 9000';
+      'ZONE 13, CARMEN, CAGAYAN DE ORO CITY, MISAMIS ORIENTAL, 9000';
 
   static Future<Uint8List> generateBidDocs({
     required Map<String, String> values,
@@ -651,8 +651,7 @@ class PdfService {
     final projectTitle = (values['projectTitle'] ?? '').trim();
     final submittedBy = (values['submittedBy'] ?? '').trim();
     final date = DateFormat('MMMM d, yyyy').format(DateTime.now());
-    const address =
-        'SITIO PULI, CARMEN, CAGAYAN DE ORO CITY, MISAMIS ORIENTAL, 9000';
+    const address = _permanentBusinessAddress;
 
     // Values in the supplied NFCC file are sometimes encoded together in a
     // single text object. Clear the complete variable header instead of
