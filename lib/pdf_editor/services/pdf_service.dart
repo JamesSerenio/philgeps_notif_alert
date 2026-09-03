@@ -545,13 +545,31 @@ class PdfService {
     const legacyAfsPageCount = 18;
     if (afsPageIndex >= document.pages.count) return;
 
+    // Earlier optional-page cleanup can shorten the pages before Technical
+    // Specifications (notably when SLCC=None). Never let the fixed legacy AFS
+    // range consume NFCC or the first Technical Specifications page.
+    var removableAfsPageCount = legacyAfsPageCount;
+    final lines = PdfTextExtractor(document).extractTextLines();
+    for (final line in lines) {
+      final title =
+          line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (line.pageIndex >= afsPageIndex &&
+          title.contains('TECHNICAL SPECIFICATIONS')) {
+        removableAfsPageCount =
+            (line.pageIndex - afsPageIndex - 1)
+                .clamp(0, legacyAfsPageCount)
+                .toInt();
+        break;
+      }
+    }
+
     final data = await rootBundle.load('assets/pdf/AFS_template.pdf');
     final sourceDocument = PdfDocument(
       inputBytes: data.buffer.asUint8List(),
     );
 
     for (var page = 0;
-        page < legacyAfsPageCount && afsPageIndex < document.pages.count;
+        page < removableAfsPageCount && afsPageIndex < document.pages.count;
         page++) {
       document.pages.removeAt(afsPageIndex);
       if (page % 3 == 2) {
@@ -601,7 +619,8 @@ class PdfService {
     int? technicalSpecificationsPageIndex;
     for (final line in documentLines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-      if (line.pageIndex >= 20 && text.trim() == 'TECHNICAL SPECIFICATIONS') {
+      if (line.pageIndex >= 20 &&
+          text.contains('TECHNICAL SPECIFICATIONS')) {
         technicalSpecificationsPageIndex ??= line.pageIndex;
       }
       if (line.pageIndex >= 20 &&

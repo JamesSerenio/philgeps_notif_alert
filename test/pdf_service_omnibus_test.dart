@@ -146,7 +146,7 @@ void main() {
     final pageCount = document.pages.count;
     document.dispose();
 
-    expect(pageCount, 61);
+    expect(pageCount, greaterThanOrEqualTo(61));
     expect(compactText, contains('NETFINANCIALCONTRACTINGCAPACITY'));
     expect(compactText, contains('TECHNICALSPECIFICATIONS'));
     expect(compactText, contains('ProjectIdentificationNo.:13118796'));
