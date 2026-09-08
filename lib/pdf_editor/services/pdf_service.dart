@@ -359,6 +359,8 @@ class PdfService {
     await yieldToBrowser();
     await _moveBusinessPermitBeforeTaxClearance(document);
     await yieldToBrowser();
+    await _replacePhilgepsCertificateSection(document);
+    await yieldToBrowser();
 
     // Keep Syncfusion's normal incremental output here. Chrome/PDFium resolves
     // this revision correctly; the Railway compatibility service flattens its
@@ -366,6 +368,56 @@ class PdfService {
     final List<int> outputBytes = await document.save();
     document.dispose();
     return Uint8List.fromList(outputBytes);
+  }
+
+  static Future<void> _replacePhilgepsCertificateSection(
+    PdfDocument document,
+  ) async {
+    final lines = PdfTextExtractor(document).extractTextLines();
+    int? certificatePageIndex;
+    for (final line in lines) {
+      final text =
+          line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text.contains('CERTIFICATE OF PHILGEPS REGISTRATION')) {
+        certificatePageIndex = line.pageIndex;
+        break;
+      }
+    }
+    if (certificatePageIndex == null) return;
+
+    final data = await rootBundle.load('assets/pdf/certificate_template.pdf');
+    final sourceDocument = PdfDocument(inputBytes: data.buffer.asUint8List());
+    if (sourceDocument.pages.count == 0) {
+      sourceDocument.dispose();
+      return;
+    }
+
+    // The bundled bid template contains the old three-page PhilGEPS
+    // certificate. Replace that complete section with the newly supplied
+    // certificate PDF while preserving every other page and its position.
+    const oldCertificatePageCount = 3;
+    for (var removed = 0;
+        removed < oldCertificatePageCount &&
+            certificatePageIndex < document.pages.count;
+        removed++) {
+      document.pages.removeAt(certificatePageIndex);
+    }
+
+    for (var index = 0; index < sourceDocument.pages.count; index++) {
+      final sourcePage = sourceDocument.pages[index];
+      final sourceSize = sourcePage.size;
+      final targetPage = document.pages.insert(
+        certificatePageIndex + index,
+        sourceSize,
+        PdfMargins()..all = 0,
+      );
+      targetPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        Offset.zero,
+        sourceSize,
+      );
+    }
+    sourceDocument.dispose();
   }
 
   static Future<void> _moveBusinessPermitBeforeTaxClearance(
@@ -555,10 +607,9 @@ class PdfService {
           line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
       if (line.pageIndex >= afsPageIndex &&
           title.contains('TECHNICAL SPECIFICATIONS')) {
-        removableAfsPageCount =
-            (line.pageIndex - afsPageIndex - 1)
-                .clamp(0, legacyAfsPageCount)
-                .toInt();
+        removableAfsPageCount = (line.pageIndex - afsPageIndex - 1)
+            .clamp(0, legacyAfsPageCount)
+            .toInt();
         break;
       }
     }
@@ -619,8 +670,7 @@ class PdfService {
     int? technicalSpecificationsPageIndex;
     for (final line in documentLines) {
       final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-      if (line.pageIndex >= 20 &&
-          text.contains('TECHNICAL SPECIFICATIONS')) {
+      if (line.pageIndex >= 20 && text.contains('TECHNICAL SPECIFICATIONS')) {
         technicalSpecificationsPageIndex ??= line.pageIndex;
       }
       if (line.pageIndex >= 20 &&
@@ -6271,9 +6321,8 @@ class PdfService {
     // The legal paragraphs belong to the Secretary Certificate continuation
     // page, not to the final page of the generated document. Price Schedule
     // and Summary pages may now follow this section.
-    final legalPageIndex = pageIndex + 1 < document.pages.count
-        ? pageIndex + 1
-        : pageIndex;
+    final legalPageIndex =
+        pageIndex + 1 < document.pages.count ? pageIndex + 1 : pageIndex;
     TextLine? witnessLine;
     TextLine? subscribedLine;
     for (final line in lines) {
