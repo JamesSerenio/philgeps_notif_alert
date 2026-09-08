@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import 'page_mapper.dart';
+import 'initao_omnibus_numbering.dart';
 
 class PdfService {
   const PdfService._();
@@ -272,6 +273,9 @@ class PdfService {
         values,
         pageIndex: omnibusPageIndex + 1,
       );
+      if (values['omnibusTemplateType'] == 'initao_lgu') {
+        drawInitaoOmnibusNumbering(document, omnibusPageIndex);
+      }
     }
     await yieldToBrowser();
     // Run this after mapped fields and optional-page removals so the old

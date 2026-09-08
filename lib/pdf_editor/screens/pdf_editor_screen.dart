@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../services/pdf_service.dart';
@@ -110,6 +111,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController procuringEntityController;
   late final TextEditingController submittedByController;
   String selectedSlccTemplate = 'cctv';
+  String selectedOmnibusTemplate = 'old';
+  late final Future<void> omnibusLoaded;
+  bool isLoadingOmnibus = true;
+  bool isSavingOmnibus = false;
+  String? omnibusSaveError;
   late final TextEditingController deliveredWeeksMonthsController;
   late final TextEditingController afterSalesYearsController;
   late final TextEditingController warrantyYearsController;
@@ -208,6 +214,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       metadataTextSnapshots[controller] = controller.text;
       controller.addListener(_handleMetadataTextChanged);
     }
+    omnibusLoaded = _loadOmnibus();
     _loadSlcc();
     _loadTechnicalSpecifications();
     _loadUnitSuggestions();
@@ -633,6 +640,45 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
   }
 
+  String get _omnibusPreferenceKey =>
+      'bid_omnibus_template_${widget.referenceNumber.trim()}';
+
+  Future<void> _loadOmnibus() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final saved = preferences.getString(_omnibusPreferenceKey);
+      if (!mounted) return;
+      setState(() => selectedOmnibusTemplate =
+          saved == 'initao_lgu' ? 'initao_lgu' : 'old');
+    } catch (error) {
+      if (mounted) setState(() => omnibusSaveError = 'Could not load saved option');
+    } finally {
+      if (mounted) setState(() => isLoadingOmnibus = false);
+    }
+  }
+
+  Future<void> _selectOmnibus(Set<String> selection) async {
+    setState(() {
+      selectedOmnibusTemplate = selection.first;
+      isSavingOmnibus = true;
+      omnibusSaveError = null;
+    });
+    _invalidateGeneratedPdf();
+    final preview = generatePdf();
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      if (!await preferences.setString(
+          _omnibusPreferenceKey, selectedOmnibusTemplate)) {
+        throw StateError('Omnibus preference was not saved');
+      }
+    } catch (error) {
+      if (mounted) setState(() => omnibusSaveError = 'Could not save option');
+    } finally {
+      if (mounted) setState(() => isSavingOmnibus = false);
+    }
+    await preview;
+  }
+
   Future<void> _loadSlcc() async {
     try {
       final row = await SupabaseConfig.client
@@ -708,6 +754,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   Future<void> generatePdf() async {
+    await omnibusLoaded;
+    if (!mounted) return;
     setState(() {
       isGenerating = true;
       errorMessage = null;
@@ -749,6 +797,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           'submittedByCivilStatus': submittedByProfile?.civilStatus ?? '',
           'submittedByAddress': submittedByProfile?.address ?? '',
           'slccTemplateType': selectedSlccTemplate,
+          'omnibusTemplateType': selectedOmnibusTemplate,
           'technicalSpecifications': jsonEncode([
             for (final entry in technicalSpecifications)
               {
@@ -916,6 +965,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       'procuringEntity': procuringEntityController.text,
       'submittedBy': submittedByController.text,
       'slccTemplate': selectedSlccTemplate,
+      'omnibusTemplate': selectedOmnibusTemplate,
       'bidDeclarationWithTable': useBidSecuringDeclarationWithTable,
       'includeScheduleTotal': includeTotalInScheduleRequirements,
       'deliveryPeriod': deliveredWeeksMonthsController.text,
@@ -1252,6 +1302,47 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           );
         },
       ),
+    );
+  }
+
+  Widget omnibusFields() {
+    return ExpansionTile(
+      initiallyExpanded: true,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      backgroundColor: Colors.white,
+      collapsedBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD8E1DB)),
+      ),
+      leading: const Icon(Icons.description_outlined, color: Color(0xFF0B5D3B)),
+      title: const Text('OMNIBUS SWORN STATEMENT',
+          style: TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(omnibusSaveError ?? (isLoadingOmnibus
+          ? 'Loading saved values...'
+          : isSavingOmnibus ? 'Saving...' : 'Saved automatically')),
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'old', label: Text('OLD')),
+              ButtonSegment(value: 'initao_lgu', label: Text('INITAO LGU')),
+            ],
+            selected: {selectedOmnibusTemplate},
+            onSelectionChanged: isLoadingOmnibus || isSavingOmnibus || isGenerating ||
+                    isLoadingSlcc || isLoadingTechnicalSpecifications ||
+                    isLoadingPriceSchedule || isLoadingScheduleRequirements ||
+                    isLoadingAfterSales
+                ? null : _selectOmnibus,
+          ),
+        ),
+      ],
     );
   }
 
@@ -2150,6 +2241,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       submittedByField(),
                       const SizedBox(height: 4),
                       bidSecuringDeclarationFields(),
+                      const SizedBox(height: 12),
+                      omnibusFields(),
                       const SizedBox(height: 12),
                       slccFields(),
                       const SizedBox(height: 12),
