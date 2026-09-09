@@ -28,13 +28,22 @@ void main() {
         'procuringEntity': 'MUNICIPALITY OF INITAO, MISAMIS ORIENTAL',
         'referenceNumber': '13213399',
         'projectTitle': 'Supply and Installation of Solar Street Lights',
-        'date': 'September 9, 2026',
+        'date': 'September 8, 2026',
         'technicalSpecifications': '[]',
         'priceSchedule': '[]',
       });
       expect(bytes, isNotEmpty);
       final document = PdfDocument(inputBytes: bytes);
       final lines = PdfTextExtractor(document).extractTextLines();
+      final nfccPage = lines
+          .firstWhere((line) =>
+              line.text.contains('NET FINANCIAL CONTRACTING CAPACITY'))
+          .pageIndex;
+      final nfccText = lines
+          .where((line) => line.pageIndex == nfccPage)
+          .map((line) => line.text)
+          .join('\n');
+      expect(nfccText, contains('September 8, 2026'));
       final page = lines
           .firstWhere((line) => line.text.contains('BID SECURING DECLARATION'))
           .pageIndex;

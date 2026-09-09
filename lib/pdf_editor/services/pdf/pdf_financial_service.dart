@@ -129,7 +129,7 @@ Future<void> _replaceNfccPage(
   final referenceNumber = (values['referenceNumber'] ?? '').trim();
   final projectTitle = (values['projectTitle'] ?? '').trim();
   final submittedBy = (values['submittedBy'] ?? '').trim();
-  final date = DateFormat('MMMM d, yyyy').format(DateTime.now());
+  final date = (values['date'] ?? '').trim();
   const address = _permanentBusinessAddress;
 
   // Values in the supplied NFCC file are sometimes encoded together in a
@@ -187,7 +187,7 @@ Future<void> _replaceNfccPage(
   );
   drawHeader('ADDRESS', address, 138, valueHeight: 27);
 
-  // Replace the complete signatory block and always stamp today's date.
+  // Replace the complete signatory block using the editor's selected date.
   // The original signatory block starts well above the bottom margin.
   // Clear from there through the bottom so both the old and any previously
   // generated values are removed before drawing the single final block.
