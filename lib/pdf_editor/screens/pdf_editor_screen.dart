@@ -115,6 +115,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final Future<void> omnibusLoaded;
   bool isLoadingOmnibus = true;
   bool isSavingOmnibus = false;
+  int omnibusSelectionRevision = 0;
+  Future<void> omnibusSave = Future<void>.value();
   String? omnibusSaveError;
   late final TextEditingController deliveredWeeksMonthsController;
   late final TextEditingController afterSalesYearsController;
@@ -137,10 +139,18 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isSavingScheduleRequirements = false;
   bool hasPendingDeliveryPeriodOverride = false;
   bool includeTotalInScheduleRequirements = false;
-  bool useBidSecuringDeclarationWithTable = true;
+  String selectedBidSecurityTemplate = 'old';
+  late final Future<void> bidSecurityLoaded;
+  bool isLoadingBidSecurity = true;
+  bool isSavingBidSecurity = false;
+  int bidSecuritySelectionRevision = 0;
+  Future<void> bidSecuritySave = Future<void>.value();
+  String? bidSecuritySaveError;
   bool isLoadingAfterSales = true;
   bool isSavingAfterSales = false;
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
+
+  final Map<_PriceScheduleEntry, List<String>> generatedPriceBreakdowns = {};
 
   Uint8List? generatedPdf;
   String? generatedPdfFileName;
@@ -214,6 +224,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       metadataTextSnapshots[controller] = controller.text;
       controller.addListener(_handleMetadataTextChanged);
     }
+    bidSecurityLoaded = _loadBidSecurity();
     omnibusLoaded = _loadOmnibus();
     _loadSlcc();
     _loadTechnicalSpecifications();
@@ -647,7 +658,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     try {
       final preferences = await SharedPreferences.getInstance();
       final saved = preferences.getString(_omnibusPreferenceKey);
-      if (!mounted) return;
+      if (!mounted || omnibusSelectionRevision != 0) return;
       setState(() => selectedOmnibusTemplate =
           saved == 'initao_lgu' ? 'initao_lgu' : 'old');
     } catch (error) {
@@ -657,26 +668,81 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
   }
 
-  Future<void> _selectOmnibus(Set<String> selection) async {
+  void _selectOmnibus(Set<String> selection) {
+    final selectedTemplate = selection.first;
+    final revision = ++omnibusSelectionRevision;
     setState(() {
-      selectedOmnibusTemplate = selection.first;
+      selectedOmnibusTemplate = selectedTemplate;
       isSavingOmnibus = true;
       omnibusSaveError = null;
     });
     _invalidateGeneratedPdf();
-    final preview = generatePdf();
+    // Serialize writes without blocking taps; only the latest save owns status.
+    omnibusSave = omnibusSave.then((_) async {
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        if (!await preferences.setString(
+            _omnibusPreferenceKey, selectedTemplate)) {
+          throw StateError('Omnibus preference was not saved');
+        }
+      } catch (error) {
+        if (mounted && revision == omnibusSelectionRevision) {
+          setState(() => omnibusSaveError = 'Could not save option');
+        }
+      } finally {
+        if (mounted && revision == omnibusSelectionRevision) {
+          setState(() => isSavingOmnibus = false);
+        }
+      }
+    });
+  }
+
+  String get _bidSecurityPreferenceKey =>
+      'bid_security_template_${widget.referenceNumber.trim()}';
+
+  Future<void> _loadBidSecurity() async {
     try {
       final preferences = await SharedPreferences.getInstance();
-      if (!await preferences.setString(
-          _omnibusPreferenceKey, selectedOmnibusTemplate)) {
-        throw StateError('Omnibus preference was not saved');
-      }
+      final saved = preferences.getString(_bidSecurityPreferenceKey);
+      if (!mounted || bidSecuritySelectionRevision != 0) return;
+      setState(() => selectedBidSecurityTemplate =
+          saved == 'without_table' || saved == 'initao_lgu' ? saved! : 'old');
     } catch (error) {
-      if (mounted) setState(() => omnibusSaveError = 'Could not save option');
+      if (mounted && bidSecuritySelectionRevision == 0) {
+        setState(() => bidSecuritySaveError = 'Could not load saved option');
+      }
     } finally {
-      if (mounted) setState(() => isSavingOmnibus = false);
+      if (mounted) setState(() => isLoadingBidSecurity = false);
     }
-    await preview;
+  }
+
+  void _selectBidSecurity(Set<String> selection) {
+    final selectedTemplate = selection.first;
+    final revision = ++bidSecuritySelectionRevision;
+    setState(() {
+      selectedBidSecurityTemplate = selectedTemplate;
+      isSavingBidSecurity = true;
+      bidSecuritySaveError = null;
+    });
+    _invalidateGeneratedPdf();
+    // Save in tap order without disabling the selector or generating a PDF.
+    bidSecuritySave = bidSecuritySave.then((_) async {
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        if (!await preferences.setString(
+            _bidSecurityPreferenceKey, selectedTemplate)) {
+          throw StateError('Bid security preference was not saved');
+        }
+      } catch (error) {
+        if (mounted && revision == bidSecuritySelectionRevision) {
+          setState(() => bidSecuritySaveError = 'Could not save option');
+        }
+      } finally {
+        if (mounted && revision == bidSecuritySelectionRevision) {
+          setState(() => isSavingBidSecurity = false);
+        }
+      }
+    });
   }
 
   Future<void> _loadSlcc() async {
@@ -755,6 +821,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   Future<void> generatePdf() async {
     await omnibusLoaded;
+    await bidSecurityLoaded;
     if (!mounted) return;
     setState(() {
       isGenerating = true;
@@ -783,6 +850,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       final generatedReferenceNumber = referenceNumberController.text.trim();
       lastObservedContentSignature = _currentContentSignature();
       final generatedRevision = contentRevision;
+      _calculatePriceBreakdowns();
       final rawBytes = await PdfService.generateBidDocs(
         values: {
           'province': provinceController.text.trim(),
@@ -819,8 +887,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               includeTotalInScheduleRequirements ? 'true' : 'false',
           'afterSalesYears': afterSalesYearsController.text.trim(),
           'warrantyYears': warrantyYearsController.text.trim(),
+          'bidSecuringDeclarationTemplate': selectedBidSecurityTemplate,
           'bidSecuringDeclarationWithTable':
-              useBidSecuringDeclarationWithTable ? 'true' : 'false',
+              selectedBidSecurityTemplate == 'old' ? 'true' : 'false',
         },
       );
 
@@ -938,6 +1007,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     if (currentSignature == lastObservedContentSignature) return;
     lastObservedContentSignature = currentSignature;
     contentRevision++;
+    generatedPriceBreakdowns.clear();
     if (generatedPdf == null || isGenerating || !mounted) return;
     final oldBlobUrl = previewBlobUrl;
     setState(() {
@@ -966,7 +1036,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       'submittedBy': submittedByController.text,
       'slccTemplate': selectedSlccTemplate,
       'omnibusTemplate': selectedOmnibusTemplate,
-      'bidDeclarationWithTable': useBidSecuringDeclarationWithTable,
+      'bidSecurityTemplate': selectedBidSecurityTemplate,
       'includeScheduleTotal': includeTotalInScheduleRequirements,
       'deliveryPeriod': deliveredWeeksMonthsController.text,
       'afterSalesYears': afterSalesYearsController.text,
@@ -1002,11 +1072,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   Future<void> _downloadGeneratedPdf() async {
-    // Never reuse the bytes currently displayed in the preview. They may have
-    // been produced by an older running build even when the form values have
-    // not changed. Rebuild first so "Download Latest PDF" always means the
-    // current generator and current editor data.
-    await generatePdf();
+    // Download only the PDF created by the Generate PDF button.
     if (!mounted || isGenerating || errorMessage != null) return;
     final bytes = generatedPdf;
     if (bytes == null) return;
@@ -1335,11 +1401,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
               ButtonSegment(value: 'initao_lgu', label: Text('INITAO LGU')),
             ],
             selected: {selectedOmnibusTemplate},
-            onSelectionChanged: isLoadingOmnibus || isSavingOmnibus || isGenerating ||
-                    isLoadingSlcc || isLoadingTechnicalSpecifications ||
-                    isLoadingPriceSchedule || isLoadingScheduleRequirements ||
-                    isLoadingAfterSales
-                ? null : _selectOmnibus,
+            onSelectionChanged: _selectOmnibus,
           ),
         ),
       ],
@@ -1420,36 +1482,31 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
       ),
       subtitle: Text(
-        useBidSecuringDeclarationWithTable ? 'With table' : 'Without table',
+        bidSecuritySaveError ??
+            (isLoadingBidSecurity
+                ? 'Loading saved values...'
+                : isSavingBidSecurity
+                    ? 'Saving...'
+                    : 'Saved automatically'),
       ),
       children: [
-        RadioListTile<bool>(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          title: const Text('With table'),
-          subtitle: const Text('Use the original declaration with table'),
-          value: true,
-          groupValue: useBidSecuringDeclarationWithTable,
-          onChanged: (value) {
-            if (value != null) {
-              setState(() => useBidSecuringDeclarationWithTable = value);
-              _invalidateGeneratedPdf();
-            }
-          },
-        ),
-        RadioListTile<bool>(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          title: const Text('Without table'),
-          subtitle: const Text('Use the new declaration without table'),
-          value: false,
-          groupValue: useBidSecuringDeclarationWithTable,
-          onChanged: (value) {
-            if (value != null) {
-              setState(() => useBidSecuringDeclarationWithTable = value);
-              _invalidateGeneratedPdf();
-            }
-          },
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'old', label: Text('OLD')),
+              ButtonSegment(
+                value: 'without_table',
+                label: Text('WITHOUT TABLE', textAlign: TextAlign.center),
+              ),
+              ButtonSegment(
+                value: 'initao_lgu',
+                label: Text('INITAO LGU', textAlign: TextAlign.center),
+              ),
+            ],
+            selected: {selectedBidSecurityTemplate},
+            onSelectionChanged: _selectBidSecurity,
+          ),
         ),
       ],
     );
@@ -1726,6 +1783,26 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     );
   }
 
+  // Sidebar rebuilds display these results without recalculating prices.
+  void _calculatePriceBreakdowns() {
+    generatedPriceBreakdowns.clear();
+    for (var index = 0; index < priceScheduleEntries.length; index++) {
+      final price = priceScheduleEntries[index];
+      final total = (_number(price.totalPricePerUnit.text) -
+              _number(price.deduction.text))
+          .clamp(0, double.infinity)
+          .toDouble();
+      final quantity = _number(technicalSpecifications[index].quantity.text);
+      generatedPriceBreakdowns[price] = [
+        _money(total),
+        _money(total * .50),
+        _money(total * .20),
+        _money(total * .30),
+        _money((quantity * total).roundToDouble()),
+      ];
+    }
+  }
+
   double _number(String value) {
     final normalized = value.replaceAll(',', '').trim();
     final direct = double.tryParse(normalized);
@@ -1780,11 +1857,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           Builder(builder: (context) {
             final specification = technicalSpecifications[index];
             final price = priceScheduleEntries[index];
-            final enteredTotal = _number(price.totalPricePerUnit.text);
-            final deduction = _number(price.deduction.text);
-            final total =
-                (enteredTotal - deduction).clamp(0, double.infinity).toDouble();
-            final quantity = _number(specification.quantity.text);
+            final breakdown = generatedPriceBreakdowns[price];
+            String amount(int column) => breakdown?[column] ?? '-';
             Widget priceRow(String label, String value) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
@@ -1915,15 +1989,15 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    priceRow('Adjusted Total Price per Unit', _money(total)),
-                    priceRow('Unit Price/Item (50%)', _money(total * .50)),
+                    priceRow('Adjusted Total Price per Unit', amount(0)),
+                    priceRow('Unit Price/Item (50%)', amount(1)),
                     priceRow(
                       'Transportation & Insurance (20%)',
-                      _money(total * .20),
+                      amount(2),
                     ),
                     priceRow(
                       'Sales & Other Taxes (30%)',
-                      _money(total * .30),
+                      amount(3),
                     ),
                     const Divider(height: 20),
                     Container(
@@ -1946,7 +2020,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            '₱ ${_money((quantity * total).roundToDouble())}',
+                            '₱ ${amount(4)}',
                             style: const TextStyle(
                               color: Color(0xFF0B5D3B),
                               fontSize: 18,

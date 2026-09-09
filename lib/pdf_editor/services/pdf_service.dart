@@ -242,7 +242,11 @@ class PdfService {
     }
 
     final useDeclarationWithTable =
-        values['bidSecuringDeclarationWithTable'] != 'false';
+        switch (values['bidSecuringDeclarationTemplate']) {
+      'old' => true,
+      'without_table' || 'initao_lgu' => false,
+      _ => values['bidSecuringDeclarationWithTable'] != 'false',
+    };
     if (useDeclarationWithTable) {
       // Locate the original form by its actual text after optional technical
       // pages have been removed, since its final page index can change.
@@ -2305,7 +2309,9 @@ class PdfService {
     if (declarationIndex < 0) return;
 
     final templateData = await rootBundle.load(
-      'assets/pdf/BID SECURING DECLARATION_impasugong_template.pdf',
+      values['bidSecuringDeclarationTemplate'] == 'initao_lgu'
+          ? 'assets/pdf/BID SECURING DECLARATION_initao_template.pdf'
+          : 'assets/pdf/BID SECURING DECLARATION_impasugong_template.pdf',
     );
     final templateDocument = PdfDocument(
       inputBytes: templateData.buffer.asUint8List(),
