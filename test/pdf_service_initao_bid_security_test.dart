@@ -1,14 +1,15 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:philgeps_notif_alert/pdf_editor/services/pdf_service.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
-List<String> _words(PdfDocument document, int page) => [
+List<String> _words(PdfDocument document, int page, {double? shiftedFrom}) => [
       for (final line in PdfTextExtractor(document)
           .extractTextLines(startPageIndex: page, endPageIndex: page))
         for (final word in line.wordCollection)
-          '${word.text}|${word.bounds}|${word.fontName}|${word.fontSize}',
+          '${word.text}|${shiftedFrom != null && word.bounds.top >= shiftedFrom - 20 && word.bounds.top <= shiftedFrom + 15 ? word.bounds.shift(const Offset(0, 14.76)) : word.bounds}|${word.fontName}|${word.fontSize}',
     ];
 
 void _expectOnlyItemThreeCorrection(
@@ -31,7 +32,8 @@ void _expectOnlyItemThreeCorrection(
   for (var index = 0; index < original.pages.count; index++) {
     expect(corrected.pages[index].size, original.pages[index].size);
     final before = _words(original, index);
-    final after = _words(corrected, index);
+    final after = _words(corrected, index,
+        shiftedFrom: index == page ? oldFinal.bounds.top : null);
     if (index != page) {
       expect(after, before, reason: 'Unrelated page $index');
       continue;
@@ -42,13 +44,16 @@ void _expectOnlyItemThreeCorrection(
         .expand((line) => line.wordCollection)
         .singleWhere((word) =>
             word.text == 'c)' &&
-            (word.bounds.top - oldLabel.bounds.top).abs() < .01);
-    expect(newLabel.bounds.topLeft, oldLabel.bounds.topLeft);
+            (word.bounds.top - (oldLabel.bounds.top - 14.76)).abs() < .01);
+    expect(newLabel.bounds.left, oldLabel.bounds.left);
+    expect(newLabel.bounds.top, closeTo(oldLabel.bounds.top - 14.76, .01));
     expect(newLabel.fontName, oldLabel.fontName);
     expect(newLabel.fontSize, oldLabel.fontSize);
     after.remove(
-        '${newLabel.text}|${newLabel.bounds}|${newLabel.fontName}|${newLabel.fontSize}');
-    expect(after, before, reason: 'Only the old c) and d) label may change');
+        '${newLabel.text}|${newLabel.bounds.shift(const Offset(0, 14.76))}|${newLabel.fontName}|${newLabel.fontSize}');
+    expect(after, before,
+        reason:
+            'Only the removed c), renamed label, and final paragraph Y-position may change');
   }
   final correctedText = PdfTextExtractor(corrected)
       .extractTextLines(startPageIndex: page, endPageIndex: page)
