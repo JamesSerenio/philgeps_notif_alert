@@ -20,6 +20,11 @@ void main() {
   });
   for (final option in ['old', 'without_table', 'initao_lgu']) {
     test('generates declaration option ' + option, () async {
+      final bidDate = {
+        'old': 'September 8, 2026',
+        'without_table': 'September 1, 2026',
+        'initao_lgu': 'December 31, 2026',
+      }[option]!;
       final bytes = await PdfService.generateBidDocs(values: {
         'bidSecuringDeclarationTemplate': option,
         'submittedBy': 'MARLJONE BLAIRE B. TINGTING',
@@ -28,7 +33,7 @@ void main() {
         'procuringEntity': 'MUNICIPALITY OF INITAO, MISAMIS ORIENTAL',
         'referenceNumber': '13213399',
         'projectTitle': 'Supply and Installation of Solar Street Lights',
-        'date': 'September 8, 2026',
+        'date': bidDate,
         'technicalSpecifications': '[]',
         'priceSchedule': '[]',
       });
@@ -43,7 +48,8 @@ void main() {
           .where((line) => line.pageIndex == nfccPage)
           .map((line) => line.text)
           .join('\n');
-      expect(nfccText, contains('September 8, 2026'));
+      expect(nfccText, contains(bidDate));
+      expect(nfccText, isNot(contains('September 9, 2026')));
       final page = lines
           .firstWhere((line) => line.text.contains('BID SECURING DECLARATION'))
           .pageIndex;
