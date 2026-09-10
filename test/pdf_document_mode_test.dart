@@ -24,10 +24,11 @@ void main() {
   const values = {
     'province': 'Misamis Oriental',
     'municipality': 'Initao',
-    'projectTitle': 'Supply and Installation of Solar Street Lights',
+    'projectTitle':
+        'Supply and Installation of Equipments and Materials for Solar Street Lights (1 Lot)',
     'procuringEntity': 'MUNICIPALITY OF INITAO, MISAMIS ORIENTAL',
     'referenceNumber': '13213399',
-    'date': 'September 18, 2026',
+    'date': 'September 10, 2026',
     'bidderName': 'MIKATA PRIME CORPORATION',
     'submittedBy': 'MARLJONE BLAIRE B. TINGTING',
     'technicalSpecifications': '[]',
@@ -73,12 +74,48 @@ void main() {
       'omnibusTemplateType': 'old',
       'bidSecuringDeclarationTemplate': 'old'
     });
-    comparePages(baseline, initao, offset: 6);
+    final baselineExtractor = PdfTextExtractor(baseline);
+    expect(baselineExtractor.extractText(startPageIndex: 0, endPageIndex: 0),
+        contains('CHECKLIST OF ELIGIBILITY REQUIREMENTS FOR GOODS'));
+    expect(initao.pages.count, baseline.pages.count + 5);
+    for (var page = 1; page < baseline.pages.count; page++) {
+      expect(initao.pages[page + 5].size, baseline.pages[page].size);
+      expect(pageWords(initao, page + 5), pageWords(baseline, page),
+          reason: 'Unrelated page must not change');
+    }
+    expect(PdfTextExtractor(initao).extractText(),
+        isNot(contains('CHECKLIST OF ELIGIBILITY REQUIREMENTS FOR GOODS')));
     const order = [4, 5, 1, 2, 3, 0];
     for (var page = 0; page < order.length; page++) {
       expect(initao.pages[page].size, template.pages[order[page]].size);
+      if (page == 5) continue;
       expect(pageWords(initao, page), pageWords(template, order[page]),
           reason: 'Template page order');
     }
+    final contentsLines = PdfTextExtractor(initao)
+        .extractTextLines(startPageIndex: 5, endPageIndex: 5);
+    final contentsText = contentsLines
+        .map((line) => line.text)
+        .join(' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+    for (final key in [
+      'projectTitle',
+      'date',
+      'bidderName',
+      'province',
+      'municipality'
+    ]) {
+      expect(contentsText, contains(values[key]!));
+    }
+    List<String> listing(PdfDocument doc, int page) => [
+          for (final line in PdfTextExtractor(doc)
+              .extractTextLines(startPageIndex: page, endPageIndex: page))
+            if (line.bounds.top >= 190)
+              for (final word in line.wordCollection)
+                [word.text, word.bounds, word.fontName, word.fontSize]
+                    .join('|'),
+        ];
+    expect(listing(initao, 5), listing(template, 0),
+        reason: 'Preserve every contents listing word and its formatting');
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

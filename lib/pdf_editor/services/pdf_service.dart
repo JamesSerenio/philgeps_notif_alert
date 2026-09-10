@@ -396,7 +396,7 @@ class PdfService {
     await yieldToBrowser();
 
     if (values['documentTemplateMode'] == 'initao') {
-      await _insertInitaoDocumentPages(document);
+      await _insertInitaoDocumentPages(document, values);
       await yieldToBrowser();
     }
 
