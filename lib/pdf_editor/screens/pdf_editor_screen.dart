@@ -18,6 +18,7 @@ part 'pdf_editor/specification_editing.dart';
 part 'pdf_editor/editor_preview.dart';
 part '../widgets/sidebar/editor_fields.dart';
 part '../widgets/sidebar/omnibus_section.dart';
+part '../widgets/sidebar/document_template_section.dart';
 part '../widgets/sidebar/slcc_section.dart';
 part '../widgets/sidebar/bid_security_section.dart';
 part '../widgets/sidebar/technical_specs_section.dart';
@@ -123,6 +124,21 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final TextEditingController bidderNameController;
   late final TextEditingController procuringEntityController;
   late final TextEditingController submittedByController;
+  String selectedDocumentTemplate = 'old';
+  late final Future<void> documentTemplateLoaded;
+  bool isLoadingDocumentTemplate = true;
+  bool isSavingDocumentTemplate = false;
+  int documentTemplateRevision = 0;
+  Future<void> documentTemplateSave = Future<void>.value();
+  String? documentTemplateSaveError;
+  bool get isInitaoDocument => selectedDocumentTemplate == 'initao';
+  String get effectiveOmnibusTemplate =>
+      isInitaoDocument ? 'initao_lgu' : 'old';
+  String get effectiveBidSecurityTemplate => isInitaoDocument
+      ? 'initao_lgu'
+      : selectedBidSecurityTemplate == 'without_table'
+          ? 'without_table'
+          : 'old';
   String selectedSlccTemplate = 'cctv';
   String selectedOmnibusTemplate = 'old';
   late final Future<void> omnibusLoaded;
@@ -240,6 +256,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       metadataTextSnapshots[controller] = controller.text;
       controller.addListener(_handleMetadataTextChanged);
     }
+    documentTemplateLoaded = _loadDocumentTemplate();
     bidSecurityLoaded = _loadBidSecurity();
     omnibusLoaded = _loadOmnibus();
     _loadSlcc();
@@ -332,6 +349,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                   ),
                   child: ListView(
                     children: [
+                      documentTemplateFields(),
+                      const SizedBox(height: 12),
                       sectionHeading(
                         Icons.business_center_outlined,
                         'PROJECT INFORMATION',

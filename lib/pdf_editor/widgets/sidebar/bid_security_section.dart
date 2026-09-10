@@ -35,19 +35,22 @@ extension _BidSecuritySection on _PdfEditorScreenState {
         SizedBox(
           width: double.infinity,
           child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'old', label: Text('OLD')),
-              ButtonSegment(
-                value: 'without_table',
-                label: Text('WITHOUT TABLE', textAlign: TextAlign.center),
-              ),
-              ButtonSegment(
-                value: 'initao_lgu',
-                label: Text('INITAO LGU', textAlign: TextAlign.center),
-              ),
+            segments: [
+              if (!isInitaoDocument) ...const [
+                ButtonSegment(value: 'old', label: Text('OLD')),
+                ButtonSegment(
+                    value: 'without_table',
+                    label: Text('WITHOUT TABLE', textAlign: TextAlign.center)),
+              ],
+              if (isInitaoDocument)
+                const ButtonSegment(
+                    value: 'initao_lgu',
+                    label: Text('INITAO LGU', textAlign: TextAlign.center)),
             ],
-            selected: {selectedBidSecurityTemplate},
-            onSelectionChanged: _selectBidSecurity,
+            selected: {effectiveBidSecurityTemplate},
+            onSelectionChanged: (selection) {
+              if (!isInitaoDocument) _selectBidSecurity(selection);
+            },
           ),
         ),
       ],

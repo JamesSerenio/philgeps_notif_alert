@@ -8,6 +8,7 @@ import 'page_mapper.dart';
 import 'initao_omnibus_numbering.dart';
 
 part 'pdf/pdf_page_service.dart';
+part 'pdf/pdf_document_template_service.dart';
 part 'pdf/pdf_financial_service.dart';
 part 'pdf/pdf_slcc_service.dart';
 part 'pdf/pdf_text_service.dart';
@@ -37,6 +38,17 @@ class PdfService {
     values = values.map(
       (key, value) => MapEntry(key, _pdfSafeText(value)),
     );
+    // Explicit global modes take precedence over stale per-section preferences.
+    // Calls without a global mode retain the existing section-level API.
+    if (values.containsKey('documentTemplateMode')) {
+      final initao = values['documentTemplateMode'] == 'initao';
+      values['omnibusTemplateType'] = initao ? 'initao_lgu' : 'old';
+      values['bidSecuringDeclarationTemplate'] = initao
+          ? 'initao_lgu'
+          : values['bidSecuringDeclarationTemplate'] == 'without_table'
+              ? 'without_table'
+              : 'old';
+    }
     final ByteData templateData = await rootBundle.load(
       'assets/pdf/bidocs_template.pdf',
     );
@@ -382,6 +394,11 @@ class PdfService {
     await yieldToBrowser();
     await _replacePhilgepsCertificateSection(document);
     await yieldToBrowser();
+
+    if (values['documentTemplateMode'] == 'initao') {
+      await _insertInitaoDocumentPages(document);
+      await yieldToBrowser();
+    }
 
     // Keep Syncfusion's normal incremental output here. Chrome/PDFium resolves
     // this revision correctly; the Railway compatibility service flattens its

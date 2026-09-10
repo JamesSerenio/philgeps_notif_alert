@@ -28,6 +28,7 @@ extension _EditorPreview on _PdfEditorScreenState {
   }
 
   Future<void> generatePdf() async {
+    await documentTemplateLoaded;
     await omnibusLoaded;
     await bidSecurityLoaded;
     if (!mounted) return;
@@ -62,6 +63,7 @@ extension _EditorPreview on _PdfEditorScreenState {
       _calculatePriceBreakdowns();
       final rawBytes = await PdfService.generateBidDocs(
         values: {
+          'documentTemplateMode': selectedDocumentTemplate,
           'province': provinceController.text.trim(),
           'municipality': municipalityController.text.trim(),
           'projectTitle': generatedProjectTitle,
@@ -74,7 +76,7 @@ extension _EditorPreview on _PdfEditorScreenState {
           'submittedByCivilStatus': submittedByProfile?.civilStatus ?? '',
           'submittedByAddress': submittedByProfile?.address ?? '',
           'slccTemplateType': selectedSlccTemplate,
-          'omnibusTemplateType': selectedOmnibusTemplate,
+          'omnibusTemplateType': effectiveOmnibusTemplate,
           'technicalSpecifications': jsonEncode([
             for (final entry in technicalSpecifications)
               {
@@ -96,7 +98,7 @@ extension _EditorPreview on _PdfEditorScreenState {
               includeTotalInScheduleRequirements ? 'true' : 'false',
           'afterSalesYears': afterSalesYearsController.text.trim(),
           'warrantyYears': warrantyYearsController.text.trim(),
-          'bidSecuringDeclarationTemplate': selectedBidSecurityTemplate,
+          'bidSecuringDeclarationTemplate': effectiveBidSecurityTemplate,
           'bidSecuringDeclarationWithTable':
               selectedBidSecurityTemplate == 'old' ? 'true' : 'false',
         },
@@ -234,6 +236,7 @@ extension _EditorPreview on _PdfEditorScreenState {
 
   String _currentContentSignature() {
     return jsonEncode({
+      'documentTemplateMode': selectedDocumentTemplate,
       'province': provinceController.text,
       'municipality': municipalityController.text,
       'projectTitle': projectTitleController.text,

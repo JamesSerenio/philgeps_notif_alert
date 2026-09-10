@@ -29,11 +29,14 @@ extension _OmnibusSection on _PdfEditorScreenState {
         SizedBox(
           width: double.infinity,
           child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'old', label: Text('OLD')),
-              ButtonSegment(value: 'initao_lgu', label: Text('INITAO LGU')),
+            segments: [
+              if (isInitaoDocument)
+                const ButtonSegment(
+                    value: 'initao_lgu', label: Text('INITAO LGU'))
+              else
+                const ButtonSegment(value: 'old', label: Text('OLD')),
             ],
-            selected: {selectedOmnibusTemplate},
+            selected: {effectiveOmnibusTemplate},
             onSelectionChanged: _selectOmnibus,
           ),
         ),

@@ -30,6 +30,7 @@ flutter:
 
   assets:
     - assets/pdf/bidocs_template.pdf
+    - assets/pdf/New_tab_and_pages_Initao_LGU_template.pdf
     - assets/pdf/BID SECURING DECLARATION_impasugong_template.pdf
     - assets/pdf/BID SECURING DECLARATION_initao_template.pdf
     - assets/pdf/SLCC_CCTV_template.pdf
