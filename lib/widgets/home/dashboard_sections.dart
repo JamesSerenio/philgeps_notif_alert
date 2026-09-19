@@ -155,10 +155,7 @@ extension _DashboardSections on _HomePageState {
                 selected: selectedStatFilter == item.$1,
                 accent: item.$5,
                 padding: const EdgeInsets.all(16),
-                onTap: () => _updateState(() {
-                  selectedStatFilter = item.$1;
-                  statusMessage = messages[item.$1]!;
-                }),
+                onTap: () => _selectFilter(item.$1, messages[item.$1]!),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -259,7 +256,7 @@ extension _DashboardSections on _HomePageState {
         _ => 'All Opportunities',
       };
 
-  Widget buildStatusMessage() => Padding(
+  Widget buildStatusMessage(int resultCount) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 2),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Wrap(
@@ -275,7 +272,7 @@ extension _DashboardSections on _HomePageState {
                   Text('Search: “${keywordController.text.trim()}”',
                       style: const TextStyle(
                           fontSize: 12, color: _DashboardColors.ink)),
-                Text('${filteredPosts.length} results',
+                Text('$resultCount results',
                     style: const TextStyle(
                         fontSize: 12, color: _DashboardColors.muted)),
               ]),
@@ -502,53 +499,68 @@ extension _DashboardSections on _HomePageState {
             ])));
   }
 
-  Widget buildDashboard() {
-    final visiblePosts = filteredPosts;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      LayoutBuilder(builder: (context, constraints) {
-        const heading =
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Opportunities',
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: _DashboardColors.ink)),
-          SizedBox(height: 4),
-          Text('Track active PhilGEPS procurement postings',
-              style: TextStyle(fontSize: 12, color: _DashboardColors.muted)),
-        ]);
-        const sort = Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.sort_rounded, size: 16, color: _DashboardColors.muted),
-          SizedBox(width: 6),
-          Text('New first · Latest posted',
-              style: TextStyle(fontSize: 12, color: _DashboardColors.muted))
-        ]);
-        return constraints.maxWidth >= 650
-            ? const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [heading, sort])
-            : const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [heading, SizedBox(height: 10), sort]);
-      }),
-      const SizedBox(height: 16),
-      AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          alignment: Alignment.topCenter,
-          child: isLoading
-              ? const Padding(
-                  padding: EdgeInsets.only(bottom: 16),
-                  child: _DashboardLoading())
-              : const SizedBox.shrink()),
+  Widget buildDashboard(List<ProjectPost> visiblePosts) {
+    final indexById = {
+      for (var i = 0; i < visiblePosts.length; i++) visiblePosts[i].id: i
+    };
+    return SliverMainAxisGroup(slivers: [
+      SliverToBoxAdapter(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        LayoutBuilder(builder: (context, constraints) {
+          const heading =
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Opportunities',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: _DashboardColors.ink)),
+            SizedBox(height: 4),
+            Text('Track active PhilGEPS procurement postings',
+                style: TextStyle(fontSize: 12, color: _DashboardColors.muted)),
+          ]);
+          const sort = Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.sort_rounded, size: 16, color: _DashboardColors.muted),
+            SizedBox(width: 6),
+            Text('New first · Latest posted',
+                style: TextStyle(fontSize: 12, color: _DashboardColors.muted))
+          ]);
+          return constraints.maxWidth >= 650
+              ? const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [heading, sort])
+              : const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [heading, SizedBox(height: 10), sort]);
+        }),
+        const SizedBox(height: 16),
+        AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            alignment: Alignment.topCenter,
+            child: isLoading
+                ? const Padding(
+                    padding: EdgeInsets.only(bottom: 16),
+                    child: _DashboardLoading())
+                : const SizedBox.shrink()),
+      ])),
       if (visiblePosts.isEmpty && !isLoading)
-        _emptyState()
+        SliverToBoxAdapter(child: _emptyState())
       else
-        ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: visiblePosts.length,
-            itemBuilder: (context, index) =>
-                buildPostCard(visiblePosts[index])),
+        SliverList.builder(
+          itemCount: visiblePosts.length,
+          findChildIndexCallback: (key) => indexById[(key as ValueKey).value],
+          itemBuilder: (context, index) {
+            final post = visiblePosts[index];
+            return TweenAnimationBuilder<double>(
+              key: ValueKey(post.id),
+              tween: Tween(begin: 0.94, end: 1),
+              duration: const Duration(milliseconds: 150),
+              builder: (context, opacity, child) =>
+                  Opacity(opacity: opacity, child: child),
+              child: buildPostCard(post),
+            );
+          },
+        ),
     ]);
   }
 }

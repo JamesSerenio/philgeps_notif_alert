@@ -10,6 +10,28 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   void _updateState(VoidCallback update) => setState(update);
 
+  final _filterChanges = ValueNotifier<int>(0);
+  final _parsedDates = <String, DateTime?>{};
+  final _formattedDates = <String, String>{};
+  final _dateFormat = DateFormat('MMM dd, yyyy - hh:mm a');
+
+  DateTime? _parseDate(String value) =>
+      _parsedDates.putIfAbsent(value, () => DateTime.tryParse(value));
+
+  void _selectFilter(String filter, String message) {
+    if (selectedStatFilter == filter) return;
+    selectedStatFilter = filter;
+    statusMessage = message;
+    _filterChanges.value++;
+  }
+
+  @override
+  void dispose() {
+    _filterChanges.dispose();
+    keywordController.dispose();
+    super.dispose();
+  }
+
   final TextEditingController keywordController = TextEditingController();
 
   final List<String> lguList = [
@@ -346,8 +368,8 @@ ${post.abc}
       if (aIsNew && !bIsNew) return -1;
       if (!aIsNew && bIsNew) return 1;
 
-      final aPosted = DateTime.tryParse(a.postingDate);
-      final bPosted = DateTime.tryParse(b.postingDate);
+      final aPosted = _parseDate(a.postingDate);
+      final bPosted = _parseDate(b.postingDate);
 
       if (aPosted == null && bPosted == null) return 0;
       if (aPosted == null) return 1;
@@ -358,7 +380,7 @@ ${post.abc}
   }
 
   bool isNewPost(ProjectPost post) {
-    final posted = DateTime.tryParse(post.postingDate);
+    final posted = _parseDate(post.postingDate);
 
     if (posted == null) return false;
 
@@ -370,7 +392,7 @@ ${post.abc}
   }
 
   DeadlineStatus getDeadlineStatus(String dateText) {
-    final date = DateTime.tryParse(dateText);
+    final date = _parseDate(dateText);
     if (date == null) return DeadlineStatus.unknown;
 
     final diff = date.difference(DateTime.now());
@@ -398,7 +420,7 @@ ${post.abc}
   }
 
   String getCountdown(String dateText) {
-    final date = DateTime.tryParse(dateText);
+    final date = _parseDate(dateText);
     if (date == null) return 'No closing date';
 
     final diff = date.difference(DateTime.now());
@@ -415,67 +437,75 @@ ${post.abc}
     return '${minutes}m';
   }
 
-  String formatDate(String dateText) {
-    final date = DateTime.tryParse(dateText);
-
-    if (date == null) return dateText;
-
-    return DateFormat('MMM dd, yyyy - hh:mm a').format(
-      date.toLocal(),
-    );
-  }
+  String formatDate(String dateText) =>
+      _formattedDates.putIfAbsent(dateText, () {
+        final date = _parseDate(dateText);
+        return date == null ? dateText : _dateFormat.format(date.toLocal());
+      });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _DashboardColors.background,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 850;
-
-            return SingleChildScrollView(
-              padding: EdgeInsets.all(isWide ? 24 : 16),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxWidth),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      buildHero(isWide),
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: EdgeInsets.all(isWide ? 24 : 20),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFCFDFC),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.025),
-                              blurRadius: 16,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            buildStats(isWide),
-                            const SizedBox(height: 20),
-                            buildFilterSection(),
-                            buildStatusMessage(),
-                            buildDashboard(),
-                          ],
-                        ),
-                      ),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 850;
+          final pagePadding = isWide ? 24.0 : 16.0;
+          final horizontal = constraints.maxWidth > maxWidth + pagePadding * 2
+              ? (constraints.maxWidth - maxWidth) / 2
+              : pagePadding;
+          return CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                    horizontal, pagePadding, horizontal, 20),
+                sliver: SliverToBoxAdapter(child: buildHero(isWide)),
+              ),
+              SliverPadding(
+                padding:
+                    EdgeInsets.fromLTRB(horizontal, 0, horizontal, pagePadding),
+                sliver: DecoratedSliver(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFCFDFC),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.025),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      )
                     ],
+                  ),
+                  sliver: SliverPadding(
+                    padding: EdgeInsets.all(isWide ? 24 : 20),
+                    sliver: ValueListenableBuilder<int>(
+                      valueListenable: _filterChanges,
+                      // Tab changes reuse the search subtree and leave the header alone.
+                      child: buildFilterSection(),
+                      builder: (context, _, search) {
+                        final visiblePosts = filteredPosts;
+                        return SliverMainAxisGroup(slivers: [
+                          SliverToBoxAdapter(
+                              child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              buildStats(isWide),
+                              const SizedBox(height: 20),
+                              search!,
+                              buildStatusMessage(visiblePosts.length),
+                            ],
+                          )),
+                          buildDashboard(visiblePosts),
+                        ]);
+                      },
+                    ),
                   ),
                 ),
               ),
-            );
-          },
-        ),
+            ],
+          );
+        }),
       ),
     );
   }
