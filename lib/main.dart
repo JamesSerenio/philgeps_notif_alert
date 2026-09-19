@@ -20,6 +20,7 @@ part 'services/notification_service.dart';
 part 'models/project_post.dart';
 part 'screens/home_page.dart';
 part 'widgets/home/dashboard_sections.dart';
+part 'widgets/home/dashboard_components.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {

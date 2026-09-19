@@ -109,7 +109,7 @@ class _HomePageState extends State<HomePage> {
   final String apiUrl =
       'https://philgepsnotifalert-production.up.railway.app/check';
 
-  double get maxWidth => 1180;
+  double get maxWidth => 1240;
 
   int get urgentCount {
     return posts.where((post) {
@@ -428,21 +428,24 @@ ${post.abc}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _DashboardColors.background,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isWide = constraints.maxWidth >= 850;
 
             return SingleChildScrollView(
-              padding: EdgeInsets.all(isWide ? 22 : 10),
+              padding: EdgeInsets.all(isWide ? 24 : 16),
               child: Center(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxWidth),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       buildHero(isWide),
+                      const SizedBox(height: 20),
                       buildStats(isWide),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 20),
                       buildFilterSection(),
                       buildStatusMessage(),
                       buildDashboard(),
