@@ -444,11 +444,31 @@ ${post.abc}
                     children: [
                       buildHero(isWide),
                       const SizedBox(height: 20),
-                      buildStats(isWide),
-                      const SizedBox(height: 20),
-                      buildFilterSection(),
-                      buildStatusMessage(),
-                      buildDashboard(),
+                      Container(
+                        padding: EdgeInsets.all(isWide ? 24 : 20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFCFDFC),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.025),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            buildStats(isWide),
+                            const SizedBox(height: 20),
+                            buildFilterSection(),
+                            buildStatusMessage(),
+                            buildDashboard(),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
