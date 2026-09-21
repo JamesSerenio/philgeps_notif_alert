@@ -39,19 +39,7 @@ extension _PriceScheduleSection on _PdfEditorScreenState {
   }
 
   Widget priceScheduleFields() {
-    return ExpansionTile(
-      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      backgroundColor: Colors.white,
-      collapsedBackgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFD8E1DB)),
-      ),
-      collapsedShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFD8E1DB)),
-      ),
+    return _SidebarAccordion(
       leading: const Icon(Icons.payments_outlined, color: Color(0xFF0B5D3B)),
       title: const Text(
         'PRICE SCHEDULE FOR GOODS',

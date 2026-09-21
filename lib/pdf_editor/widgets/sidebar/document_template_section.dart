@@ -53,25 +53,17 @@ extension _DocumentTemplateSection on _PdfEditorScreenState {
   }
 
   Widget documentTemplateFields() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD8E1DB)),
-      ),
+    return _SidebarCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('DOCUMENT TEMPLATE',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          Text(documentTemplateSaveError ??
-              (isLoadingDocumentTemplate
-                  ? 'Loading saved values...'
-                  : isSavingDocumentTemplate
-                      ? 'Saving...'
-                      : 'Saved automatically')),
-          const SizedBox(height: 12),
+          sectionHeading(Icons.layers_outlined, 'DOCUMENT TEMPLATE',
+              subtitle: documentTemplateSaveError ??
+                  (isLoadingDocumentTemplate
+                      ? 'Loading saved values...'
+                      : isSavingDocumentTemplate
+                          ? 'Saving...'
+                          : 'Saved automatically')),
           SizedBox(
             width: double.infinity,
             child: SegmentedButton<String>(

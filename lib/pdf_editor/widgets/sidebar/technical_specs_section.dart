@@ -2,19 +2,7 @@ part of '../../screens/pdf_editor_screen.dart';
 
 extension _TechnicalSpecsSection on _PdfEditorScreenState {
   Widget technicalSpecificationsFields() {
-    return ExpansionTile(
-      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      backgroundColor: Colors.white,
-      collapsedBackgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFD8E1DB)),
-      ),
-      collapsedShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFD8E1DB)),
-      ),
+    return _SidebarAccordion(
       leading: const Icon(Icons.fact_check_outlined, color: Color(0xFF0B5D3B)),
       title: const Text(
         'TECHNICAL SPECIFICATIONS',

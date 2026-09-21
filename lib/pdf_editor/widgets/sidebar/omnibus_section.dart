@@ -2,20 +2,8 @@ part of '../../screens/pdf_editor_screen.dart';
 
 extension _OmnibusSection on _PdfEditorScreenState {
   Widget omnibusFields() {
-    return ExpansionTile(
+    return _SidebarAccordion(
       initiallyExpanded: true,
-      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-      childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      backgroundColor: Colors.white,
-      collapsedBackgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFD8E1DB)),
-      ),
-      collapsedShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFD8E1DB)),
-      ),
       leading: const Icon(Icons.description_outlined, color: Color(0xFF0B5D3B)),
       title: const Text('OMNIBUS SWORN STATEMENT',
           style: TextStyle(fontWeight: FontWeight.bold)),

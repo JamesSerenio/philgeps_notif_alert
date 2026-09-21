@@ -205,7 +205,7 @@ class _SubmittedByMenuIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.findAncestorStateOfType<_PdfEditorScreenState>();
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.arrow_drop_down),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
       tooltip: 'Select submitted by',
       onSelected: (name) {
         state?.submittedByController.text = name;

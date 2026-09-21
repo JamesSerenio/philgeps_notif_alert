@@ -17,6 +17,8 @@ part 'pdf_editor/editor_persistence.dart';
 part 'pdf_editor/specification_editing.dart';
 part 'pdf_editor/editor_preview.dart';
 part '../widgets/sidebar/editor_fields.dart';
+part '../widgets/sidebar/sidebar_design.dart';
+part '../widgets/sidebar/sidebar_panel.dart';
 part '../widgets/sidebar/omnibus_section.dart';
 part '../widgets/sidebar/document_template_section.dart';
 part '../widgets/sidebar/slcc_section.dart';
@@ -335,115 +337,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                         defaultTargetPlatform == TargetPlatform.iOS);
                 final useDesktopBrowserPdfViewer =
                     isWide && !isMobileOrTabletWeb;
-                final compactHorizontalPadding =
-                    constraints.maxWidth < 480 ? 10.0 : 16.0;
-
-                final formPanel = Container(
-                  width: isWide ? 380 : double.infinity,
-                  color: const Color(0xFFF4F7F5),
-                  padding: EdgeInsets.fromLTRB(
-                    compactHorizontalPadding,
-                    14,
-                    compactHorizontalPadding,
-                    18,
-                  ),
-                  child: ListView(
-                    children: [
-                      documentTemplateFields(),
-                      const SizedBox(height: 12),
-                      sectionHeading(
-                        Icons.business_center_outlined,
-                        'PROJECT INFORMATION',
-                        subtitle: 'Bid and procuring entity details',
-                      ),
-                      formField(
-                        label: 'Province',
-                        controller: provinceController,
-                      ),
-                      formField(
-                        label: 'Municipality',
-                        controller: municipalityController,
-                      ),
-                      formField(
-                        label: 'Project Title',
-                        controller: projectTitleController,
-                        maxLines: 3,
-                      ),
-                      formField(
-                        label: 'Reference Number',
-                        controller: referenceNumberController,
-                      ),
-                      formField(
-                        label: 'Procuring Entity',
-                        controller: procuringEntityController,
-                        maxLines: 2,
-                      ),
-                      formField(
-                        label: 'Date',
-                        controller: dateController,
-                      ),
-                      formField(
-                        label: 'Bidder Name',
-                        controller: bidderNameController,
-                      ),
-                      submittedByField(),
-                      const SizedBox(height: 4),
-                      bidSecuringDeclarationFields(),
-                      const SizedBox(height: 12),
-                      omnibusFields(),
-                      const SizedBox(height: 12),
-                      slccFields(),
-                      const SizedBox(height: 12),
-                      technicalSpecificationsFields(),
-                      const SizedBox(height: 12),
-                      priceScheduleFields(),
-                      const SizedBox(height: 12),
-                      scheduleRequirementsFields(),
-                      const SizedBox(height: 12),
-                      afterSalesServiceFields(),
-                      const SizedBox(height: 12),
-                      productWarrantyFields(),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: isGenerating ? null : generatePdf,
-                        icon: isGenerating
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.picture_as_pdf),
-                        label: Text(
-                          isGenerating ? 'Generating...' : 'Generate PDF',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0B5D3B),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(50),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      if (errorMessage != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          errorMessage!,
-                          style: const TextStyle(
-                            color: Colors.red,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
+                final formPanel = buildSidebar(isWide);
 
                 final previewPanel = Container(
                   color: const Color(0xFFF2F2F2),

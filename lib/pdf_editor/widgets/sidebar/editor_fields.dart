@@ -21,25 +21,6 @@ extension _EditorFields on _PdfEditorScreenState {
           labelText: label,
           filled: true,
           fillColor: readOnly ? const Color(0xFFF1F5F2) : Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 13,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFD8E1DB)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFD8E1DB)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(
-              color: Color(0xFF0B5D3B),
-              width: 1.6,
-            ),
-          ),
         ),
       ),
     );
@@ -47,7 +28,7 @@ extension _EditorFields on _PdfEditorScreenState {
 
   Widget sectionHeading(IconData icon, String title, {String? subtitle}) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 12),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Row(
         children: [
           Container(
@@ -68,9 +49,9 @@ extension _EditorFields on _PdfEditorScreenState {
                   title,
                   style: const TextStyle(
                     color: Color(0xFF153D2C),
-                    fontSize: 13,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: .35,
+                    letterSpacing: .1,
                   ),
                 ),
                 if (subtitle != null)
@@ -126,7 +107,7 @@ extension _EditorFields on _PdfEditorScreenState {
               ),
               suffixIcon: PopupMenuButton<String>(
                 tooltip: 'Select unit',
-                icon: const Icon(Icons.arrow_drop_down),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
                 onSelected: (unit) {
                   controller.text = unit;
                   controller.selection = TextSelection.collapsed(
@@ -204,25 +185,6 @@ extension _EditorFields on _PdfEditorScreenState {
               hintText: 'Type or select a name',
               filled: true,
               fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 13,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFD8E1DB)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFD8E1DB)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFF0B5D3B),
-                  width: 1.6,
-                ),
-              ),
               suffixIcon: const _SubmittedByMenuIcon(),
             ),
             onSubmitted: (_) => onFieldSubmitted(),
