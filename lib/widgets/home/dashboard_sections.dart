@@ -360,91 +360,99 @@ extension _DashboardSections on _HomePageState {
     return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: _DashboardSurface(
-          onTap: () => openPhilgepsLink(post.url),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                  child: Wrap(spacing: 6, runSpacing: 6, children: [
-                _StatusBadge(post.status == 'new' ? 'NEW' : 'OLD',
-                    color: post.status == 'new'
-                        ? _DashboardColors.goldText
-                        : _DashboardColors.muted),
-                _StatusBadge(
-                    deadlineStatus == DeadlineStatus.closed
-                        ? 'Closed'
-                        : deadlineStatus == DeadlineStatus.unknown
-                            ? countdown
-                            : 'Closes in $countdown',
-                    color: statusColor,
-                    icon: Icons.schedule_rounded),
-                if (post.isBiddingDoc) const _StatusBadge('Bidding document'),
-              ])),
-              const SizedBox(width: 12),
-              _postActions(post),
-            ]),
-            const SizedBox(height: 12),
-            Tooltip(
-                message: post.title,
-                child: Text(post.title,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+          child: SelectionArea(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                      child: Wrap(spacing: 6, runSpacing: 6, children: [
+                    _StatusBadge(post.status == 'new' ? 'NEW' : 'OLD',
+                        color: post.status == 'new'
+                            ? _DashboardColors.goldText
+                            : _DashboardColors.muted),
+                    _StatusBadge(
+                        deadlineStatus == DeadlineStatus.closed
+                            ? 'Closed'
+                            : deadlineStatus == DeadlineStatus.unknown
+                                ? countdown
+                                : 'Closes in $countdown',
+                        color: statusColor,
+                        icon: Icons.schedule_rounded),
+                    if (post.isBiddingDoc)
+                      const _StatusBadge('Bidding document'),
+                  ])),
+                  const SizedBox(width: 12),
+                  SelectionContainer.disabled(child: _postActions(post)),
+                ]),
+                const SizedBox(height: 12),
+                Tooltip(
+                    message: post.title,
+                    child: Text(post.title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 17,
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
+                            color: _DashboardColors.ink))),
+                const SizedBox(height: 6),
+                Text(post.procuringEntity,
                     style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: 13,
                         height: 1.4,
-                        fontWeight: FontWeight.w600,
-                        color: _DashboardColors.ink))),
-            const SizedBox(height: 6),
-            Text(post.procuringEntity,
-                style: const TextStyle(
-                    fontSize: 13, height: 1.4, color: _DashboardColors.muted)),
-            const SizedBox(height: 10),
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              _StatusBadge(toTitleCase(post.lgu),
-                  color: _DashboardColors.muted,
-                  icon: Icons.location_city_outlined),
-              _StatusBadge(post.classification, color: _DashboardColors.muted),
-              _StatusBadge(post.areaOfDelivery,
-                  color: _DashboardColors.muted, icon: Icons.place_outlined),
-            ]),
-            const Padding(
-                padding: EdgeInsets.symmetric(vertical: 14),
-                child: Divider(height: 1, color: _DashboardColors.border)),
-            LayoutBuilder(builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 900
-                  ? 4
-                  : constraints.maxWidth >= 300
-                      ? 2
-                      : 1;
-              final width =
-                  (constraints.maxWidth - (columns - 1) * 16) / columns;
-              final fields = [
-                _OpportunityDatum('Reference No.', post.referenceNumber,
-                    monospace: true),
-                _OpportunityDatum(
-                    post.budgetType, '₱${abcFormatter.format(post.abc)}',
-                    emphasized: true, color: _DashboardColors.green),
-                _OpportunityDatum('Posted', formatDate(post.postingDate)),
-                _OpportunityDatum('Closing', formatDate(post.closingDate),
-                    color: statusColor),
-              ];
-              return Wrap(spacing: 16, runSpacing: 16, children: [
-                for (final field in fields) SizedBox(width: width, child: field)
-              ]);
-            }),
-            const SizedBox(height: 10),
-            Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () => openPhilgepsLink(post.url),
-                  icon: const Icon(Icons.open_in_new_rounded, size: 15),
-                  label: const Text('View PhilGEPS'),
-                  style: TextButton.styleFrom(
-                      foregroundColor: _DashboardColors.green,
-                      textStyle: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                )),
-          ]),
+                        color: _DashboardColors.muted)),
+                const SizedBox(height: 10),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  _StatusBadge(toTitleCase(post.lgu),
+                      color: _DashboardColors.muted,
+                      icon: Icons.location_city_outlined),
+                  _StatusBadge(post.classification,
+                      color: _DashboardColors.muted),
+                  _StatusBadge(post.areaOfDelivery,
+                      color: _DashboardColors.muted,
+                      icon: Icons.place_outlined),
+                ]),
+                const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Divider(height: 1, color: _DashboardColors.border)),
+                LayoutBuilder(builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 900
+                      ? 4
+                      : constraints.maxWidth >= 300
+                          ? 2
+                          : 1;
+                  final width =
+                      (constraints.maxWidth - (columns - 1) * 16) / columns;
+                  final fields = [
+                    _OpportunityDatum('Reference No.', post.referenceNumber,
+                        monospace: true),
+                    _OpportunityDatum(
+                        post.budgetType, '₱${abcFormatter.format(post.abc)}',
+                        emphasized: true, color: _DashboardColors.green),
+                    _OpportunityDatum('Posted', formatDate(post.postingDate)),
+                    _OpportunityDatum('Closing', formatDate(post.closingDate),
+                        color: statusColor),
+                  ];
+                  return Wrap(spacing: 16, runSpacing: 16, children: [
+                    for (final field in fields)
+                      SizedBox(width: width, child: field)
+                  ]);
+                }),
+                const SizedBox(height: 10),
+                Align(
+                    alignment: Alignment.centerRight,
+                    child: SelectionContainer.disabled(
+                        child: TextButton.icon(
+                      onPressed: () => openPhilgepsLink(post.url),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                      label: const Text('View PhilGEPS'),
+                      style: TextButton.styleFrom(
+                          foregroundColor: _DashboardColors.green,
+                          textStyle: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                    ))),
+              ])),
         ));
   }
 

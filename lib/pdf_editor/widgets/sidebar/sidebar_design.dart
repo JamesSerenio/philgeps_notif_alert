@@ -37,6 +37,59 @@ class _SidebarAccordion extends StatefulWidget {
 
 class _SidebarAccordionState extends State<_SidebarAccordion> {
   late bool expanded = widget.initiallyExpanded;
+  Timer? _revealTimer;
+
+  void _onExpansionChanged(bool value) {
+    setState(() => expanded = value);
+    _revealTimer?.cancel();
+    if (!value) return;
+    // Measure the expanded height, never the collapsed/animating height.
+    _revealTimer = Timer(const Duration(milliseconds: 200), () {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !expanded) return;
+        final controller = context
+            .findAncestorStateOfType<_PdfEditorScreenState>()
+            ?.sidebarScrollController;
+        final scrollable = Scrollable.maybeOf(context);
+        final box = context.findRenderObject();
+        if (controller == null ||
+            !controller.hasClients ||
+            scrollable == null ||
+            box is! RenderBox ||
+            !box.attached ||
+            !identical(controller.position, scrollable.position)) return;
+        final position = controller.position;
+        final viewport = RenderAbstractViewport.of(box);
+        const gap = 12.0;
+        final top = viewport.getOffsetToReveal(box, 0).offset;
+        final bottom = viewport.getOffsetToReveal(box, 1).offset + gap;
+        double target = position.pixels;
+        if (box.size.height + gap * 2 > position.viewportDimension) {
+          // A long specification form cannot fit: reveal its beginning instead
+          // of jumping to the last row and hiding the section heading.
+          target = top - gap;
+        } else if (top < position.pixels) {
+          target = top - gap;
+        } else if (bottom > position.pixels) {
+          target = bottom;
+        }
+        target =
+            target.clamp(position.minScrollExtent, position.maxScrollExtent);
+        if ((target - position.pixels).abs() < 1) return;
+        controller.animateTo(target,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic);
+      });
+      WidgetsBinding.instance.scheduleFrame();
+    });
+  }
+
+  @override
+  void dispose() {
+    _revealTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -49,7 +102,7 @@ class _SidebarAccordionState extends State<_SidebarAccordion> {
         clipBehavior: Clip.antiAlias,
         child: ExpansionTile(
           initiallyExpanded: widget.initiallyExpanded,
-          onExpansionChanged: (value) => setState(() => expanded = value),
+          onExpansionChanged: _onExpansionChanged,
           expansionAnimationStyle:
               const AnimationStyle(duration: Duration(milliseconds: 180)),
           tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

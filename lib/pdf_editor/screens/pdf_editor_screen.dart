@@ -5,6 +5,7 @@ import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,6 +59,7 @@ class PdfEditorScreen extends StatefulWidget {
 }
 
 class _PdfEditorScreenState extends State<PdfEditorScreen> {
+  final sidebarScrollController = ScrollController();
   static const String specificationLineSeparator = '\n\n';
   static const List<String> submittedByNames = [
     'JHO ANN Q. CLEOPAS',
@@ -270,6 +272,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   @override
   void dispose() {
+    sidebarScrollController.dispose();
     for (final controller in <TextEditingController>[
       provinceController,
       municipalityController,

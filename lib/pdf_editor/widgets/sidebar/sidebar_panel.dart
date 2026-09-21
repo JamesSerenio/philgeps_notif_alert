@@ -38,7 +38,9 @@ extension _SidebarPanel on _PdfEditorScreenState {
             ),
             Expanded(
                 child: ListView(
-              padding: const EdgeInsets.all(16),
+              controller: sidebarScrollController,
+              // The footer is outside this viewport; only a breathing gap is needed.
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
                 documentTemplateFields(),
                 const SizedBox(height: 16),
