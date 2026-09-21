@@ -129,3 +129,57 @@ class _OpportunityDatum extends StatelessWidget {
                 fontFamily: monospace ? 'monospace' : null)),
       ]);
 }
+
+class _CopyProjectButton extends StatefulWidget {
+  const _CopyProjectButton({required this.details});
+  final String details;
+  @override
+  State<_CopyProjectButton> createState() => _CopyProjectButtonState();
+}
+
+class _CopyProjectButtonState extends State<_CopyProjectButton> {
+  bool _copied = false;
+  Timer? _resetTimer;
+
+  Future<void> _copy() async {
+    try {
+      await Clipboard.setData(ClipboardData(text: widget.details));
+      if (!mounted) return;
+      _resetTimer?.cancel();
+      setState(() => _copied = true);
+      _resetTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _copied = false);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Project details copied'),
+        duration: Duration(seconds: 2),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Unable to copy project details. Please try again.'),
+      ));
+    }
+  }
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        tooltip: _copied ? 'Project details copied' : 'Copy project details',
+        onPressed: _copy,
+        icon:
+            Icon(_copied ? Icons.check_rounded : Icons.copy_outlined, size: 18),
+        style: IconButton.styleFrom(
+          foregroundColor: _DashboardColors.green,
+          backgroundColor: const Color(0xFFF1F7F3),
+          side: const BorderSide(color: Color(0xFFCCE0D5)),
+          highlightColor: const Color(0xFFD9EADF),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+}

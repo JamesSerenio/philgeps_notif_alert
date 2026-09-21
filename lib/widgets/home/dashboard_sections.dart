@@ -289,6 +289,18 @@ extension _DashboardSections on _HomePageState {
         ]),
       );
 
+  String _formatProjectDetails(ProjectPost post) => [
+        'Project Title: ${post.title}',
+        'Procuring Entity: ${post.procuringEntity}',
+        'Municipality: ${toTitleCase(post.lgu)}',
+        'Province: ${post.areaOfDelivery}',
+        'Classification: ${post.classification}',
+        'Reference No.: ${post.referenceNumber.isEmpty ? '\u2014' : post.referenceNumber}',
+        'ABC: \u20b1${abcFormatter.format(post.abc)}',
+        'Posted: ${formatDate(post.postingDate)}',
+        'Closing: ${formatDate(post.closingDate)}',
+      ].join('\n');
+
   Widget _postActions(ProjectPost post) =>
       Row(mainAxisSize: MainAxisSize.min, children: [
         if (post.isBiddingDoc) ...[
@@ -320,6 +332,8 @@ extension _DashboardSections on _HomePageState {
               }),
           const SizedBox(width: 8),
         ],
+        _CopyProjectButton(details: _formatProjectDetails(post)),
+        const SizedBox(width: 8),
         IconButton(
           tooltip: isInBiddingDocs(post)
               ? 'Remove from Bidding Docs'
