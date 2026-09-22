@@ -190,11 +190,6 @@ int _drawTechnicalSpecifications(
     12,
     style: PdfFontStyle.bold,
   );
-  final specificationFormat = PdfStringFormat(
-    alignment: PdfTextAlignment.left,
-    lineAlignment: PdfVerticalAlignment.middle,
-    wordWrap: PdfWordWrapType.word,
-  );
   final specificationWidth = columns[2] - columns[1] - 6;
   final parameterWidth = hasAnyParameter ? columns[5] - columns[4] - 6 : 0.0;
   // A logical Add line can still wrap into many visual lines. Split it by
@@ -209,7 +204,7 @@ int _drawTechnicalSpecifications(
       sourceLines.isEmpty ? <String>[''] : sourceLines,
       regularFont,
       specificationWidth,
-      520,
+      220,
     );
     final parameterText = (logicalRow['parameter'] ?? '').toString();
     final parameterChunks = !hasAnyParameter || parameterText.trim().isEmpty
@@ -218,7 +213,7 @@ int _drawTechnicalSpecifications(
             parameterText.split(RegExp(r'\r?\n')),
             regularFont,
             parameterWidth,
-            520,
+            220,
           );
     final chunkCount = chunks.length > parameterChunks.length
         ? chunks.length
@@ -246,49 +241,44 @@ int _drawTechnicalSpecifications(
             value is Map ? (value['specification'] ?? '').toString() : '';
         final parameter =
             value is Map ? (value['parameter'] ?? '').toString() : '';
-        final measuredSpecification = regularFont.measureString(
-          specification.replaceAll(
-            RegExp(r'^\s*[✓•○■➢]\s*', multiLine: true),
-            '  ',
-          ),
-          layoutArea: Size(specificationWidth, 500),
-          format: specificationFormat,
+        final specificationHeight = _measureMarkedSpecificationTextHeight(
+          specification,
+          regularFont,
+          specificationWidth,
         );
-        final measuredParameter = hasAnyParameter
-            ? regularFont.measureString(
+        final parameterHeight = hasAnyParameter
+            ? _measureMarkedSpecificationTextHeight(
                 parameter,
-                layoutArea: Size(parameterWidth, 500),
-                format: specificationFormat,
+                regularFont,
+                parameterWidth,
               )
-            : Size.zero;
-        final contentHeight =
-            measuredSpecification.height > measuredParameter.height
-                ? measuredSpecification.height
-                : measuredParameter.height;
-        return (contentHeight + 14).clamp(minimumRowHeight, 540).toDouble();
+            : 0.0;
+        final contentHeight = specificationHeight > parameterHeight
+            ? specificationHeight
+            : parameterHeight;
+        return (contentHeight + 14).clamp(minimumRowHeight, 240).toDouble();
       })(),
   ];
   final pageRowCounts = <int>[];
-  var rowsOnCurrentPage = 0;
-  var usedHeight = 0.0;
-  var technicalPageForLayout = 0;
-  for (var rowIndex = 0; rowIndex < rowHeights.length; rowIndex++) {
-    final height = rowHeights[rowIndex];
-    final tableTop = technicalPageForLayout == 0 ? firstTableTop : 28.0;
+  var nextRow = 0;
+  while (nextRow < rowHeights.length) {
+    final tableTop = pageRowCounts.isEmpty ? firstTableTop : 28.0;
     final availableHeight = firstPage.getClientSize().height -
         tableTop -
         headerHeight -
         signatureSpace;
-    if (rowsOnCurrentPage > 0 && usedHeight + height > availableHeight) {
-      pageRowCounts.add(rowsOnCurrentPage);
-      technicalPageForLayout++;
-      rowsOnCurrentPage = 0;
-      usedHeight = 0;
+    var usedHeight = 0.0;
+    var rowsOnPage = 0;
+    while (nextRow + rowsOnPage < rowHeights.length) {
+      final height = rowHeights[nextRow + rowsOnPage];
+      if (rowsOnPage > 0 && usedHeight + height > availableHeight) break;
+      usedHeight += height;
+      rowsOnPage++;
     }
-    rowsOnCurrentPage++;
-    usedHeight += height;
+    pageRowCounts.add(rowsOnPage);
+    nextRow += rowsOnPage;
   }
-  pageRowCounts.add(rowsOnCurrentPage);
+  if (pageRowCounts.isEmpty) pageRowCounts.add(0);
   final pageCount = pageRowCounts.length;
   const bundledTechnicalPages = 3;
   if (pageCount > bundledTechnicalPages) {
