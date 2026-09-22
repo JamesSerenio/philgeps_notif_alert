@@ -72,9 +72,16 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                       onPressed: () {
                         final entry = technicalSpecifications[index];
                         final current = entry.specification.text;
-                        entry.specification.text = current.trim().isEmpty
-                            ? '✓ '
-                            : '${current.trimRight()}$_PdfEditorScreenState.specificationLineSeparator✓ ';
+                        // The line break is stored as plain text. Do not interpolate
+                        // the State type: release builds would render its minified name.
+                        entry.specification.text = current.isEmpty
+                            ? ''
+                            : current.endsWith(
+                                _PdfEditorScreenState
+                                    .specificationLineSeparator,
+                              )
+                                ? current
+                                : '$current${_PdfEditorScreenState.specificationLineSeparator}';
                         entry.specification.selection = TextSelection.collapsed(
                           offset: entry.specification.text.length,
                         );
