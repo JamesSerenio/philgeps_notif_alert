@@ -62,7 +62,8 @@ class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final raw = newValue.text.replaceAll(',', '');
+    final raw =
+        newValue.text.replaceAll('\u20b1', '').replaceAll(',', '').trim();
     if (raw.isEmpty) return newValue;
     if (!RegExp(r'^\d*\.?\d*$').hasMatch(raw)) return oldValue;
 

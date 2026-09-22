@@ -87,7 +87,7 @@ String _numericPart(dynamic value) {
   return match?.group(0) ?? '';
 }
 
-double _pdfNumber(dynamic value) => double.tryParse(_numericPart(value)) ?? 0;
+
 
 void _drawMarkedSpecificationText(
   PdfGraphics graphics,

@@ -6,11 +6,33 @@ class _TechnicalSpecificationEntry {
     String quantity = '',
     String unit = '',
     String parameter = '',
+    PricingQuantity? pricingQuantity,
   })  : specification = TextEditingController(text: specification),
         quantity = TextEditingController(text: quantity),
         unit = TextEditingController(text: unit),
         parameter = TextEditingController(text: parameter),
-        hasParameter = parameter.trim().isNotEmpty;
+        hasParameter = parameter.trim().isNotEmpty,
+        pricingQuantity =
+            pricingQuantity ?? PricingQuantity.fromInput(quantity) {
+    _lastQuantityText = quantity;
+    this.quantity.addListener(_updateQuantity);
+  }
+
+  PricingQuantity pricingQuantity;
+  late String _lastQuantityText;
+  void _updateQuantity() {
+    if (quantity.text == _lastQuantityText) return;
+    _lastQuantityText = quantity.text;
+    pricingQuantity = PricingQuantity.fromInput(quantity.text);
+  }
+
+  Map<String, Object> toMap() => {
+        'specification': specification.text.trim(),
+        'quantity': quantity.text.trim(),
+        'unit': unit.text.trim(),
+        'parameter': parameter.text.trim(),
+        ...pricingQuantity.toMap(),
+      };
 
   final TextEditingController specification;
   final TextEditingController quantity;

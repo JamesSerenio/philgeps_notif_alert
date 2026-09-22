@@ -1,33 +1,12 @@
 part of '../../screens/pdf_editor_screen.dart';
 
 extension _PriceScheduleSection on _PdfEditorScreenState {
-  void _calculatePriceBreakdowns() {
-    generatedPriceBreakdowns.clear();
-    for (var index = 0; index < priceScheduleEntries.length; index++) {
-      final price = priceScheduleEntries[index];
-      final total = (_number(price.totalPricePerUnit.text) -
-              _number(price.deduction.text))
-          .clamp(0, double.infinity)
-          .toDouble();
-      final quantity = _number(technicalSpecifications[index].quantity.text);
-      generatedPriceBreakdowns[price] = [
-        _money(total),
-        _money(total * .50),
-        _money(total * .20),
-        _money(total * .30),
-        _money((quantity * total).roundToDouble()),
-      ];
-    }
-  }
-
-  double _number(String value) {
-    final normalized = value.replaceAll(',', '').trim();
-    final direct = double.tryParse(normalized);
-    if (direct != null) return direct;
-    final match =
-        RegExp(r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)').firstMatch(normalized);
-    return double.tryParse(match?.group(0) ?? '') ?? 0;
-  }
+  ItemPricing _itemPricing(int index) => ItemPricing(
+        quantity: technicalSpecifications[index].pricingQuantity,
+        unitPrice:
+            parseCurrency(priceScheduleEntries[index].totalPricePerUnit.text),
+        deduction: parseCurrency(priceScheduleEntries[index].deduction.text),
+      );
 
   String _money(double value) {
     final parts = value.toStringAsFixed(2).split('.');
@@ -62,8 +41,15 @@ extension _PriceScheduleSection on _PdfEditorScreenState {
           Builder(builder: (context) {
             final specification = technicalSpecifications[index];
             final price = priceScheduleEntries[index];
-            final breakdown = generatedPriceBreakdowns[price];
-            String amount(int column) => breakdown?[column] ?? '-';
+            final calculation = _itemPricing(index);
+            final breakdown = [
+              calculation.adjustedUnitPrice,
+              calculation.unitPriceComponent,
+              calculation.transportInsuranceComponent,
+              calculation.taxComponent,
+              calculation.totalDeliveredPrice
+            ];
+            String amount(int column) => _money(breakdown[column]);
             Widget priceRow(String label, String value) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
@@ -241,6 +227,10 @@ extension _PriceScheduleSection on _PdfEditorScreenState {
               ),
             );
           }),
+        if (technicalSpecifications.isNotEmpty)
+          Text(
+              'Grand Total: \u20b1 ${_money(List.generate(technicalSpecifications.length, (index) => _itemPricing(index).totalDeliveredPrice).fold<double>(0, (sum, value) => sum + value))}',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
       ],
     );
   }

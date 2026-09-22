@@ -26,7 +26,6 @@ int _drawPriceSchedule(
     if (decoded is List) savedPrices = decoded.take(72).toList();
   }
 
-  double number(dynamic value) => _pdfNumber(value);
   String money(double value) {
     final parts = value.toStringAsFixed(2).split('.');
     final grouped = parts.first.replaceAllMapped(
@@ -383,24 +382,23 @@ int _drawPriceSchedule(
           sourceIndex < savedPrices.length && savedPrices[sourceIndex] is Map
               ? savedPrices[sourceIndex] as Map
               : const {};
-      final total =
-          (number(saved['totalPricePerUnit']) - number(saved['deduction']))
-              .clamp(0, double.infinity)
-              .toDouble();
+      final pricing = ItemPricing.fromMaps(specification, saved);
+      final total = pricing.adjustedUnitPrice;
       final rawQuantity = (specification['quantity'] ?? '').toString();
       final parsedQuantityText = _numericPart(rawQuantity);
       final quantityText = isContinuation
           ? ''
-          : parsedQuantityText.isEmpty
-              ? '1'
-              : parsedQuantityText;
+          : pricing.quantity.type == PricingType.equipmentDaily
+              ? '${pricing.quantity.quantity.toString().replaceAll(RegExp(r"\.0$"), "")} x ${pricing.quantity.numberOfDays.toString().replaceAll(RegExp(r"\.0$"), "")} days'
+              : parsedQuantityText.isEmpty
+                  ? '1'
+                  : parsedQuantityText;
       final unitText = isContinuation
           ? ''
           : (specification['unit'] ?? '').toString().trim().isEmpty
               ? 'unit'
               : specification['unit'].toString();
-      final quantity = number(quantityText);
-      final delivered = (quantity * total).roundToDouble();
+      final delivered = pricing.totalDeliveredPrice;
       if (!isContinuation) grandTotal += delivered;
       final texts = <String>[
         isContinuation ? '' : '${specification['_itemNumber']}',
@@ -408,9 +406,9 @@ int _drawPriceSchedule(
         isContinuation ? '' : 'PHL',
         quantityText,
         unitText,
-        isContinuation ? '' : money(total * .50),
-        isContinuation ? '' : money(total * .20),
-        isContinuation ? '' : money(total * .30),
+        isContinuation ? '' : money(pricing.unitPriceComponent),
+        isContinuation ? '' : money(pricing.transportInsuranceComponent),
+        isContinuation ? '' : money(pricing.taxComponent),
         '',
         isContinuation ? '' : money(total),
         isContinuation ? '' : money(delivered),

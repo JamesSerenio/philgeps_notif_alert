@@ -52,7 +52,6 @@ void _drawBidForm(
     final decoded = _pdfSafeDecodedValue(jsonDecode(encodedPrices));
     if (decoded is List) prices = decoded;
   }
-  double number(dynamic value) => _pdfNumber(value);
   var total = 0.0;
   for (var index = 0; index < specifications.length; index++) {
     final specification =
@@ -60,12 +59,7 @@ void _drawBidForm(
     final price = index < prices.length && prices[index] is Map
         ? prices[index] as Map
         : const {};
-    final adjustedUnitPrice =
-        (number(price['totalPricePerUnit']) - number(price['deduction']))
-            .clamp(0, double.infinity)
-            .toDouble();
-    total +=
-        (number(specification['quantity']) * adjustedUnitPrice).roundToDouble();
+    total += ItemPricing.fromMaps(specification, price).totalDeliveredPrice;
   }
 
   final page = document.pages[idLine.pageIndex];

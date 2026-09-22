@@ -198,6 +198,7 @@ extension _EditorPersistence on _PdfEditorScreenState {
                   ? 'unit'
                   : value['unit'].toString(),
               parameter: (value['parameter'] ?? '').toString(),
+              pricingQuantity: PricingQuantity.fromMap(value),
               rebuild: false,
             );
           }
@@ -306,13 +307,7 @@ extension _EditorPersistence on _PdfEditorScreenState {
     if (mounted) _updateState(() => isSavingTechnicalSpecifications = true);
     try {
       final specifications = [
-        for (final entry in technicalSpecifications)
-          {
-            'specification': entry.specification.text.trim(),
-            'quantity': entry.quantity.text.trim(),
-            'unit': entry.unit.text.trim(),
-            'parameter': entry.parameter.text.trim(),
-          },
+        for (final entry in technicalSpecifications) entry.toMap(),
       ];
       await SupabaseConfig.client.from('bid_technical_specifications').upsert(
         {

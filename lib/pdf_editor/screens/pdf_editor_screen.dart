@@ -1,3 +1,4 @@
+import '../models/item_pricing.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
@@ -182,8 +183,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool isLoadingAfterSales = true;
   bool isSavingAfterSales = false;
   List<String> unitSuggestions = List.of(defaultUnitSuggestions);
-
-  final Map<_PriceScheduleEntry, List<String>> generatedPriceBreakdowns = {};
 
   Uint8List? generatedPdf;
   String? generatedPdfFileName;

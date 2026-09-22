@@ -60,7 +60,6 @@ extension _EditorPreview on _PdfEditorScreenState {
       final generatedReferenceNumber = referenceNumberController.text.trim();
       lastObservedContentSignature = _currentContentSignature();
       final generatedRevision = contentRevision;
-      _calculatePriceBreakdowns();
       final rawBytes = await PdfService.generateBidDocs(
         values: {
           'documentTemplateMode': selectedDocumentTemplate,
@@ -78,13 +77,7 @@ extension _EditorPreview on _PdfEditorScreenState {
           'slccTemplateType': selectedSlccTemplate,
           'omnibusTemplateType': effectiveOmnibusTemplate,
           'technicalSpecifications': jsonEncode([
-            for (final entry in technicalSpecifications)
-              {
-                'specification': entry.specification.text.trim(),
-                'quantity': entry.quantity.text.trim(),
-                'unit': entry.unit.text.trim(),
-                'parameter': entry.parameter.text.trim(),
-              },
+            for (final entry in technicalSpecifications) entry.toMap(),
           ]),
           'priceSchedule': jsonEncode([
             for (final entry in priceScheduleEntries)
@@ -217,7 +210,6 @@ extension _EditorPreview on _PdfEditorScreenState {
     if (currentSignature == lastObservedContentSignature) return;
     lastObservedContentSignature = currentSignature;
     contentRevision++;
-    generatedPriceBreakdowns.clear();
     if (generatedPdf == null || isGenerating || !mounted) return;
     final oldBlobUrl = previewBlobUrl;
     _updateState(() {

@@ -41,7 +41,6 @@ int _drawBidPriceSummary(
     if (decoded is List) savedPrices = decoded.take(72).toList();
   }
 
-  double number(dynamic value) => _pdfNumber(value);
   String money(double value) {
     final parts = value.toStringAsFixed(2).split('.');
     final grouped = parts.first.replaceAllMapped(
@@ -304,12 +303,8 @@ int _drawBidPriceSummary(
           sourceIndex < savedPrices.length && savedPrices[sourceIndex] is Map
               ? savedPrices[sourceIndex] as Map
               : const {};
-      final adjustedUnitPrice =
-          (number(saved['totalPricePerUnit']) - number(saved['deduction']))
-              .clamp(0, double.infinity)
-              .toDouble();
-      final delivered = (number(specification['quantity']) * adjustedUnitPrice)
-          .roundToDouble();
+      final delivered =
+          ItemPricing.fromMaps(specification, saved).totalDeliveredPrice;
       if (!isContinuation) grandTotal += delivered;
       final rowHeight = summaryRowHeights[itemIndex];
       final valuesForRow = <String>[

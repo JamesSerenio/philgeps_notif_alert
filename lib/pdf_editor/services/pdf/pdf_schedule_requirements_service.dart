@@ -41,7 +41,6 @@ int _drawScheduleRequirements(
     if (decoded is List) savedPrices = decoded.take(72).toList();
   }
 
-  double number(dynamic value) => _pdfNumber(value);
   String money(double value) {
     final parts = value.toStringAsFixed(2).split('.');
     final grouped = parts.first.replaceAllMapped(
@@ -275,11 +274,8 @@ int _drawScheduleRequirements(
           sourceIndex < savedPrices.length && savedPrices[sourceIndex] is Map
               ? savedPrices[sourceIndex] as Map
               : const {};
-      final adjustedUnitPrice =
-          (number(saved['totalPricePerUnit']) - number(saved['deduction']))
-              .clamp(0, double.infinity)
-              .toDouble();
-      final deliveredTotal = number(quantity) * adjustedUnitPrice;
+      final deliveredTotal =
+          ItemPricing.fromMaps(specification, saved).totalDeliveredPrice;
       final texts = <String>[
         isContinuation ? '' : '${specification['_itemNumber']}',
         (specification['_description'] ?? '').toString(),

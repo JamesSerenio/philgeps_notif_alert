@@ -6,6 +6,7 @@ extension _SpecificationEditing on _PdfEditorScreenState {
     String quantity = '1',
     String unit = 'unit',
     String parameter = '',
+    PricingQuantity? pricingQuantity,
     bool rebuild = true,
   }) {
     if (technicalSpecifications.length >= 72) return;
@@ -14,6 +15,7 @@ extension _SpecificationEditing on _PdfEditorScreenState {
       quantity: quantity,
       unit: unit,
       parameter: parameter,
+      pricingQuantity: pricingQuantity,
     );
     for (final controller in entry.controllers) {
       controller.addListener(_scheduleTechnicalSpecificationsSave);
