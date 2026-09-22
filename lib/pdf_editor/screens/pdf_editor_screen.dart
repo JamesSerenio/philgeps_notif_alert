@@ -61,7 +61,7 @@ class PdfEditorScreen extends StatefulWidget {
 
 class _PdfEditorScreenState extends State<PdfEditorScreen> {
   final sidebarScrollController = ScrollController();
-  static const String specificationLineSeparator = '\n';
+  static const String specificationLineSeparator = '\u2029';
   static const List<String> submittedByNames = [
     'JHO ANN Q. CLEOPAS',
     'CARLOS RAFAEL A. JAMILO',

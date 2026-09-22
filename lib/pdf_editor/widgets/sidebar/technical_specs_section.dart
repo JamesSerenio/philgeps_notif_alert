@@ -62,9 +62,6 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                     label: 'Specification',
                     controller: technicalSpecifications[index].specification,
                     maxLines: 5,
-                    inputFormatters: const <TextInputFormatter>[
-                      _SpecificationListFormatter(),
-                    ],
                   ),
                   Align(
                     alignment: Alignment.centerLeft,
@@ -117,30 +114,29 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                                   .specificationLineSeparator)
                               .asMap()
                               .entries)
-                            if (line.value.trim().isNotEmpty)
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      'Line ${line.key + 1}: ${line.value}',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Line ${line.key + 1}: ${line.value}',
+                                    style: const TextStyle(fontSize: 12),
                                   ),
-                                  IconButton(
-                                    tooltip: 'Delete this line',
-                                    visualDensity: VisualDensity.compact,
-                                    icon: const Icon(
-                                      Icons.close,
-                                      size: 18,
-                                      color: Colors.redAccent,
-                                    ),
-                                    onPressed: () => _removeSpecificationLine(
-                                      technicalSpecifications[index],
-                                      line.key,
-                                    ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Delete this line',
+                                  visualDensity: VisualDensity.compact,
+                                  icon: const Icon(
+                                    Icons.close,
+                                    size: 18,
+                                    color: Colors.redAccent,
                                   ),
-                                ],
-                              ),
+                                  onPressed: () => _removeSpecificationLine(
+                                    technicalSpecifications[index],
+                                    line.key,
+                                  ),
+                                ),
+                              ],
+                            ),
                         ],
                       ),
                     ),
