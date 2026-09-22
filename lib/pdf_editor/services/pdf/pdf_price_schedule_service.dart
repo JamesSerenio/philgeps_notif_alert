@@ -110,7 +110,8 @@ int _drawPriceSchedule(
     // on Web, so packing too many visual lines can clip the last details.
     const linesPerPriceRow = 16;
     final visualLines = <String>[];
-    final logicalLines = priceSpecificationLines(source['specification']);
+    final logicalLines =
+        priceSpecificationLines(_pdfSpecificationText(source['specification']));
     for (final logicalLine in logicalLines) {
       for (final explicitLine in logicalLine.split(RegExp(r'\r?\n'))) {
         visualLines.addAll(wrapPriceSpecificationLine(explicitLine));

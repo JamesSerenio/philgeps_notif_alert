@@ -52,7 +52,7 @@ int _drawScheduleRequirements(
 
   String scheduleDescription(dynamic value) {
     final specification = value is Map ? value : const {};
-    final name = (specification['specification'] ?? '').toString().trim();
+    final name = _pdfSpecificationText(specification['specification']).trim();
     final details = (specification['parameter'] ?? '').toString().trim();
     if (details.isEmpty) return name;
     if (name.isEmpty || details == name) return details;

@@ -202,7 +202,7 @@ int _drawTechnicalSpecifications(
   // its border or overlap the signature block.
   final renderRows = <Map<String, dynamic>>[];
   for (final logicalRow in logicalRows) {
-    final sourceText = (logicalRow['specification'] ?? '').toString();
+    final sourceText = _pdfSpecificationText(logicalRow['specification']);
     final sourceLines =
         sourceText.replaceAll('\u2029', '\n').split(RegExp(r'\r?\n')).toList();
     final chunks = _chunkMarkedSpecificationLines(

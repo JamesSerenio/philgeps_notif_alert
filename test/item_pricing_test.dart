@@ -75,7 +75,8 @@ void main() {
       () async {
     final specifications = [
       {
-        'specification': 'Integrated Solar Street Lights',
+        'specification':
+            'Installation of 12 units of Solar Street Lights\u2029Solar Panel: 12V 200W\u2029Battery: LiFePO4\u2029LED Lamp: 120W True Rated',
         'quantity': '12',
         'unit': 'sets',
         ...const PricingQuantity(12).toMap()
@@ -122,13 +123,17 @@ void main() {
       }
       expect(schedulePages, isNotEmpty);
       final text = schedulePages.join('\n');
+      final normalizedText = text.replaceAll(RegExp(r'\s+'), ' ');
       for (final amount in [
         '297,360.00',
+        'Solar Panel: 12V 200W',
+        'Battery: LiFePO4',
+        'LED Lamp: 120W True Rated',
         '22,200.00',
         '26,216.00',
         '345,776.00'
       ]) {
-        expect(text, contains(amount));
+        expect(normalizedText, contains(amount));
       }
       expect(text.replaceAll(RegExp(r'\s+'), ' '), contains('1 x 4 days'));
     } finally {

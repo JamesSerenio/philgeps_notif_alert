@@ -26,6 +26,14 @@ String _pdfSafeText(String value) => value
     // raw control character inside a JSON string literal.
     .replaceAll('\u2029', r'\n\n');
 
+/// Converts the editor's explicit Add line records into PDF paragraphs.
+/// Normal Enter newlines remain within their original record.
+String _pdfSpecificationText(dynamic value) => (value ?? '')
+    .toString()
+    .replaceAll('minified:Gc.specificationLineSeparator', '')
+    .replaceAll('minified:Gc.specificationLineSeparator?', '')
+    .replaceAll('\u2029', '\n\n');
+
 dynamic _pdfSafeDecodedValue(dynamic value) {
   if (value is String) return _pdfSafeText(value);
   if (value is List) {

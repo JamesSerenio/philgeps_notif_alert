@@ -107,8 +107,7 @@ int _drawBidPriceSummary(
         : <String, dynamic>{};
     const linesPerSummaryRow = 16;
     final visualLines = <String>[];
-    final explicitLines = (source['specification'] ?? '')
-        .toString()
+    final explicitLines = _pdfSpecificationText(source['specification'])
         .replaceAll('\u2029', '\n')
         .split(RegExp(r'\r?\n'));
     for (final explicitLine in explicitLines) {
