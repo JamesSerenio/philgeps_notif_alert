@@ -62,7 +62,7 @@ int _drawBidPriceSummary(
 
   List<String> wrapSummaryLine(String sourceLine) {
     final markerMatch = RegExp(
-      r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
+      r'^\s*(âœ“|âœ”|â›³|â€¢|â—‹|â– |âž¢|-|\[x\])\s*',
       caseSensitive: false,
     ).firstMatch(sourceLine);
     final marker = markerMatch?.group(1);
@@ -92,7 +92,7 @@ int _drawBidPriceSummary(
     }
     if (current.isNotEmpty) wrapped.add(current);
     if (marker != null && wrapped.isNotEmpty) {
-      final safeMarker = marker == '✔' || marker == '⛳' ? '✓' : marker;
+      final safeMarker = marker == 'âœ”' || marker == 'â›³' ? 'âœ“' : marker;
       wrapped[0] = '$safeMarker ${wrapped[0]}';
     }
     return wrapped.isEmpty ? <String>[''] : wrapped;
@@ -106,25 +106,30 @@ int _drawBidPriceSummary(
         ? Map<String, dynamic>.from(specifications[sourceIndex] as Map)
         : <String, dynamic>{};
     const linesPerSummaryRow = 16;
-    final visualLines = <String>[];
-    final explicitLines = _pdfSpecificationText(source['specification'])
-        .replaceAll('\u2029', '\n')
-        .split(RegExp(r'\r?\n'));
-    for (final explicitLine in explicitLines) {
-      visualLines.addAll(wrapSummaryLine(explicitLine));
-    }
-    if (visualLines.isEmpty) visualLines.add('');
-    for (var start = 0;
-        start < visualLines.length;
-        start += linesPerSummaryRow) {
-      summaryRows.add(<String, dynamic>{
-        ...source,
-        '_sourceIndex': sourceIndex,
-        '_itemNumber': sourceIndex + 1,
-        '_continuation': start > 0,
-        '_descriptionLines':
-            visualLines.skip(start).take(linesPerSummaryRow).toList(),
-      });
+    final specificationBlocks =
+        _pdfSpecificationBlocks(source['specification']);
+    for (var blockIndex = 0;
+        blockIndex < specificationBlocks.length;
+        blockIndex++) {
+      final visualLines = <String>[];
+      for (final explicitLine
+          in specificationBlocks[blockIndex].split(RegExp(r'\r?\n'))) {
+        visualLines.addAll(wrapSummaryLine(explicitLine));
+      }
+      if (visualLines.isEmpty) visualLines.add('');
+      for (var start = 0;
+          start < visualLines.length;
+          start += linesPerSummaryRow) {
+        summaryRows.add(<String, dynamic>{
+          ...source,
+          '_sourceIndex': sourceIndex,
+          '_itemNumber': sourceIndex + 1,
+          '_logicalLineIndex': blockIndex,
+          '_continuation': blockIndex > 0 || start > 0,
+          '_descriptionLines':
+              visualLines.skip(start).take(linesPerSummaryRow).toList(),
+        });
+      }
     }
   }
   final summaryRowHeights = <double>[

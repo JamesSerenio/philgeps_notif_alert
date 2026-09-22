@@ -197,41 +197,48 @@ int _drawTechnicalSpecifications(
   // its border or overlap the signature block.
   final renderRows = <Map<String, dynamic>>[];
   for (final logicalRow in logicalRows) {
-    final sourceText = _pdfSpecificationText(logicalRow['specification']);
-    final sourceLines =
-        sourceText.replaceAll('\u2029', '\n').split(RegExp(r'\r?\n')).toList();
-    final chunks = _chunkMarkedSpecificationLines(
-      sourceLines.isEmpty ? <String>[''] : sourceLines,
-      regularFont,
-      specificationWidth,
-      220,
+    final specificationBlocks = _pdfSpecificationBlocks(
+      logicalRow['specification'],
     );
     final parameterText = (logicalRow['parameter'] ?? '').toString();
-    final parameterChunks = !hasAnyParameter || parameterText.trim().isEmpty
-        ? <List<String>>[]
-        : _chunkMarkedSpecificationLines(
-            parameterText.split(RegExp(r'\r?\n')),
-            regularFont,
-            parameterWidth,
-            220,
-          );
-    final chunkCount = chunks.length > parameterChunks.length
-        ? chunks.length
-        : parameterChunks.length;
-    for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
-      final continuation =
-          logicalRow['_continuation'] == true || chunkIndex > 0;
-      renderRows.add(<String, dynamic>{
-        ...logicalRow,
-        'specification':
-            chunkIndex < chunks.length ? chunks[chunkIndex].join('\n') : '',
-        'parameter': chunkIndex < parameterChunks.length
-            ? parameterChunks[chunkIndex].join('\n')
-            : '',
-        '_continuation': continuation,
-        if (continuation) 'quantity': '',
-        if (continuation) 'unit': '',
-      });
+    for (var blockIndex = 0;
+        blockIndex < specificationBlocks.length;
+        blockIndex++) {
+      final chunks = _chunkMarkedSpecificationLines(
+        specificationBlocks[blockIndex].split(RegExp(r'\r?\n')),
+        regularFont,
+        specificationWidth,
+        220,
+      );
+      final parameterChunks =
+          blockIndex != 0 || !hasAnyParameter || parameterText.trim().isEmpty
+              ? <List<String>>[]
+              : _chunkMarkedSpecificationLines(
+                  parameterText.split(RegExp(r'\r?\n')),
+                  regularFont,
+                  parameterWidth,
+                  220,
+                );
+      final chunkCount = chunks.length > parameterChunks.length
+          ? chunks.length
+          : parameterChunks.length;
+      for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
+        final continuation = logicalRow['_continuation'] == true ||
+            blockIndex > 0 ||
+            chunkIndex > 0;
+        renderRows.add(<String, dynamic>{
+          ...logicalRow,
+          '_logicalLineIndex': blockIndex,
+          'specification':
+              chunkIndex < chunks.length ? chunks[chunkIndex].join('\n') : '',
+          'parameter': chunkIndex < parameterChunks.length
+              ? parameterChunks[chunkIndex].join('\n')
+              : '',
+          '_continuation': continuation,
+          if (continuation) 'quantity': '',
+          if (continuation) 'unit': '',
+        });
+      }
     }
   }
   final rowHeights = <double>[
@@ -296,12 +303,12 @@ int _drawTechnicalSpecifications(
   var itemIndex = 0;
 
   const statementText =
-      'Bidders must state here either “Comply” or “Not Comply” against each '
+      'Bidders must state here either â€œComplyâ€ or â€œNot Complyâ€ against each '
       'of the individual parameters of each Specification stating the '
       'corresponding performance parameter of the equipment offered. '
-      'Statements of “Comply” or “Not Comply” must be supported by evidence '
+      'Statements of â€œComplyâ€ or â€œNot Complyâ€ must be supported by evidence '
       'in a Bidders Bid and cross-referenced to that evidence. Evidence shall '
-      'be in the form of manufacturers’ un-amended sales literature, '
+      'be in the form of manufacturersâ€™ un-amended sales literature, '
       'unconditional statements of specification and compliance issued by '
       'the manufacturer, samples, independent test data etc. as appropriate. '
       'A statement that is not supported by evidence or is subsequently '
@@ -361,17 +368,17 @@ int _drawTechnicalSpecifications(
   // phrase, so words are wrapped together while retaining their own fonts.
   final statementWords = <({String text, PdfFont font})>[
     for (final word in statementText.split(RegExp(r'\s+')))
-      (text: word, font: statementBodyFont),
+      (text: _pdfStandardFontSafeText(word), font: statementBodyFont),
     for (final word in statementBoldItb.split(RegExp(r'\s+')))
-      (text: word, font: statementEmphasisFont),
+      (text: _pdfStandardFontSafeText(word), font: statementEmphasisFont),
     for (final word in statementRegularClause.split(RegExp(r'\s+')))
-      (text: word, font: statementBodyFont),
+      (text: _pdfStandardFontSafeText(word), font: statementBodyFont),
     for (final word in statementFirstBoldText.split(RegExp(r'\s+')))
-      (text: word, font: statementEmphasisFont),
+      (text: _pdfStandardFontSafeText(word), font: statementEmphasisFont),
     for (final word in statementRegularConnector.split(RegExp(r'\s+')))
-      (text: word, font: statementBodyFont),
+      (text: _pdfStandardFontSafeText(word), font: statementBodyFont),
     for (final word in statementSecondBoldText.split(RegExp(r'\s+')))
-      (text: word, font: statementEmphasisFont),
+      (text: _pdfStandardFontSafeText(word), font: statementEmphasisFont),
   ];
   final statementLines = <List<({String text, PdfFont font})>>[];
   var currentLine = <({String text, PdfFont font})>[];
@@ -492,7 +499,12 @@ int _drawTechnicalSpecifications(
           ? '${renderRows[currentIndex + 1]['_itemNumber']}'
           : null;
       final isPageBottom = row == rowsOnPage - 1;
-      final isInternalItemLine = !isPageBottom && currentItem == nextItem;
+      final nextLogicalLine = currentIndex + 1 < renderRows.length
+          ? renderRows[currentIndex + 1]['_logicalLineIndex']
+          : null;
+      final isInternalItemLine = !isPageBottom &&
+          currentItem == nextItem &&
+          renderRows[currentIndex]['_logicalLineIndex'] == nextLogicalLine;
       if (!isInternalItemLine) {
         page.graphics.drawLine(
           gridPen,

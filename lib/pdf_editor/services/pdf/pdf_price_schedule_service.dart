@@ -35,18 +35,6 @@ int _drawPriceSchedule(
     return '$grouped.${parts.last}';
   }
 
-  List<String> priceSpecificationLines(dynamic value) {
-    final text = (value ?? '').toString().trim();
-    if (text.isEmpty) return <String>[''];
-    final result = text
-        // Each Add line is stored as a paragraph separated by a blank line.
-        .split(RegExp(r'\r?\n\s*\r?\n'))
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    return result.isEmpty ? <String>[''] : result;
-  }
-
   // The specification column is narrow. Counting only explicit newlines
   // underestimates rows whose individual lines wrap, which used to let the
   // text run past its cell and get clipped. Convert the input into the same
@@ -63,7 +51,7 @@ int _drawPriceSchedule(
 
   List<String> wrapPriceSpecificationLine(String sourceLine) {
     final markerMatch = RegExp(
-      r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
+      r'^\s*(âœ“|âœ”|â›³|â€¢|â—‹|â– |âž¢|-|\[x\])\s*',
       caseSensitive: false,
     ).firstMatch(sourceLine);
     final marker = markerMatch?.group(1);
@@ -92,7 +80,7 @@ int _drawPriceSchedule(
     }
     if (current.isNotEmpty) wrapped.add(current);
     if (marker != null && wrapped.isNotEmpty) {
-      final safeMarker = marker == '✔' || marker == '⛳' ? '✓' : marker;
+      final safeMarker = marker == 'âœ”' || marker == 'â›³' ? 'âœ“' : marker;
       wrapped[0] = '$safeMarker ${wrapped[0]}';
     }
     return wrapped.isEmpty ? <String>[''] : wrapped;
@@ -109,31 +97,35 @@ int _drawPriceSchedule(
     // The marked-text renderer can use taller baselines than measureString
     // on Web, so packing too many visual lines can clip the last details.
     const linesPerPriceRow = 16;
-    final visualLines = <String>[];
-    final logicalLines =
-        priceSpecificationLines(_pdfSpecificationText(source['specification']));
-    for (final logicalLine in logicalLines) {
-      for (final explicitLine in logicalLine.split(RegExp(r'\r?\n'))) {
+    final specificationBlocks =
+        _pdfSpecificationBlocks(source['specification']);
+    for (var blockIndex = 0;
+        blockIndex < specificationBlocks.length;
+        blockIndex++) {
+      final visualLines = <String>[];
+      for (final explicitLine
+          in specificationBlocks[blockIndex].split(RegExp(r'\r?\n'))) {
         visualLines.addAll(wrapPriceSpecificationLine(explicitLine));
       }
-    }
-    if (visualLines.isEmpty) visualLines.add('');
-    for (var start = 0; start < visualLines.length; start += linesPerPriceRow) {
-      final continuation = start > 0;
-      priceRows.add(<String, dynamic>{
-        ...source,
-        '_sourceIndex': sourceIndex,
-        '_itemNumber': sourceIndex + 1,
-        '_logicalLineIndex': 0,
-        '_continuation': continuation,
-        '_descriptionLines':
-            visualLines.skip(start).take(linesPerPriceRow).toList(),
-        if (continuation) 'quantity': '',
-        if (continuation) 'unit': '',
-      });
+      if (visualLines.isEmpty) visualLines.add('');
+      for (var start = 0;
+          start < visualLines.length;
+          start += linesPerPriceRow) {
+        final continuation = blockIndex > 0 || start > 0;
+        priceRows.add(<String, dynamic>{
+          ...source,
+          '_sourceIndex': sourceIndex,
+          '_itemNumber': sourceIndex + 1,
+          '_logicalLineIndex': blockIndex,
+          '_continuation': continuation,
+          '_descriptionLines':
+              visualLines.skip(start).take(linesPerPriceRow).toList(),
+          if (continuation) 'quantity': '',
+          if (continuation) 'unit': '',
+        });
+      }
     }
   }
-
   final itemHeights = <double>[
     for (final row in priceRows)
       (_measureMarkedSpecificationTextHeight(

@@ -20,19 +20,18 @@ String _pdfSafeText(String value) => value
     // Some previously saved specifications contain U+26F3 in place of the
     // check marker. Standard PDF fonts cannot measure or draw that glyph.
     .replaceAll('\u26F3', '\u2713')
-    .replaceAll('\u221A', '\u2713')
-    // This function also receives JSON-encoded form values. Use escaped
-    // newline sequences so replacing a legacy separator cannot insert a
-    // raw control character inside a JSON string literal.
-    .replaceAll('\u2029', r'\n\n');
+    .replaceAll('\u221A', '\u2713');
 
-/// Converts the editor's explicit Add line records into PDF paragraphs.
-/// Normal Enter newlines remain within their original record.
-String _pdfSpecificationText(dynamic value) => (value ?? '')
+/// Returns explicit editor Add line records while preserving normal newlines.
+List<String> _pdfSpecificationBlocks(dynamic value) => (value ?? '')
     .toString()
     .replaceAll('minified:Gc.specificationLineSeparator', '')
     .replaceAll('minified:Gc.specificationLineSeparator?', '')
-    .replaceAll('\u2029', '\n\n');
+    .split('\u2029');
+
+/// Converts explicit Add line records into paragraphs for plain-text consumers.
+String _pdfSpecificationText(dynamic value) =>
+    _pdfSpecificationBlocks(value).join('\n\n');
 
 dynamic _pdfSafeDecodedValue(dynamic value) {
   if (value is String) return _pdfSafeText(value);
@@ -109,7 +108,7 @@ void _drawMarkedSpecificationText(
   bool centerVertically = true,
 }) {
   text = _pdfSafeText(text);
-  final markerPattern = RegExp(r'^\s*(✓|•|○|■|➢)\s*');
+  final markerPattern = RegExp(r'^\s*(âœ“|â€¢|â—‹|â– |âž¢)\s*');
   final entries = <({String? marker, String content, double height})>[];
   for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
     final match = markerPattern.firstMatch(sourceLine);
@@ -144,7 +143,7 @@ void _drawMarkedSpecificationText(
     if (marker != null) {
       final markerTop = top + (entry.height - 9) / 2;
       switch (marker) {
-        case '✓':
+        case 'âœ“':
           graphics.drawLine(
             markerPen,
             Offset(bounds.left + 1, markerTop + 5),
@@ -156,25 +155,25 @@ void _drawMarkedSpecificationText(
             Offset(bounds.left + 10, markerTop + 1),
           );
           break;
-        case '•':
+        case 'â€¢':
           graphics.drawEllipse(
             Rect.fromLTWH(bounds.left + 3, markerTop + 3, 5, 5),
             brush: markerBrush,
           );
           break;
-        case '○':
+        case 'â—‹':
           graphics.drawEllipse(
             Rect.fromLTWH(bounds.left + 2, markerTop + 2, 7, 7),
             pen: markerPen,
           );
           break;
-        case '■':
+        case 'â– ':
           graphics.drawRectangle(
             brush: markerBrush,
             bounds: Rect.fromLTWH(bounds.left + 2, markerTop + 2, 7, 7),
           );
           break;
-        case '➢':
+        case 'âž¢':
           graphics.drawLine(
             markerPen,
             Offset(bounds.left + 1, markerTop + 1),
@@ -212,7 +211,7 @@ double _measureMarkedSpecificationTextHeight(
 ) {
   text = _pdfSafeText(text);
   final markerPattern = RegExp(
-    r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
+    r'^\s*(âœ“|âœ”|â›³|â€¢|â—‹|â– |âž¢|-|\[x\])\s*',
     caseSensitive: false,
   );
   var totalHeight = 0.0;
@@ -248,7 +247,7 @@ List<List<String>> _chunkMarkedSpecificationLines(
     for (final line in sourceLines) _pdfSafeText(line),
   ];
   final markerPattern = RegExp(
-    r'^\s*(✓|✔|⛳|•|○|■|➢|-|\[x\])\s*',
+    r'^\s*(âœ“|âœ”|â›³|â€¢|â—‹|â– |âž¢|-|\[x\])\s*',
     caseSensitive: false,
   );
   final visualLines = <String>[];
