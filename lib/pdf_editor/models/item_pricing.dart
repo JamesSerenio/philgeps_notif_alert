@@ -67,8 +67,8 @@ class ItemPricing {
   double get transportInsuranceComponent => _cents(adjustedUnitPrice * .20);
   double get taxComponent => _cents(
       adjustedUnitPrice - unitPriceComponent - transportInsuranceComponent);
-  double get totalDeliveredPrice =>
-      _cents(adjustedUnitPrice * effectiveQuantity);
+  double get calculatedTotal => _cents(adjustedUnitPrice * effectiveQuantity);
+  double get totalDeliveredPrice => calculatedTotal;
   static double _cents(double value) => (value * 100).round() / 100;
 
   factory ItemPricing.fromMaps(Map specification, Map price) => ItemPricing(

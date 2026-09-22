@@ -59,7 +59,8 @@ void _drawBidForm(
     final price = index < prices.length && prices[index] is Map
         ? prices[index] as Map
         : const {};
-    total += ItemPricing.fromMaps(specification, price).totalDeliveredPrice;
+    total +=
+        _displayedPdfTotal(ItemPricing.fromMaps(specification, price), price);
   }
 
   final page = document.pages[idLine.pageIndex];

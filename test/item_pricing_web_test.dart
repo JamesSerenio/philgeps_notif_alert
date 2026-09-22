@@ -17,7 +17,10 @@ void main() {
     await Supabase.initialize(
         url: 'https://pricing-test.invalid',
         publishableKey: 'test',
-        authOptions: FlutterAuthClientOptions(localStorage: EmptyLocalStorage(), autoRefreshToken: false, detectSessionInUri: false),
+        authOptions: FlutterAuthClientOptions(
+            localStorage: EmptyLocalStorage(),
+            autoRefreshToken: false,
+            detectSessionInUri: false),
         httpClient: MockClient((request) async {
           Object? data;
           if (request.method == 'POST') {
@@ -57,12 +60,15 @@ void main() {
               .endsWith('technical_specification_units')) {
             data = <Object>[];
           }
-          return http.Response(jsonEncode(data), 200, request: request,
-              headers: {'content-type': 'application/json'});
+          return http.Response(jsonEncode(data), 200,
+              request: request, headers: {'content-type': 'application/json'});
         }));
   });
   setUpAll(() async {
-    final row = await Supabase.instance.client.from('bid_technical_specifications').select('specifications').maybeSingle();
+    final row = await Supabase.instance.client
+        .from('bid_technical_specifications')
+        .select('specifications')
+        .maybeSingle();
     expect(row, isNotNull);
   });
   tearDownAll(() async => Supabase.instance.dispose());
@@ -80,7 +86,7 @@ void main() {
       procuringEntity: 'Test entity',
       date: 'September 18, 2026',
       bidderName: 'Test bidder',
-          deliveryPeriod: '30 days',
+      deliveryPeriod: '30 days',
     )));
     await tester.pumpAndSettle();
     await tester.tap(find.text('PRICE SCHEDULE FOR GOODS'));

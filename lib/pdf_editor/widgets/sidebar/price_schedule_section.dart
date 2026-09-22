@@ -8,6 +8,26 @@ extension _PriceScheduleSection on _PdfEditorScreenState {
         deduction: parseCurrency(priceScheduleEntries[index].deduction.text),
       );
 
+  double _displayedTotal(_PriceScheduleEntry entry, ItemPricing calculation) =>
+      entry.isManualTotalOverride
+          ? parseCurrency(entry.totalDeliveredPrice.text)
+          : calculation.calculatedTotal;
+
+  void _syncAutoTotal(_PriceScheduleEntry entry, ItemPricing calculation) {
+    if (entry.isManualTotalOverride) return;
+    final value = _money(calculation.calculatedTotal);
+    if (entry.totalDeliveredPrice.text == value) return;
+    entry.isSynchronizingTotal = true;
+    entry.totalDeliveredPrice.value = TextEditingValue(
+        text: value, selection: TextSelection.collapsed(offset: value.length));
+    entry.isSynchronizingTotal = false;
+  }
+
+  void _useCalculatedTotal(_PriceScheduleEntry entry) {
+    entry.isManualTotalOverride = false;
+    _schedulePriceScheduleSave();
+  }
+
   String _money(double value) {
     final parts = value.toStringAsFixed(2).split('.');
     final grouped = parts.first.replaceAllMapped(
@@ -47,8 +67,9 @@ extension _PriceScheduleSection on _PdfEditorScreenState {
               calculation.unitPriceComponent,
               calculation.transportInsuranceComponent,
               calculation.taxComponent,
-              calculation.totalDeliveredPrice
+              _displayedTotal(price, calculation)
             ];
+            _syncAutoTotal(price, calculation);
             String amount(int column) => _money(breakdown[column]);
             Widget priceRow(String label, String value) {
               return Padding(
@@ -112,14 +133,16 @@ extension _PriceScheduleSection on _PdfEditorScreenState {
                             ),
                           ),
                         ),
-                        const Spacer(),
-                        Text(
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: Text(
                           '${specification.quantity.text} ${specification.unit.text}',
+                          textAlign: TextAlign.right,
                           style: const TextStyle(
                             color: Color(0xFF526159),
                             fontWeight: FontWeight.w600,
                           ),
-                        ),
+                        )),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -200,25 +223,52 @@ extension _PriceScheduleSection on _PdfEditorScreenState {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'TOTAL DELIVERED PRICE',
-                            style: TextStyle(
-                              color: Color(0xFF38634D),
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: .4,
-                            ),
-                          ),
+                          Row(children: [
+                            const Expanded(
+                                child: Text('TOTAL DELIVERED PRICE',
+                                    style: TextStyle(
+                                        color: Color(0xFF38634D),
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: .4))),
+                            Text(
+                                price.isManualTotalOverride ? 'MANUAL' : 'AUTO',
+                                style: const TextStyle(
+                                    color: Color(0xFF38634D),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600)),
+                          ]),
                           const SizedBox(height: 3),
-                          Text(
-                            '₱ ${amount(4)}',
+                          TextField(
+                            controller: price.totalDeliveredPrice,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            inputFormatters: const [
+                              _ThousandsSeparatorInputFormatter()
+                            ],
                             style: const TextStyle(
-                              color: Color(0xFF0B5D3B),
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              fontFeatures: [FontFeature.tabularFigures()],
-                            ),
+                                color: Color(0xFF0B5D3B),
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                fontFeatures: [FontFeature.tabularFigures()]),
+                            decoration: const InputDecoration(
+                                prefixText: '? ',
+                                isDense: true,
+                                border: InputBorder.none),
                           ),
+                          if (price.isManualTotalOverride)
+                            Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () => _useCalculatedTotal(price),
+                                  icon: const Icon(Icons.refresh_rounded,
+                                      size: 15),
+                                  label: const Text('Use calculated total'),
+                                  style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      foregroundColor: const Color(0xFF38634D),
+                                      textStyle: const TextStyle(fontSize: 12)),
+                                )),
                         ],
                       ),
                     ),
@@ -229,7 +279,7 @@ extension _PriceScheduleSection on _PdfEditorScreenState {
           }),
         if (technicalSpecifications.isNotEmpty)
           Text(
-              'Grand Total: \u20b1 ${_money(List.generate(technicalSpecifications.length, (index) => _itemPricing(index).totalDeliveredPrice).fold<double>(0, (sum, value) => sum + value))}',
+              'Grand Total: \u20b1 ${_money(List.generate(technicalSpecifications.length, (index) => _displayedTotal(priceScheduleEntries[index], _itemPricing(index))).fold<double>(0, (sum, value) => sum + value))}',
               style: const TextStyle(fontWeight: FontWeight.bold)),
       ],
     );

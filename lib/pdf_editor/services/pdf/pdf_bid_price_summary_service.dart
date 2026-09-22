@@ -304,7 +304,7 @@ int _drawBidPriceSummary(
               ? savedPrices[sourceIndex] as Map
               : const {};
       final delivered =
-          ItemPricing.fromMaps(specification, saved).totalDeliveredPrice;
+          _displayedPdfTotal(ItemPricing.fromMaps(specification, saved), saved);
       if (!isContinuation) grandTotal += delivered;
       final rowHeight = summaryRowHeights[itemIndex];
       final valuesForRow = <String>[

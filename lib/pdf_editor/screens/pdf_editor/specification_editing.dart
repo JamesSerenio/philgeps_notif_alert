@@ -24,6 +24,12 @@ extension _SpecificationEditing on _PdfEditorScreenState {
     final priceEntry = _PriceScheduleEntry();
     priceEntry.totalPricePerUnit.addListener(_schedulePriceScheduleSave);
     priceEntry.deduction.addListener(_schedulePriceScheduleSave);
+    priceEntry.totalDeliveredPrice.addListener(() {
+      if (!priceEntry.isSynchronizingTotal) {
+        priceEntry.isManualTotalOverride = true;
+        _schedulePriceScheduleSave();
+      }
+    });
     priceScheduleEntries.add(priceEntry);
     if (rebuild && mounted) _updateState(() {});
   }

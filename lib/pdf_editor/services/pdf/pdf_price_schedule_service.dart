@@ -398,7 +398,7 @@ int _drawPriceSchedule(
           : (specification['unit'] ?? '').toString().trim().isEmpty
               ? 'unit'
               : specification['unit'].toString();
-      final delivered = pricing.totalDeliveredPrice;
+      final delivered = _displayedPdfTotal(pricing, saved);
       if (!isContinuation) grandTotal += delivered;
       final texts = <String>[
         isContinuation ? '' : '${specification['_itemNumber']}',

@@ -275,7 +275,7 @@ int _drawScheduleRequirements(
               ? savedPrices[sourceIndex] as Map
               : const {};
       final deliveredTotal =
-          ItemPricing.fromMaps(specification, saved).totalDeliveredPrice;
+          _displayedPdfTotal(ItemPricing.fromMaps(specification, saved), saved);
       final texts = <String>[
         isContinuation ? '' : '${specification['_itemNumber']}',
         (specification['_description'] ?? '').toString(),

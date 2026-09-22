@@ -80,11 +80,8 @@ extension _EditorPreview on _PdfEditorScreenState {
             for (final entry in technicalSpecifications) entry.toMap(),
           ]),
           'priceSchedule': jsonEncode([
-            for (final entry in priceScheduleEntries)
-              {
-                'totalPricePerUnit': entry.totalPricePerUnit.text.trim(),
-                'deduction': entry.deduction.text.trim(),
-              },
+            for (final entry in priceScheduleEntries) entry.toMap(),
+
           ]),
           'deliveredWeeksMonths': deliveredWeeksMonthsController.text.trim(),
           'includeScheduleTotal':

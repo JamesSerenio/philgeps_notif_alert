@@ -239,6 +239,14 @@ extension _EditorPersistence on _PdfEditorScreenState {
                   .text;
           final deduction =
               value is Map ? (value['deduction'] ?? '').toString() : '';
+          final manualTotal =
+              value is Map ? (value['manualTotal'] ?? '').toString() : '';
+          final isManual =
+              value is Map && value['isManualTotalOverride'] == true;
+          priceScheduleEntries[index].isManualTotalOverride = isManual;
+          priceScheduleEntries[index].isSynchronizingTotal = true;
+          priceScheduleEntries[index].totalDeliveredPrice.text = manualTotal;
+          priceScheduleEntries[index].isSynchronizingTotal = false;
           priceScheduleEntries[index].deduction.text =
               const _ThousandsSeparatorInputFormatter()
                   .formatEditUpdate(
@@ -274,11 +282,7 @@ extension _EditorPersistence on _PdfEditorScreenState {
         {
           'reference_number': widget.referenceNumber.trim(),
           'total_prices_per_unit': [
-            for (final entry in priceScheduleEntries)
-              {
-                'totalPricePerUnit': entry.totalPricePerUnit.text.trim(),
-                'deduction': entry.deduction.text.trim(),
-              },
+            for (final entry in priceScheduleEntries) entry.toMap(),
           ],
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },

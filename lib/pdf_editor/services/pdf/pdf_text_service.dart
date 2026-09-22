@@ -87,7 +87,10 @@ String _numericPart(dynamic value) {
   return match?.group(0) ?? '';
 }
 
-
+double _displayedPdfTotal(ItemPricing pricing, Map price) =>
+    price['isManualTotalOverride'] == true
+        ? parseCurrency(price['manualTotal'])
+        : pricing.calculatedTotal;
 
 void _drawMarkedSpecificationText(
   PdfGraphics graphics,

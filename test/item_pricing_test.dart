@@ -97,7 +97,12 @@ void main() {
     ];
     final prices = [
       for (final price in [24780, 300, 6554])
-        {'totalPricePerUnit': price.toString(), 'deduction': ''}
+        {
+          'totalPricePerUnit': price.toString(),
+          'deduction': '',
+          'isManualTotalOverride': false,
+          'manualTotal': ''
+        }
     ];
     final bytes = await PdfService.generateBidDocs(values: {
       'projectTitle': 'Pricing regression',
@@ -112,7 +117,8 @@ void main() {
       final schedulePages = <String>[];
       for (var i = 0; i < document.pages.count; i++) {
         final text = extractor.extractText(startPageIndex: i, endPageIndex: i);
-        if (text.toUpperCase().contains('PRICE SCHEDULE FOR GOODS')) schedulePages.add(text);
+        if (text.toUpperCase().contains('PRICE SCHEDULE FOR GOODS'))
+          schedulePages.add(text);
       }
       expect(schedulePages, isNotEmpty);
       final text = schedulePages.join('\n');

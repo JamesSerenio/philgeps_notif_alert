@@ -54,15 +54,32 @@ class _TechnicalSpecificationEntry {
 }
 
 class _PriceScheduleEntry {
-  _PriceScheduleEntry({String totalPricePerUnit = '', String deduction = ''})
-      : totalPricePerUnit = TextEditingController(text: totalPricePerUnit),
-        deduction = TextEditingController(text: deduction);
+  _PriceScheduleEntry({
+    String totalPricePerUnit = '',
+    String deduction = '',
+    String manualTotal = '',
+    bool isManualTotalOverride = false,
+  })  : totalPricePerUnit = TextEditingController(text: totalPricePerUnit),
+        deduction = TextEditingController(text: deduction),
+        totalDeliveredPrice = TextEditingController(text: manualTotal),
+        isManualTotalOverride = isManualTotalOverride;
 
   final TextEditingController totalPricePerUnit;
   final TextEditingController deduction;
+  final TextEditingController totalDeliveredPrice;
+  bool isManualTotalOverride;
+  bool isSynchronizingTotal = false;
+
+  Map<String, Object> toMap() => {
+        'totalPricePerUnit': totalPricePerUnit.text.trim(),
+        'deduction': deduction.text.trim(),
+        'manualTotal': totalDeliveredPrice.text.trim(),
+        'isManualTotalOverride': isManualTotalOverride,
+      };
 
   void dispose() {
     totalPricePerUnit.dispose();
     deduction.dispose();
+    totalDeliveredPrice.dispose();
   }
 }
