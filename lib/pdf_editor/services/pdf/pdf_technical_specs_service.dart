@@ -304,18 +304,18 @@ int _drawTechnicalSpecifications(
   final printedItemFields = <int>{};
 
   const statementText =
-      'Bidders must state here either ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ComplyÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â or ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“Not ComplyÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â against each '
+      'Bidders must state here either "Comply" or "Not Comply" against each '
       'of the individual parameters of each Specification stating the '
       'corresponding performance parameter of the equipment offered. '
-      'Statements of ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ComplyÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â or ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“Not ComplyÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â must be supported by evidence '
-      'in a Bidders Bid and cross-referenced to that evidence. Evidence shall '
-      'be in the form of manufacturersÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ un-amended sales literature, '
+      'Statements of "Comply" or "Not Comply" must be supported by evidence '
+      'in a Bidder\'s Bid and cross-referenced to that evidence. Evidence shall '
+      'be in the form of manufacturer\'s un-amended sales literature, '
       'unconditional statements of specification and compliance issued by '
       'the manufacturer, samples, independent test data etc. as appropriate. '
       'A statement that is not supported by evidence or is subsequently '
       'found to be contradicted by the evidence presented will render the Bid '
       'under evaluation liable for rejection. A statement either in the '
-      'Bidders statement of compliance or the supporting evidence that is '
+      'Bidder\'s statement of compliance or the supporting evidence that is '
       'found to be false either during Bid evaluation, post qualification or '
       'the execution of the Contract may be regarded as fraudulent and render '
       'the Bidder or supplier liable for prosecution subject to the provisions of';
