@@ -1,4 +1,4 @@
-part of '../pdf_service.dart';
+﻿part of '../pdf_service.dart';
 
 void _drawTechnicalSpecificationsHeader(
   PdfPage page,
@@ -303,12 +303,12 @@ int _drawTechnicalSpecifications(
   var itemIndex = 0;
 
   const statementText =
-      'Bidders must state here either Ã¢â‚¬Å“ComplyÃ¢â‚¬Â or Ã¢â‚¬Å“Not ComplyÃ¢â‚¬Â against each '
+      'Bidders must state here either ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œComplyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â or ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œNot ComplyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â against each '
       'of the individual parameters of each Specification stating the '
       'corresponding performance parameter of the equipment offered. '
-      'Statements of Ã¢â‚¬Å“ComplyÃ¢â‚¬Â or Ã¢â‚¬Å“Not ComplyÃ¢â‚¬Â must be supported by evidence '
+      'Statements of ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œComplyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â or ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œNot ComplyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â must be supported by evidence '
       'in a Bidders Bid and cross-referenced to that evidence. Evidence shall '
-      'be in the form of manufacturersÃ¢â‚¬â„¢ un-amended sales literature, '
+      'be in the form of manufacturersÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ un-amended sales literature, '
       'unconditional statements of specification and compliance issued by '
       'the manufacturer, samples, independent test data etc. as appropriate. '
       'A statement that is not supported by evidence or is subsequently '
@@ -507,11 +507,26 @@ int _drawTechnicalSpecifications(
           renderRows[currentIndex]['_logicalLineIndex'] == nextLogicalLine;
       if (!isInternalItemLine) {
         final isBlockDivider = !isPageBottom && currentItem == nextItem;
-        page.graphics.drawLine(
-          gridPen,
-          Offset(isBlockDivider ? columns[1] : columns.first, horizontalY),
-          Offset(isBlockDivider ? columns[2] : columns.last, horizontalY),
-        );
+        if (isBlockDivider) {
+          // Added-line dividers belong only to Specification/s and Statement
+          // of Compliance. Item No., Qty, Unit, and Parameter remain merged.
+          page.graphics.drawLine(
+            gridPen,
+            Offset(columns[1], horizontalY),
+            Offset(columns[2], horizontalY),
+          );
+          page.graphics.drawLine(
+            gridPen,
+            Offset(columns[columns.length - 2], horizontalY),
+            Offset(columns.last, horizontalY),
+          );
+        } else {
+          page.graphics.drawLine(
+            gridPen,
+            Offset(columns.first, horizontalY),
+            Offset(columns.last, horizontalY),
+          );
+        }
       }
     }
 
