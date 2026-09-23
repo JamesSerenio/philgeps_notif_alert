@@ -1,4 +1,4 @@
-﻿part of '../pdf_service.dart';
+part of '../pdf_service.dart';
 
 Future<void> _moveBusinessPermitBeforeTaxClearance(
   PdfDocument document,
@@ -34,6 +34,57 @@ Future<void> _moveBusinessPermitBeforeTaxClearance(
     sourceSize,
   );
   snapshotDocument.dispose();
+}
+
+Future<void> _movePriceAndSummaryToDocumentEnd(
+  PdfDocument document, {
+  required int priceStart,
+  required int summaryStart,
+  required int priceSchedulePageCount,
+  required int summaryPageCount,
+}) async {
+  if (priceStart < 0 || summaryStart <= priceStart) return;
+
+  final priceCount = priceSchedulePageCount
+      .clamp(0, document.pages.count - priceStart)
+      .toInt();
+  final summaryCount =
+      summaryPageCount.clamp(0, document.pages.count - summaryStart).toInt();
+  if (priceCount == 0 || summaryCount == 0) return;
+
+  final snapshotBytes = await document.save();
+  final snapshot = PdfDocument(inputBytes: snapshotBytes);
+  final pricePages = <({PdfTemplate template, Size size})>[
+    for (var index = 0; index < priceCount; index++)
+      (
+        template: snapshot.pages[priceStart + index].createTemplate(),
+        size: snapshot.pages[priceStart + index].size,
+      ),
+  ];
+  final summaryPages = <({PdfTemplate template, Size size})>[
+    for (var index = 0; index < summaryCount; index++)
+      (
+        template: snapshot.pages[summaryStart + index].createTemplate(),
+        size: snapshot.pages[summaryStart + index].size,
+      ),
+  ];
+
+  // Remove the later group first to preserve the earlier group index.
+  for (var index = 0; index < summaryCount; index++) {
+    document.pages.removeAt(summaryStart);
+  }
+  for (var index = 0; index < priceCount; index++) {
+    document.pages.removeAt(priceStart);
+  }
+  for (final source in [...pricePages, ...summaryPages]) {
+    final page = document.pages.insert(
+      document.pages.count,
+      source.size,
+      PdfMargins()..all = 0,
+    );
+    page.graphics.drawPdfTemplate(source.template, Offset.zero, source.size);
+  }
+  snapshot.dispose();
 }
 
 void _replacePagesWithBlankSize(

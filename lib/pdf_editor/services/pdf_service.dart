@@ -382,6 +382,27 @@ class PdfService {
       await yieldToBrowser();
     }
 
+    // Finalize these two generated sections only after every optional page
+    // replacement and template insertion. Moving their complete page groups
+    // here guarantees Price Schedule then Summary form the PDF ending.
+    final finalPriceStart = _findPageContaining(
+      document,
+      const ['PRICE SCHEDULE FOR GOODS'],
+    );
+    final finalSummaryStart = _findPageContaining(
+      document,
+      const ['SUMMARY OF BID PRICES'],
+    );
+    if (finalPriceStart >= 0 && finalSummaryStart > finalPriceStart) {
+      await _movePriceAndSummaryToDocumentEnd(
+        document,
+        priceStart: finalPriceStart,
+        summaryStart: finalSummaryStart,
+        priceSchedulePageCount: priceSchedulePageCount,
+        summaryPageCount: bidPriceSummaryPageCount,
+      );
+      await yieldToBrowser();
+    }
     // Keep Syncfusion's normal incremental output here. Chrome/PDFium resolves
     // this revision correctly; the Railway compatibility service flattens its
     // visible overlays into permanent page content for the other readers.
