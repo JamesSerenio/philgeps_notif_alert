@@ -1,4 +1,4 @@
-﻿part of '../pdf_service.dart';
+part of '../pdf_service.dart';
 
 void _drawTechnicalSpecificationsHeader(
   PdfPage page,
@@ -494,19 +494,20 @@ int _drawTechnicalSpecifications(
     for (var row = 0; row < rowsOnPage; row++) {
       horizontalY += rowHeights[pageStartItemIndex + row];
       final currentIndex = pageStartItemIndex + row;
-      final currentItem = '${renderRows[currentIndex]['_itemNumber']}';
-      final nextItem = currentIndex + 1 < renderRows.length
-          ? '${renderRows[currentIndex + 1]['_itemNumber']}'
+      final currentSourceIndex = renderRows[currentIndex]['_sourceIndex'];
+      final nextSourceIndex = currentIndex + 1 < renderRows.length
+          ? renderRows[currentIndex + 1]['_sourceIndex']
           : null;
       final isPageBottom = row == rowsOnPage - 1;
       final nextLogicalLine = currentIndex + 1 < renderRows.length
           ? renderRows[currentIndex + 1]['_logicalLineIndex']
           : null;
       final isInternalItemLine = !isPageBottom &&
-          currentItem == nextItem &&
+          currentSourceIndex == nextSourceIndex &&
           renderRows[currentIndex]['_logicalLineIndex'] == nextLogicalLine;
       if (!isInternalItemLine) {
-        final isBlockDivider = !isPageBottom && currentItem == nextItem;
+        final isBlockDivider =
+            !isPageBottom && currentSourceIndex == nextSourceIndex;
         if (isBlockDivider) {
           // Added-line dividers belong only to Specification/s and Statement
           // of Compliance. Item No., Qty, Unit, and Parameter remain merged.
@@ -562,16 +563,16 @@ int _drawTechnicalSpecifications(
       final specification = renderRows[itemIndex];
       final isContinuation = specification['_continuation'] == true;
       final itemNumber = '${specification['_itemNumber']}';
-      final previousItemNumber =
-          row == 0 ? null : '${renderRows[itemIndex - 1]['_itemNumber']}';
-      final startsContinuationPage = row == 0 && isContinuation;
       final sourceIndex = specification['_sourceIndex'] as int;
+      final isSameSourceAsPrevious =
+          row > 0 && renderRows[itemIndex - 1]['_sourceIndex'] == sourceIndex;
+      final startsContinuationPage = row == 0 && isContinuation;
       final original = sourceIndex < specifications.length &&
               specifications[sourceIndex] is Map
           ? specifications[sourceIndex] as Map
           : const {};
       final texts = <String>[
-        itemNumber == previousItemNumber ? '' : itemNumber,
+        isSameSourceAsPrevious ? '' : itemNumber,
         (specification['specification'] ?? '').toString(),
         startsContinuationPage
             ? (original['quantity'] ?? '').toString()
@@ -585,12 +586,12 @@ int _drawTechnicalSpecifications(
       final rowHeight = rowHeights[itemIndex];
       for (var column = 0; column < texts.length; column++) {
         final isMergedColumn = column == 0 || column == 2 || column == 3;
-        if (isMergedColumn && itemNumber == previousItemNumber) continue;
+        if (isMergedColumn && isSameSourceAsPrevious) continue;
         var cellHeight = rowHeight - 2;
         if (isMergedColumn) {
           for (var next = itemIndex + 1;
               next < pageStartItemIndex + rowsOnPage &&
-                  '${renderRows[next]['_itemNumber']}' == itemNumber;
+                  renderRows[next]['_sourceIndex'] == sourceIndex;
               next++) {
             cellHeight += rowHeights[next];
           }
