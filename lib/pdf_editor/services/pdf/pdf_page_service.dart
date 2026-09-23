@@ -11,7 +11,7 @@ Future<void> _moveBusinessPermitBeforeTaxClearance(
   if (document.pages.count <= taxClearancePageIndex) return;
 
   // Keep the source document alive until its template has been drawn. The
-  // source page is removed from the destination, so this is a moveâ€”not a
+  // source page is removed from the destination, so this is a moveÃ¢â‚¬â€not a
   // duplicate Business Permit page.
   final snapshotBytes = await document.save();
   final snapshotDocument = PdfDocument(inputBytes: snapshotBytes);
@@ -36,53 +36,39 @@ Future<void> _moveBusinessPermitBeforeTaxClearance(
   snapshotDocument.dispose();
 }
 
-Future<void> _movePriceAndSummaryToDocumentEnd(
+Future<void> _moveFinalPageRangeToEnd(
   PdfDocument document, {
-  required int priceStart,
-  required int summaryStart,
-  required int priceSchedulePageCount,
-  required int summaryPageCount,
+  required int startPageIndex,
+  required int endPageIndexInclusive,
 }) async {
-  if (priceStart < 0 || summaryStart <= priceStart) return;
+  if (startPageIndex < 0 ||
+      endPageIndexInclusive < startPageIndex ||
+      document.pages.count <= endPageIndexInclusive) {
+    return;
+  }
 
-  final priceCount = priceSchedulePageCount
-      .clamp(0, document.pages.count - priceStart)
-      .toInt();
-  final summaryCount =
-      summaryPageCount.clamp(0, document.pages.count - summaryStart).toInt();
-  if (priceCount == 0 || summaryCount == 0) return;
-
+  final pageCount = endPageIndexInclusive - startPageIndex + 1;
   final snapshotBytes = await document.save();
   final snapshot = PdfDocument(inputBytes: snapshotBytes);
-  final pricePages = <({PdfTemplate template, Size size})>[
-    for (var index = 0; index < priceCount; index++)
+  final movedPages = <({PdfTemplate template, Size size})>[
+    for (var index = 0; index < pageCount; index++)
       (
-        template: snapshot.pages[priceStart + index].createTemplate(),
-        size: snapshot.pages[priceStart + index].size,
-      ),
-  ];
-  final summaryPages = <({PdfTemplate template, Size size})>[
-    for (var index = 0; index < summaryCount; index++)
-      (
-        template: snapshot.pages[summaryStart + index].createTemplate(),
-        size: snapshot.pages[summaryStart + index].size,
+        template: snapshot.pages[startPageIndex + index].createTemplate(),
+        size: snapshot.pages[startPageIndex + index].size,
       ),
   ];
 
-  // Remove the later group first to preserve the earlier group index.
-  for (var index = 0; index < summaryCount; index++) {
-    document.pages.removeAt(summaryStart);
+  // Remove exactly the original contiguous range, then append it intact.
+  for (var index = 0; index < pageCount; index++) {
+    document.pages.removeAt(startPageIndex);
   }
-  for (var index = 0; index < priceCount; index++) {
-    document.pages.removeAt(priceStart);
-  }
-  for (final source in [...pricePages, ...summaryPages]) {
-    final page = document.pages.insert(
+  for (final source in movedPages) {
+    final target = document.pages.insert(
       document.pages.count,
       source.size,
       PdfMargins()..all = 0,
     );
-    page.graphics.drawPdfTemplate(source.template, Offset.zero, source.size);
+    target.graphics.drawPdfTemplate(source.template, Offset.zero, source.size);
   }
   snapshot.dispose();
 }
