@@ -301,14 +301,15 @@ int _drawTechnicalSpecifications(
     }
   }
   var itemIndex = 0;
+  final printedItemFields = <int>{};
 
   const statementText =
-      'Bidders must state here either ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œComplyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â or ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œNot ComplyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â against each '
+      'Bidders must state here either ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ComplyÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â or ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“Not ComplyÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â against each '
       'of the individual parameters of each Specification stating the '
       'corresponding performance parameter of the equipment offered. '
-      'Statements of ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œComplyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â or ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œNot ComplyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â must be supported by evidence '
+      'Statements of ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ComplyÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â or ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“Not ComplyÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â must be supported by evidence '
       'in a Bidders Bid and cross-referenced to that evidence. Evidence shall '
-      'be in the form of manufacturersÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ un-amended sales literature, '
+      'be in the form of manufacturersÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ un-amended sales literature, '
       'unconditional statements of specification and compliance issued by '
       'the manufacturer, samples, independent test data etc. as appropriate. '
       'A statement that is not supported by evidence or is subsequently '
@@ -561,32 +562,30 @@ int _drawTechnicalSpecifications(
     var rowTop = tableTop + headerHeight;
     for (var row = 0; row < rowsOnPage; row++, itemIndex++) {
       final specification = renderRows[itemIndex];
-      final isContinuation = specification['_continuation'] == true;
       final itemNumber = '${specification['_itemNumber']}';
       final sourceIndex = specification['_sourceIndex'] as int;
-      final isSameSourceAsPrevious =
-          row > 0 && renderRows[itemIndex - 1]['_sourceIndex'] == sourceIndex;
-      final startsContinuationPage = row == 0 && isContinuation;
+      final showItemFields = printedItemFields.add(sourceIndex);
       final original = sourceIndex < specifications.length &&
               specifications[sourceIndex] is Map
           ? specifications[sourceIndex] as Map
           : const {};
       final texts = <String>[
-        isSameSourceAsPrevious ? '' : itemNumber,
+        showItemFields ? itemNumber : '',
         (specification['specification'] ?? '').toString(),
-        startsContinuationPage
-            ? (original['quantity'] ?? '').toString()
-            : (specification['quantity'] ?? '').toString(),
-        startsContinuationPage
-            ? (original['unit'] ?? '').toString()
-            : (specification['unit'] ?? '').toString(),
+        showItemFields
+            ? (original['quantity'] ?? specification['quantity'] ?? '')
+                .toString()
+            : '',
+        showItemFields
+            ? (original['unit'] ?? specification['unit'] ?? '').toString()
+            : '',
         if (hasAnyParameter) (specification['parameter'] ?? '').toString(),
         'COMPLY',
       ];
       final rowHeight = rowHeights[itemIndex];
       for (var column = 0; column < texts.length; column++) {
         final isMergedColumn = column == 0 || column == 2 || column == 3;
-        if (isMergedColumn && isSameSourceAsPrevious) continue;
+        if (isMergedColumn && !showItemFields) continue;
         var cellHeight = rowHeight - 2;
         if (isMergedColumn) {
           for (var next = itemIndex + 1;
