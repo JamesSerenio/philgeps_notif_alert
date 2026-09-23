@@ -303,12 +303,12 @@ int _drawTechnicalSpecifications(
   var itemIndex = 0;
 
   const statementText =
-      'Bidders must state here either â€œComplyâ€ or â€œNot Complyâ€ against each '
+      'Bidders must state here either Ã¢â‚¬Å“ComplyÃ¢â‚¬Â or Ã¢â‚¬Å“Not ComplyÃ¢â‚¬Â against each '
       'of the individual parameters of each Specification stating the '
       'corresponding performance parameter of the equipment offered. '
-      'Statements of â€œComplyâ€ or â€œNot Complyâ€ must be supported by evidence '
+      'Statements of Ã¢â‚¬Å“ComplyÃ¢â‚¬Â or Ã¢â‚¬Å“Not ComplyÃ¢â‚¬Â must be supported by evidence '
       'in a Bidders Bid and cross-referenced to that evidence. Evidence shall '
-      'be in the form of manufacturersâ€™ un-amended sales literature, '
+      'be in the form of manufacturersÃ¢â‚¬â„¢ un-amended sales literature, '
       'unconditional statements of specification and compliance issued by '
       'the manufacturer, samples, independent test data etc. as appropriate. '
       'A statement that is not supported by evidence or is subsequently '
@@ -506,10 +506,11 @@ int _drawTechnicalSpecifications(
           currentItem == nextItem &&
           renderRows[currentIndex]['_logicalLineIndex'] == nextLogicalLine;
       if (!isInternalItemLine) {
+        final isBlockDivider = !isPageBottom && currentItem == nextItem;
         page.graphics.drawLine(
           gridPen,
-          Offset(columns.first, horizontalY),
-          Offset(columns.last, horizontalY),
+          Offset(isBlockDivider ? columns[1] : columns.first, horizontalY),
+          Offset(isBlockDivider ? columns[2] : columns.last, horizontalY),
         );
       }
     }
@@ -568,10 +569,7 @@ int _drawTechnicalSpecifications(
       ];
       final rowHeight = rowHeights[itemIndex];
       for (var column = 0; column < texts.length; column++) {
-        final isMergedColumn = column == 0 ||
-            column == 2 ||
-            column == 3 ||
-            column == texts.length - 1;
+        final isMergedColumn = column == 0 || column == 2 || column == 3;
         if (isMergedColumn && itemNumber == previousItemNumber) continue;
         var cellHeight = rowHeight - 2;
         if (isMergedColumn) {

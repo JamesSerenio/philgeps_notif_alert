@@ -62,7 +62,7 @@ int _drawBidPriceSummary(
 
   List<String> wrapSummaryLine(String sourceLine) {
     final markerMatch = RegExp(
-      r'^\s*(âœ“|âœ”|â›³|â€¢|â—‹|â– |âž¢|-|\[x\])\s*',
+      r'^\s*(Ã¢Å“â€œ|Ã¢Å“â€|Ã¢â€ºÂ³|Ã¢â‚¬Â¢|Ã¢â€”â€¹|Ã¢â€“Â |Ã¢Å¾Â¢|-|\[x\])\s*',
       caseSensitive: false,
     ).firstMatch(sourceLine);
     final marker = markerMatch?.group(1);
@@ -92,7 +92,8 @@ int _drawBidPriceSummary(
     }
     if (current.isNotEmpty) wrapped.add(current);
     if (marker != null && wrapped.isNotEmpty) {
-      final safeMarker = marker == 'âœ”' || marker == 'â›³' ? 'âœ“' : marker;
+      final safeMarker =
+          marker == 'Ã¢Å“â€' || marker == 'Ã¢â€ºÂ³' ? 'Ã¢Å“â€œ' : marker;
       wrapped[0] = '$safeMarker ${wrapped[0]}';
     }
     return wrapped.isEmpty ? <String>[''] : wrapped;
@@ -365,6 +366,13 @@ int _drawBidPriceSummary(
           gridPen,
           Offset(left, y),
           Offset(right, y),
+        );
+      } else if (summaryRows[itemIndex + 1]['_logicalLineIndex'] !=
+          specification['_logicalLineIndex']) {
+        page.graphics.drawLine(
+          gridPen,
+          Offset(itemRight, y),
+          Offset(descriptionRight, y),
         );
       }
     }
