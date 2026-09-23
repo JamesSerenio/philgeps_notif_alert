@@ -385,14 +385,10 @@ class PdfService {
     // Finalize these two generated sections only after every optional page
     // replacement and template insertion. Moving their complete page groups
     // here guarantees Price Schedule then Summary form the PDF ending.
-    final finalPriceStart = _findPageContaining(
-      document,
-      const ['PRICE SCHEDULE FOR GOODS'],
-    );
-    final finalSummaryStart = _findPageContaining(
-      document,
-      const ['SUMMARY OF BID PRICES'],
-    );
+    // These section-specific locators deliberately search the financial-page
+    // range. A global title search can match the Table of Contents instead.
+    final finalPriceStart = _findPriceScheduleStartPage(document);
+    final finalSummaryStart = _findBidPriceSummaryStartPage(document);
     if (finalPriceStart >= 0 && finalSummaryStart > finalPriceStart) {
       await _movePriceAndSummaryToDocumentEnd(
         document,
