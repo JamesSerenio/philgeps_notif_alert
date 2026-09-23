@@ -1,4 +1,4 @@
-import '../models/item_pricing.dart';
+﻿import '../models/item_pricing.dart';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -247,25 +247,6 @@ class PdfService {
       document.pages.removeAt(47);
     }
     await yieldToBrowser();
-
-    // Move only Price Schedule and Summary while their generated section
-    // indexes are still deterministic. Schedule of Requirements stays in its
-    // original document position.
-    if (priceScheduleStartPage >= 0 && bidPriceSummaryStartPage >= 0) {
-      final removedTechnicalPages = 3 - technicalSpecificationPageCount;
-      final removedPricePages = 8 - priceSchedulePageCount;
-      final finalPriceStart = priceScheduleStartPage - removedTechnicalPages;
-      final finalSummaryStart =
-          bidPriceSummaryStartPage - removedTechnicalPages - removedPricePages;
-      await _movePriceAndSummaryToDocumentEnd(
-        document,
-        priceStart: finalPriceStart,
-        summaryStart: finalSummaryStart,
-        priceSchedulePageCount: priceSchedulePageCount,
-        summaryPageCount: bidPriceSummaryPageCount,
-      );
-      await yieldToBrowser();
-    }
 
     final useDeclarationWithTable =
         switch (values['bidSecuringDeclarationTemplate']) {
