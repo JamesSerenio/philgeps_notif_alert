@@ -154,36 +154,6 @@ extension _SidebarPanel on _PdfEditorScreenState {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: isGenerating || isExportingWord
-                          ? null
-                          : exportEditableWord,
-                      icon: isExportingWord
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.description_outlined, size: 20),
-                      label: Text(
-                        isExportingWord
-                            ? 'Exporting Word...'
-                            : 'Export Word (.docx)',
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF0B4F3A),
-                        minimumSize: const Size.fromHeight(50),
-                        side: const BorderSide(color: Color(0xFF0B4F3A)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        textStyle: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
                   ]),
             ),
           ]),

@@ -12,7 +12,6 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
-import '../services/editable_word_service.dart';
 import '../services/pdf_service.dart';
 import '../../utils/supabase_client.dart';
 
@@ -192,7 +191,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   String? lastObservedContentSignature;
   final Map<TextEditingController, String> metadataTextSnapshots = {};
   bool isGenerating = false;
-  bool isExportingWord = false;
   String? errorMessage;
   String? previewViewType;
   bool showCompactPreview = false;
