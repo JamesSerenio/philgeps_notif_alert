@@ -81,7 +81,6 @@ extension _EditorPreview on _PdfEditorScreenState {
           ]),
           'priceSchedule': jsonEncode([
             for (final entry in priceScheduleEntries) entry.toMap(),
-
           ]),
           'deliveredWeeksMonths': deliveredWeeksMonthsController.text.trim(),
           'includeScheduleTotal':
@@ -167,6 +166,75 @@ extension _EditorPreview on _PdfEditorScreenState {
       if (mounted) {
         _updateState(() {
           isGenerating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> exportEditableWord() async {
+    if (!mounted) return;
+    _updateState(() {
+      isExportingWord = true;
+      errorMessage = null;
+    });
+
+    try {
+      slccSaveTimer?.cancel();
+      technicalSpecificationsSaveTimer?.cancel();
+      priceScheduleSaveTimer?.cancel();
+      scheduleRequirementsSaveTimer?.cancel();
+      afterSalesSaveTimer?.cancel();
+      await _saveSlcc();
+      await _saveTechnicalSpecifications();
+      await _savePriceSchedule();
+      if (hasPendingDeliveryPeriodOverride) {
+        await _saveScheduleRequirements();
+      }
+      await _saveAfterSalesSettings();
+
+      final bytes = EditableWordService.generate(
+        <String, String>{
+          'province': provinceController.text.trim(),
+          'municipality': municipalityController.text.trim(),
+          'projectTitle': projectTitleController.text.trim(),
+          'referenceNumber': referenceNumberController.text.trim(),
+          'date': dateController.text.trim(),
+          'bidderName': bidderNameController.text.trim(),
+          'procuringEntity': procuringEntityController.text.trim(),
+          'submittedBy': submittedByController.text.trim(),
+          'deliveredWeeksMonths': deliveredWeeksMonthsController.text.trim(),
+        },
+        <Map<String, dynamic>>[
+          for (final entry in technicalSpecifications) entry.toMap(),
+        ],
+        <Map<String, dynamic>>[
+          for (final entry in priceScheduleEntries) entry.toMap(),
+        ],
+      );
+      final fileName = _buildGeneratedPdfFileName(
+        projectTitleController.text.trim(),
+        referenceNumberController.text.trim(),
+        DateTime.now(),
+      ).replaceFirst(RegExp(r'\.pdf$'), '.docx');
+      final blob = html.Blob(
+        <dynamic>[bytes],
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      );
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      (html.AnchorElement(href: url)..download = fileName).click();
+      Future<void>.delayed(const Duration(seconds: 1), () {
+        html.Url.revokeObjectUrl(url);
+      });
+    } catch (error) {
+      if (mounted) {
+        _updateState(() {
+          errorMessage = 'Unable to export Word document: $error';
+        });
+      }
+    } finally {
+      if (mounted) {
+        _updateState(() {
+          isExportingWord = false;
         });
       }
     }

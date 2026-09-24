@@ -51,7 +51,7 @@ int _drawPriceSchedule(
 
   List<String> wrapPriceSpecificationLine(String sourceLine) {
     final markerMatch = RegExp(
-      r'^\s*(âœ“|âœ”|â›³|â€¢|â—‹|â– |âž¢|-|\[x\])\s*',
+      r'^\s*(Ã¢Å“â€œ|Ã¢Å“â€|Ã¢â€ºÂ³|Ã¢â‚¬Â¢|Ã¢â€”â€¹|Ã¢â€“Â |Ã¢Å¾Â¢|-|\[x\])\s*',
       caseSensitive: false,
     ).firstMatch(sourceLine);
     final marker = markerMatch?.group(1);
@@ -80,7 +80,8 @@ int _drawPriceSchedule(
     }
     if (current.isNotEmpty) wrapped.add(current);
     if (marker != null && wrapped.isNotEmpty) {
-      final safeMarker = marker == 'âœ”' || marker == 'â›³' ? 'âœ“' : marker;
+      final safeMarker =
+          marker == 'Ã¢Å“â€' || marker == 'Ã¢â€ºÂ³' ? 'Ã¢Å“â€œ' : marker;
       wrapped[0] = '$safeMarker ${wrapped[0]}';
     }
     return wrapped.isEmpty ? <String>[''] : wrapped;
@@ -96,7 +97,6 @@ int _drawPriceSchedule(
     // Keep each continuation short enough to leave a safe bottom margin.
     // The marked-text renderer can use taller baselines than measureString
     // on Web, so packing too many visual lines can clip the last details.
-    const linesPerPriceRow = 16;
     final specificationBlocks =
         _pdfSpecificationBlocks(source['specification']);
     for (var blockIndex = 0;
@@ -108,18 +108,26 @@ int _drawPriceSchedule(
         visualLines.addAll(wrapPriceSpecificationLine(explicitLine));
       }
       if (visualLines.isEmpty) visualLines.add('');
-      for (var start = 0;
-          start < visualLines.length;
-          start += linesPerPriceRow) {
-        final continuation = blockIndex > 0 || start > 0;
+      // Split only blocks that exceed a printable page row. The page planner
+      // can then keep every normal block intact and move it below a fresh
+      // repeated table header when it does not fit in the remaining space.
+      final printableChunks = _chunkMarkedSpecificationLines(
+        visualLines,
+        measuringFont,
+        specificationWidth,
+        220,
+      );
+      for (var chunkIndex = 0;
+          chunkIndex < printableChunks.length;
+          chunkIndex++) {
+        final continuation = blockIndex > 0 || chunkIndex > 0;
         priceRows.add(<String, dynamic>{
           ...source,
           '_sourceIndex': sourceIndex,
           '_itemNumber': sourceIndex + 1,
           '_logicalLineIndex': blockIndex,
           '_continuation': continuation,
-          '_descriptionLines':
-              visualLines.skip(start).take(linesPerPriceRow).toList(),
+          '_descriptionLines': printableChunks[chunkIndex],
           if (continuation) 'quantity': '',
           if (continuation) 'unit': '',
         });
