@@ -1,32 +1,6 @@
 part of '../pdf_editor_screen.dart';
 
 extension _EditorPreview on _PdfEditorScreenState {
-  Future<Uint8List> _renderCompatiblePdf(Uint8List source) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse(
-              'https://philgepsnotifalert-production.up.railway.app/'
-              'render-compatible-pdf',
-            ),
-            headers: const {'Content-Type': 'application/pdf'},
-            body: source,
-          )
-          .timeout(const Duration(minutes: 8));
-
-      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-        return response.bodyBytes;
-      }
-      throw Exception(
-        'Clean PDF rewrite failed (${response.statusCode}). The original '
-        'incremental PDF was not used because it can expose obsolete pages.',
-      );
-    } catch (error) {
-      if (error is Exception) rethrow;
-      throw Exception('Clean PDF rewrite failed: $error');
-    }
-  }
-
   Future<void> generatePdf() async {
     await documentTemplateLoaded;
     await omnibusLoaded;
@@ -93,7 +67,7 @@ extension _EditorPreview on _PdfEditorScreenState {
         },
       );
 
-      final bytes = await _renderCompatiblePdf(rawBytes);
+      final bytes = rawBytes;
       if (!mounted) return;
       if (generatedRevision != contentRevision) {
         _updateState(() {
