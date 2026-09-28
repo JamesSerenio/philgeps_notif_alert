@@ -758,254 +758,73 @@ async function getBidDetails(page, url) {
 |--------------------------------------------------------------------------
 */
 
-async function searchPhilgepsByKeyword(
-  page,
-  keyword,
-  existingPostIds,
-  runId
-) {
-  if (runId !== currentRunId) {
-    return [];
-  }
+const MAX_SEARCH_PAGES = 50;
 
-  await page.goto(SEARCH_URL, {
-    waitUntil: "domcontentloaded",
-    timeout: 60000,
-  });
-
-  await page.waitForSelector(
-    "#txtKeyword",
-    {
-      timeout: 30000,
-    }
-  );
-
-  await page.fill(
-    "#txtKeyword",
-    keyword
-  );
-
-  await page.click("#btnSearch");
-
-  await page.waitForLoadState(
-    "domcontentloaded"
-  );
-
-  await page.waitForTimeout(1200);
-
-  const rows = await page.$$eval(
-    "a[href*='SplashBidNoticeAbstractUI.aspx']",
-    (links) => {
-      return links.map((link) => {
-        const row =
-          link.closest("tr");
-
-        const cells = row
-          ? Array.from(
-              row.querySelectorAll("td")
-            )
-          : [];
-
-        return {
-          href:
-            link.getAttribute("href"),
-
-          title:
-            link.textContent
-              ?.replace(/\s+/g, " ")
-              .trim() || "",
-
-          postingDate:
-            cells[1]?.textContent
-              ?.replace(/\s+/g, " ")
-              .trim() || "",
-
-          closingDate:
-            cells[2]?.textContent
-              ?.replace(/\s+/g, " ")
-              .trim() || "",
-
-          details:
-            cells[3]?.textContent
-              ?.replace(/\s+/g, " ")
-              .trim() || "",
-        };
-      });
-    }
-  );
-
-  const posts = [];
-
-  for (const item of rows) {
-    if (runId !== currentRunId) {
-      console.log(
-        `Checker run ${runId} cancelled.`
-      );
-
-      break;
-    }
-
-    if (!item.href || !item.title) {
-      continue;
-    }
-
-    const postingDate =
-      parsePhilgepsDate(
-        item.postingDate
-      );
-
-    const closingDate =
-      parsePhilgepsDate(
-        item.closingDate
-      );
-
-    if (!isStillActive(closingDate)) {
-      continue;
-    }
-
-    const fullUrl = new URL(
-      item.href,
-      SEARCH_URL
-    ).toString();
-
-    const refId =
-      extractRefId(fullUrl);
-
-    if (!refId) {
-      console.log(
-        `Skipped without reference ID: ${item.title}`
-      );
-
-      continue;
-    }
-
-    /*
-     * MAHALAGANG FIX:
-     * Kapag existing na ang post sa Supabase,
-     * hindi na bubuksan ulit ang detail page.
-     */
-    if (existingPostIds.has(refId)) {
-      continue;
-    }
-
-    const lgu =
-      canonicalLgu(keyword);
-
-    let bidDetails = {
-      referenceNumber: refId,
-      procuringEntity: "",
-      title: item.title,
-      areaOfDelivery: "",
-      deliveryPeriod: "",
-      classification: "",
-      budgetLabel: "ABC",
-      abc: "",
-    };
-
-    try {
-      bidDetails =
-        await getBidDetails(
-          page,
-          fullUrl
-        );
-    } catch (error) {
-      console.error(
-        `Detail scrape failed ${refId}:`,
-        error.message
-      );
-    }
-
-    const cleanArea =
-      normalizeAreaOfDelivery(
-        bidDetails.areaOfDelivery || ""
-      );
-
-    if (
-      !isAllowedAreaOfDelivery(
-        cleanArea
-      )
-    ) {
-      console.log(
-        `Skipped ${
-          bidDetails.referenceNumber ||
-          refId
-        }: area not allowed (${
-          bidDetails.areaOfDelivery ||
-          "none"
-        })`
-      );
-
-      continue;
-    }
-
-    const finalReferenceNumber =
-      cleanText(
-        bidDetails.referenceNumber
-      ) || refId;
-
-    const post = {
-      id: finalReferenceNumber,
-
-      referenceNumber:
-        finalReferenceNumber,
-
-      lgu,
-
-      procuringEntity:
-        cleanText(
-          bidDetails.procuringEntity
-        ) || item.details,
-
-      title:
-        cleanText(
-          bidDetails.title
-        ) || item.title,
-
-      areaOfDelivery:
-        cleanArea,
-
-      deliveryPeriod:
-        cleanText(
-          bidDetails.deliveryPeriod
-        ),
-
-      classification:
-        cleanText(
-          bidDetails.classification
-        ),
-
-      budgetType:
-        bidDetails.budgetLabel === "EBC"
-          ? "EBC"
-          : "ABC",
-
-      abc:
-        parseBudgetAmount(
-          bidDetails.abc
-        ),
-
-      postingDate,
-
-      closingDate,
-
-      url:
-        `${BASE_URL}` +
-        "PrintableBidNoticeAbstractUI.aspx" +
-        `?refID=${encodeURIComponent(
-          finalReferenceNumber
-        )}`,
-    };
-
-    posts.push(post);
-
-    existingPostIds.add(
-      finalReferenceNumber
-    );
-  }
-
-  return posts;
+async function readSearchRows(page) {
+  return page.$$eval("a[href*='SplashBidNoticeAbstractUI.aspx']", links => links.map(link => {
+    const cells = Array.from(link.closest("tr")?.querySelectorAll("td") || []);
+    return { href: link.getAttribute("href"), title: link.textContent?.replace(/\s+/g, " ").trim() || "", postingDate: cells[1]?.textContent?.replace(/\s+/g, " ").trim() || "", closingDate: cells[2]?.textContent?.replace(/\s+/g, " ").trim() || "", details: cells[3]?.textContent?.replace(/\s+/g, " ").trim() || "" };
+  }));
 }
 
+async function nextPagerIndex(page) {
+  return page.evaluate(() => {
+    const controls = Array.from(document.querySelectorAll("a,button,input[type='button'],input[type='submit']"));
+    const label = e => String(e.innerText || e.value || e.getAttribute("aria-label") || e.title || "").replace(/\s+/g," ").trim();
+    const disabled = e => e.disabled || e.getAttribute("aria-disabled") === "true" || /\bdisabled\b/i.test(`${e.className} ${e.parentElement?.className || ""}`);
+    let index = controls.findIndex(e => /^(next|next page|›|»|>)$/i.test(label(e)) && !disabled(e));
+    if (index >= 0) return index;
+    const active = controls.findIndex(e => e.getAttribute("aria-current") === "page" || /\b(active|current|selected)\b/i.test(`${e.className} ${e.parentElement?.className || ""}`));
+    if (active >= 0) index = controls.findIndex((e, i) => i > active && /^\d+$/.test(label(e)) && !disabled(e));
+    return index >= 0 ? index : null;
+  });
+}
+
+async function searchPhilgepsByKeyword(page, keyword, existingPostIds, runId) {
+  if (runId !== currentRunId) return [];
+  await page.goto(SEARCH_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForSelector("#txtKeyword", { timeout: 30000 });
+  await page.fill("#txtKeyword", keyword);
+  await page.click("#btnSearch");
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForTimeout(1200);
+  const posts = [], sourceIds = new Set(), signatures = new Set();
+  let scanned = 0;
+  const detailPage = await page.context().newPage();
+  try {
+    for (let pageNumber = 1; pageNumber <= MAX_SEARCH_PAGES && runId === currentRunId; pageNumber++) {
+      const rows = await readSearchRows(page); scanned += rows.length;
+      const ids = rows.map(x => extractRefId(new URL(x.href || "", SEARCH_URL).toString())).filter(Boolean);
+      const signature = ids.join("|");
+      console.log(`${keyword}: page ${pageNumber} -> ${rows.length} rows`);
+      if (signatures.has(signature)) { console.warn(`${keyword}: repeated result page; stopping.`); break; }
+      signatures.add(signature);
+      let unseen = 0;
+      for (const item of rows) {
+        const fullUrl = new URL(item.href || "", SEARCH_URL).toString(), refId = extractRefId(fullUrl);
+        if (!item.href || !item.title || !refId || sourceIds.has(refId)) continue;
+        sourceIds.add(refId); unseen++;
+        if (existingPostIds.has(refId)) continue;
+        const postingDate = parsePhilgepsDate(item.postingDate), closingDate = parsePhilgepsDate(item.closingDate);
+        if (!isStillActive(closingDate)) continue;
+        let bidDetails = {referenceNumber:refId, procuringEntity:"", title:item.title, areaOfDelivery:"", deliveryPeriod:"", classification:"", budgetLabel:"ABC", abc:""};
+        try { bidDetails = await getBidDetails(detailPage, fullUrl); } catch (error) { console.error(`Detail scrape failed ${refId}:`, error.message); }
+        const cleanArea = normalizeAreaOfDelivery(bidDetails.areaOfDelivery || "");
+        const entity = normalize((bidDetails.procuringEntity || item.details || "").replace(/[^a-z0-9]+/g," "));
+        if (!isAllowedAreaOfDelivery(cleanArea) && !entity.includes(canonicalLgu(keyword))) { console.log(`Skipped ${refId}: area/entity not allowed`); continue; }
+        const id = cleanText(bidDetails.referenceNumber) || refId;
+        if (existingPostIds.has(id)) continue;
+        posts.push({id,referenceNumber:id,lgu:canonicalLgu(keyword),procuringEntity:cleanText(bidDetails.procuringEntity)||item.details,title:cleanText(bidDetails.title)||item.title,areaOfDelivery:cleanArea,deliveryPeriod:cleanText(bidDetails.deliveryPeriod),classification:cleanText(bidDetails.classification),budgetType:bidDetails.budgetLabel === "EBC" ? "EBC" : "ABC",abc:parseBudgetAmount(bidDetails.abc),postingDate,closingDate,url:`${BASE_URL}PrintableBidNoticeAbstractUI.aspx?refID=${encodeURIComponent(id)}`});
+        existingPostIds.add(refId); existingPostIds.add(id);
+      }
+      const next = await nextPagerIndex(page); if (next === null || unseen === 0) break;
+      await page.locator("a,button,input[type='button'],input[type='submit']").nth(next).click();
+      await page.waitForTimeout(800);
+    }
+  } finally { await detailPage.close().catch(() => {}); }
+  console.log(`${keyword}: ${scanned} source rows scanned, ${posts.length} new matching post(s)`);
+  return posts;
+}
 /*
 |--------------------------------------------------------------------------
 | DEVICE TOKENS
