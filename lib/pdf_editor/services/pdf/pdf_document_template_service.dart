@@ -7,123 +7,415 @@ Future<void> _insertInitaoDocumentPages(
   final data = await rootBundle.load(
     'assets/pdf/New_tab_and_pages_Initao_LGU_template.pdf',
   );
-  final template = PdfDocument(inputBytes: data.buffer.asUint8List());
+
+  final template = PdfDocument(
+    inputBytes: data.buffer.asUint8List(),
+  );
+
   PdfDocument? snapshot;
+
   try {
     if (template.pages.count != 6) {
-      throw StateError('The INITAO document template must contain six pages.');
+      throw StateError(
+        'The INITAO document template must contain six pages.',
+      );
     }
-    // All autofill and optional section replacements finish before ordering.
-    // Work from a live snapshot so removing destination pages cannot invalidate
-    // imported templates, including scanned attachments and their overlays.
-    snapshot = PdfDocument(inputBytes: await document.save());
-    final extractor = PdfTextExtractor(snapshot);
-    final text = [
+
+    // ================================================================
+    // SAVE CURRENT COMPLETE DOCUMENT
+    // ================================================================
+
+    snapshot = PdfDocument(
+      inputBytes: await document.save(),
+    );
+
+    final extractor =
+        PdfTextExtractor(snapshot);
+
+    final text = <String>[
       for (var i = 0; i < snapshot.pages.count; i++)
         extractor
-            .extractText(startPageIndex: i, endPageIndex: i)
+            .extractText(
+              startPageIndex: i,
+              endPageIndex: i,
+            )
             .replaceAll('\u0000', '')
             .replaceAll(RegExp(r'\s+'), '')
             .toUpperCase(),
     ];
+
+    // ================================================================
+    // SECTION ANCHOR HELPER
+    // ================================================================
+
     int anchor(String title) {
-      final index = text.indexWhere((value) =>
-          !value.contains('CHECKLISTOFELIGIBILITYREQUIREMENTSFORGOODS') &&
-          value.contains(title));
+      final index = text.indexWhere(
+        (value) =>
+            !value.contains(
+              'CHECKLISTOFELIGIBILITYREQUIREMENTSFORGOODS',
+            ) &&
+            !value.contains(
+              'TABLEOFCONTENTS',
+            ) &&
+            value.contains(title),
+      );
+
       if (index < 0) {
-        throw StateError('Cannot organize INITAO PDF: missing section $title.');
+        throw StateError(
+          'Cannot organize INITAO PDF: '
+          'missing section $title.',
+        );
       }
+
       return index;
     }
 
-    final ongoing = anchor('STATEMENTOFALLITSONGOING');
-    final philgeps = anchor('CERTIFICATEOFPHILGEPSREGISTRATION');
-    final nfcc = anchor('NETFINANCIALCONTRACTINGCAPACITY(NFCC)');
-    final specifications = anchor('TECHNICALSPECIFICATIONS');
-    final security = anchor('BIDSECURINGDECLARATION');
-    final schedule = anchor('SCHEDULEOFREQUIREMENTS');
-    final omnibus = anchor('OMNIBUSSWORNSTATEMENT');
-    final afterSales = anchor('SALESSERVICECERTIFICATE');
-    final bidForm = anchor('BIDFORM');
+    // ================================================================
+    // FIND ALL NORMAL SECTIONS
+    // ================================================================
 
-    // AFS consists of scanned pages without reliable text. Its replacement
-    // asset supplies its length; NFCC marks the end, even when SLCC is omitted.
-    final afsData = await rootBundle.load('assets/pdf/AFS_template.pdf');
-    final afsTemplate = PdfDocument(inputBytes: afsData.buffer.asUint8List());
-    final afs = nfcc - afsTemplate.pages.count;
-    afsTemplate.dispose();
-    final boundaries = [
-      ongoing,
-      philgeps,
-      afs,
-      nfcc,
-      specifications,
-      security,
-      schedule,
-      omnibus,
-      afterSales,
-      bidForm,
-      snapshot.pages.count
-    ];
-    for (var i = 1; i < boundaries.length; i++) {
-      if (boundaries[i] <= boundaries[i - 1]) {
-        throw StateError(
-            'Cannot organize INITAO PDF: unexpected section boundaries: $boundaries.');
-      }
+    final ongoing =
+        anchor('STATEMENTOFALLITSONGOING');
+
+    final philgeps =
+        anchor('CERTIFICATEOFPHILGEPSREGISTRATION');
+
+    final nfcc =
+        anchor('NETFINANCIALCONTRACTINGCAPACITY');
+
+    final specifications =
+        anchor('TECHNICALSPECIFICATIONS');
+
+    final security =
+        anchor('BIDSECURINGDECLARATION');
+
+    final schedule =
+        anchor('SCHEDULEOFREQUIREMENTS');
+
+    final omnibus =
+        anchor('OMNIBUSSWORNSTATEMENT');
+
+    final afterSales =
+        anchor('SALESSERVICECERTIFICATE');
+
+    final bidForm =
+        anchor('BIDFORM');
+
+    // ================================================================
+    // FIND EXACT AFS START + END
+    // ================================================================
+    //
+    // These were inserted by _replaceAfsSection().
+    //
+    // This means we no longer guess:
+    //
+    //     afs = nfcc - numberOfAfsPages
+    //
+    // Instead we know exactly where AFS begins and ends.
+    // ================================================================
+
+    final afsStart = text.indexWhere(
+      (value) =>
+          value.contains(
+        'PHILGEPS_AFS_START',
+      ),
+    );
+
+    final afsEnd = text.indexWhere(
+      (value) =>
+          value.contains(
+        'PHILGEPS_AFS_END',
+      ),
+    );
+
+    if (afsStart < 0) {
+      throw StateError(
+        'Cannot organize INITAO PDF: '
+        'AFS start marker not found.',
+      );
     }
-    List<int> range(int start, int end) => [
-          for (var i = start; i < end; i++)
-            if (!text[i].contains('CHECKLISTOFELIGIBILITYREQUIREMENTSFORGOODS'))
-              i,
-        ];
-    // Logical groups follow the INITAO checklist. Continuation pages remain
-    // attached to their section; no final page numbers are hardcoded.
-    final legalDocuments = [...range(philgeps, afs), ...range(0, ongoing)];
-    final technicalDocuments = [
-      ...range(ongoing, philgeps), // Ongoing contracts, SLCC and acceptance
-      ...range(security, schedule),
-      ...range(specifications, security),
-      ...range(schedule, omnibus), // Delivery schedule and manpower
-      ...range(afterSales, bidForm), // After-sales and warranty
-      ...range(omnibus, afterSales), // Omnibus, including its jurat
+
+    if (afsEnd < 0) {
+      throw StateError(
+        'Cannot organize INITAO PDF: '
+        'AFS end marker not found.',
+      );
+    }
+
+    if (afsEnd < afsStart) {
+      throw StateError(
+        'Cannot organize INITAO PDF: '
+        'AFS end occurs before AFS start.',
+      );
+    }
+
+    if (afsEnd >= nfcc) {
+      throw StateError(
+        'Cannot organize INITAO PDF: '
+        'AFS must finish before NFCC. '
+        'AFS=$afsStart-$afsEnd, '
+        'NFCC=$nfcc.',
+      );
+    }
+
+    // ================================================================
+    // RANGE HELPER
+    // ================================================================
+
+    List<int> range(
+      int start,
+      int end,
+    ) {
+      return [
+        for (var i = start; i < end; i++)
+          if (!text[i].contains(
+                'CHECKLISTOFELIGIBILITYREQUIREMENTSFORGOODS',
+              ) &&
+              !text[i].contains(
+                'TABLEOFCONTENTS',
+              ))
+            i,
+      ];
+    }
+
+    // ================================================================
+    // VALIDATE STRUCTURE
+    // ================================================================
+
+    if (!(ongoing < philgeps &&
+        philgeps <= afsStart &&
+        afsStart <= afsEnd &&
+        afsEnd < nfcc &&
+        nfcc < specifications &&
+        specifications < security &&
+        security < schedule &&
+        schedule < omnibus &&
+        omnibus < afterSales &&
+        afterSales < bidForm &&
+        bidForm < snapshot.pages.count)) {
+      throw StateError(
+        'Cannot organize INITAO PDF: '
+        'unexpected document section order. '
+        'ongoing=$ongoing, '
+        'philgeps=$philgeps, '
+        'afs=$afsStart-$afsEnd, '
+        'nfcc=$nfcc, '
+        'specifications=$specifications, '
+        'security=$security, '
+        'schedule=$schedule, '
+        'omnibus=$omnibus, '
+        'afterSales=$afterSales, '
+        'bidForm=$bidForm, '
+        'pages=${snapshot.pages.count}.',
+      );
+    }
+
+    // ================================================================
+    // LEGAL DOCUMENTS
+    // ================================================================
+
+    final legalDocuments = <int>[
+      ...range(
+        philgeps,
+        afsStart,
+      ),
+      ...range(
+        0,
+        ongoing,
+      ),
     ];
-    final financialDocuments = range(afs, specifications); // AFS then NFCC
-    final financialComponentDocuments = range(bidForm, snapshot.pages.count);
-    final ordered = [
+
+    // ================================================================
+    // TECHNICAL DOCUMENTS
+    // ================================================================
+
+    final technicalDocuments = <int>[
+      // Ongoing contracts, SLCC and acceptance
+      ...range(
+        ongoing,
+        philgeps,
+      ),
+
+      // Bid Security
+      ...range(
+        security,
+        schedule,
+      ),
+
+      // Technical Specifications
+      ...range(
+        specifications,
+        security,
+      ),
+
+      // Schedule Requirements / Delivery / Manpower
+      ...range(
+        schedule,
+        omnibus,
+      ),
+
+      // After-sales and Warranty
+      ...range(
+        afterSales,
+        bidForm,
+      ),
+
+      // Omnibus and jurat
+      ...range(
+        omnibus,
+        afterSales,
+      ),
+    ];
+
+    // ================================================================
+    // FINANCIAL DOCUMENTS
+    // ================================================================
+    //
+    // THIS IS THE IMPORTANT FIX.
+    //
+    // Include EVERY page between:
+    //
+    // PHILGEPS_AFS_START
+    // ...
+    // PHILGEPS_AFS_END
+    //
+    // Then include NFCC until Technical Specifications.
+    //
+    // If AFS = 15 pages -> all 15 stay together.
+    // If AFS = 90 pages -> all 90 stay together.
+    // ================================================================
+
+    final financialDocuments = <int>[
+      ...range(
+        afsStart,
+        afsEnd + 1,
+      ),
+
+      ...range(
+        afsEnd + 1,
+        specifications,
+      ),
+    ];
+
+    // ================================================================
+    // FINANCIAL COMPONENT DOCUMENTS
+    // ================================================================
+
+    final financialComponentDocuments =
+        range(
+      bidForm,
+      snapshot.pages.count,
+    );
+
+    // ================================================================
+    // VERIFY THAT EVERY ORIGINAL PAGE IS USED EXACTLY ONCE
+    // ================================================================
+
+    final ordered = <int>[
       ...legalDocuments,
       ...technicalDocuments,
       ...financialDocuments,
-      ...financialComponentDocuments
+      ...financialComponentDocuments,
     ];
-    final expected = range(0, snapshot.pages.count);
+
+    final expected = range(
+      0,
+      snapshot.pages.count,
+    );
+
+    final orderedSet =
+        ordered.toSet();
+
+    final expectedSet =
+        expected.toSet();
+
     if (ordered.length != expected.length ||
-        ordered.toSet().length != expected.length ||
-        !ordered.toSet().containsAll(expected)) {
+        orderedSet.length != expected.length ||
+        !orderedSet.containsAll(expectedSet)) {
       throw StateError(
-          'Cannot organize INITAO PDF: duplicate or missing pages.');
+        'Cannot organize INITAO PDF: '
+        'duplicate or missing pages. '
+        'ordered=${ordered.length}, '
+        'unique=${orderedSet.length}, '
+        'expected=${expected.length}.',
+      );
     }
 
-    _drawInitaoContentsFields(template.pages[0], values);
+    // ================================================================
+    // AUTOFILL INITAO CONTENTS PAGE
+    // ================================================================
+
+    _drawInitaoContentsFields(
+      template.pages[0],
+      values,
+    );
+
+    // ================================================================
+    // FINAL PAGE ORDER
+    // ================================================================
+
     final finalPages = <PdfPage>[
-      template.pages[4], template.pages[5], // Existing introduction
-      template.pages[0], // Checklist immediately before Legal
+      // Existing INITAO intro
+      template.pages[4],
+      template.pages[5],
+
+      // Main checklist
+      template.pages[0],
+
+      // Legal header
       template.pages[1],
-      for (final i in legalDocuments) snapshot.pages[i],
+
+      for (final i in legalDocuments)
+        snapshot.pages[i],
+
+      // Technical header
       template.pages[2],
-      for (final i in technicalDocuments) snapshot.pages[i],
+
+      for (final i in technicalDocuments)
+        snapshot.pages[i],
+
+      // Financial header
       template.pages[3],
-      for (final i in financialDocuments) snapshot.pages[i],
-      for (final i in financialComponentDocuments) snapshot.pages[i],
+
+      // COMPLETE AFS + NFCC
+      for (final i in financialDocuments)
+        snapshot.pages[i],
+
+      // Bid Form / Price / Summary / other final docs
+      for (final i in financialComponentDocuments)
+        snapshot.pages[i],
     ];
-    for (var i = document.pages.count - 1; i >= 0; i--) {
+
+    // ================================================================
+    // REMOVE OLD DOCUMENT
+    // ================================================================
+
+    for (var i = document.pages.count - 1;
+        i >= 0;
+        i--) {
       document.pages.removeAt(i);
     }
+
+    // ================================================================
+    // BUILD FINAL DOCUMENT
+    // ================================================================
+
     for (final source in finalPages) {
-      final target = document.pages
-          .insert(document.pages.count, source.size, PdfMargins()..all = 0);
-      target.graphics
-          .drawPdfTemplate(source.createTemplate(), Offset.zero, source.size);
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      final target = document.pages.insert(
+        document.pages.count,
+        source.size,
+        PdfMargins()..all = 0,
+      );
+
+      target.graphics.drawPdfTemplate(
+        source.createTemplate(),
+        Offset.zero,
+        source.size,
+      );
+
+      await Future<void>.delayed(
+        const Duration(milliseconds: 1),
+      );
     }
   } finally {
     snapshot?.dispose();
@@ -131,36 +423,126 @@ Future<void> _insertInitaoDocumentPages(
   }
 }
 
-void _drawInitaoContentsFields(PdfPage page, Map<String, String> values) {
+void _drawInitaoContentsFields(
+  PdfPage page,
+  Map<String, String> values,
+) {
   final graphics = page.graphics;
-  final white = PdfSolidBrush(PdfColor(255, 255, 255));
-  final black = PdfSolidBrush(PdfColor(0, 0, 0));
-  final regular = PdfStandardFont(PdfFontFamily.timesRoman, 12);
-  final bold =
-      PdfStandardFont(PdfFontFamily.timesRoman, 12, style: PdfFontStyle.bold);
-  // Only cover variable header areas. Labels, colons, Republic heading,
-  // table rules, and the entire contents listing remain in the source PDF.
+
+  final white = PdfSolidBrush(
+    PdfColor(
+      255,
+      255,
+      255,
+    ),
+  );
+
+  final black = PdfSolidBrush(
+    PdfColor(
+      0,
+      0,
+      0,
+    ),
+  );
+
+  final regular = PdfStandardFont(
+    PdfFontFamily.timesRoman,
+    12,
+  );
+
+  final bold = PdfStandardFont(
+    PdfFontFamily.timesRoman,
+    12,
+    style: PdfFontStyle.bold,
+  );
+
+  // Only cover variable header areas.
   graphics.drawRectangle(
-      brush: white, bounds: const Rect.fromLTWH(150, 51, 295, 29));
+    brush: white,
+    bounds: const Rect.fromLTWH(
+      150,
+      51,
+      295,
+      29,
+    ),
+  );
+
   graphics.drawRectangle(
-      brush: white, bounds: const Rect.fromLTWH(178, 107, 385, 58));
-  final center = PdfStringFormat(alignment: PdfTextAlignment.center);
+    brush: white,
+    bounds: const Rect.fromLTWH(
+      178,
+      107,
+      385,
+      58,
+    ),
+  );
+
+  final center = PdfStringFormat(
+    alignment: PdfTextAlignment.center,
+  );
+
   graphics.drawString(
-      'Province Of ' + (values['province'] ?? '').trim(), regular,
-      brush: black,
-      bounds: const Rect.fromLTWH(150, 52.6, 295, 14),
-      format: center);
+    'Province Of ${(values['province'] ?? '').trim()}',
+    regular,
+    brush: black,
+    bounds: const Rect.fromLTWH(
+      150,
+      52.6,
+      295,
+      14,
+    ),
+    format: center,
+  );
+
   graphics.drawString(
-      'Municipality of ' + (values['municipality'] ?? '').trim(), regular,
-      brush: black,
-      bounds: const Rect.fromLTWH(150, 66.1, 295, 14),
-      format: center);
-  graphics.drawString((values['projectTitle'] ?? '').trim(), bold,
-      brush: black,
-      bounds: const Rect.fromLTWH(180.2, 108.9, 379, 27.7),
-      format: PdfStringFormat(wordWrap: PdfWordWrapType.word));
-  graphics.drawString((values['date'] ?? '').trim(), bold,
-      brush: black, bounds: const Rect.fromLTWH(180.2, 136.6, 379, 14));
-  graphics.drawString((values['bidderName'] ?? '').trim(), bold,
-      brush: black, bounds: const Rect.fromLTWH(180.2, 150.9, 379, 14));
+    'Municipality of ${(values['municipality'] ?? '').trim()}',
+    regular,
+    brush: black,
+    bounds: const Rect.fromLTWH(
+      150,
+      66.1,
+      295,
+      14,
+    ),
+    format: center,
+  );
+
+  graphics.drawString(
+    (values['projectTitle'] ?? '').trim(),
+    bold,
+    brush: black,
+    bounds: const Rect.fromLTWH(
+      180.2,
+      108.9,
+      379,
+      27.7,
+    ),
+    format: PdfStringFormat(
+      wordWrap: PdfWordWrapType.word,
+    ),
+  );
+
+  graphics.drawString(
+    (values['date'] ?? '').trim(),
+    bold,
+    brush: black,
+    bounds: const Rect.fromLTWH(
+      180.2,
+      136.6,
+      379,
+      14,
+    ),
+  );
+
+  graphics.drawString(
+    (values['bidderName'] ?? '').trim(),
+    bold,
+    brush: black,
+    bounds: const Rect.fromLTWH(
+      180.2,
+      150.9,
+      379,
+      14,
+    ),
+  );
 }
