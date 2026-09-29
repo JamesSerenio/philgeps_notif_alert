@@ -2,7 +2,7 @@ part of '../../screens/pdf_editor_screen.dart';
 
 extension _TechnicalSpecsSection on _PdfEditorScreenState {
   // ================================================================
-  // SUPPORTED MARKERS
+  // MARKERS
   // ================================================================
 
   static const List<(String, String)> _specificationMarkers = [
@@ -17,36 +17,44 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
   static final RegExp _markerRegex =
       RegExp(r'^(?:•|○|■|➢|✓)\s*');
 
+  // IMPORTANT:
+  // Store the currently selected marker PER specification item.
+  static final Map<int, String> _activeMarkerByEntry = {};
+
+  // Needed because controller.text is already updated when onChanged fires.
+  static final Map<int, String> _previousTextByEntry = {};
+
+  int _entryKey(dynamic entry) => identityHashCode(entry);
+
   // ================================================================
-  // NORMALIZE OLD / SAVED TEXT
+  // NORMALIZE
   // ================================================================
 
-  String _normalizeTechnicalSpecText(String text) {
+  String _normalizeSpecText(String text) {
     final separator =
         _PdfEditorScreenState.specificationLineSeparator;
 
-    var normalized = text
+    var result = text
         .replaceAll('\r\n', '\n')
         .replaceAll('\r', '\n')
         .replaceAll('\u2029', '\n');
 
-    // Compatibility with old custom separator.
     if (separator.isNotEmpty && separator != '\n') {
-      normalized = normalized.replaceAll(
+      result = result.replaceAll(
         separator,
         '\n',
       );
     }
 
-    return normalized;
+    return result;
   }
 
   // ================================================================
-  // GET MARKER FROM A LINE
+  // FIND MARKER
   // ================================================================
 
-  String _getLineMarker(String line) {
-    final trimmed = line.trimLeft();
+  String _markerFromLine(String line) {
+    final value = line.trimLeft();
 
     for (final option in _specificationMarkers) {
       final marker = option.$1;
@@ -55,7 +63,7 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
         continue;
       }
 
-      if (trimmed.startsWith(marker)) {
+      if (value.startsWith(marker)) {
         return marker;
       }
     }
@@ -63,21 +71,56 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
     return '';
   }
 
-  // ================================================================
-  // REMOVE MARKER FROM LINE
-  // ================================================================
-
-  String _removeLineMarker(String line) {
+  String _removeMarker(String line) {
     return line
         .replaceFirst(_markerRegex, '')
         .trimLeft();
   }
 
   // ================================================================
-  // SET TEXT + CURSOR
+  // ACTIVE MARKER
   // ================================================================
 
-  void _setTechnicalSpecificationText(
+  String _activeMarker(dynamic entry) {
+    final key = _entryKey(entry);
+
+    if (_activeMarkerByEntry.containsKey(key)) {
+      return _activeMarkerByEntry[key]!;
+    }
+
+    // If old saved data already has a marker,
+    // infer the initial active marker from the last non-empty line.
+    final text = _normalizeSpecText(
+      entry.specification.text,
+    );
+
+    final lines = text.split('\n');
+
+    for (var i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim().isNotEmpty) {
+        final marker = _markerFromLine(lines[i]);
+
+        _activeMarkerByEntry[key] = marker;
+        return marker;
+      }
+    }
+
+    _activeMarkerByEntry[key] = '';
+    return '';
+  }
+
+  void _setActiveMarker(
+    dynamic entry,
+    String marker,
+  ) {
+    _activeMarkerByEntry[_entryKey(entry)] = marker;
+  }
+
+  // ================================================================
+  // SET CONTROLLER TEXT
+  // ================================================================
+
+  void _setSpecText(
     dynamic entry,
     String text, {
     int? cursorOffset,
@@ -99,205 +142,187 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
       ),
     );
 
+    // Very important for Enter detection.
+    _previousTextByEntry[_entryKey(entry)] = text;
+
     if (mounted) {
       setState(() {});
     }
   }
 
   // ================================================================
-  // FIND CURRENT LINE BASED ON CURSOR
+  // CURRENT LINE
   // ================================================================
 
-  int _getCurrentSpecificationLineIndex(
+  int _lineIndexFromCursor(
     String text,
-    int cursorOffset,
+    int cursor,
   ) {
     if (text.isEmpty) {
       return 0;
     }
 
-    final safeOffset =
-        cursorOffset.clamp(0, text.length);
-
-    final beforeCursor = text.substring(
+    final safeCursor = cursor.clamp(
       0,
-      safeOffset,
+      text.length,
     );
 
-    return '\n'.allMatches(beforeCursor).length;
+    return '\n'
+        .allMatches(
+          text.substring(0, safeCursor),
+        )
+        .length;
   }
 
   // ================================================================
-  // ENTER HANDLER
-  //
-  // Main behavior:
-  //
-  // ✓ Line 1
-  // press ENTER
-  //
-  // becomes:
-  //
-  // ✓ Line 1
-  // ✓
-  //
-  // If previous line uses NONE:
-  //
-  // Line 1
-  // press ENTER
-  //
-  // becomes:
-  //
-  // Line 1
-  //
+  // ENTER -> AUTO ADD LINE + AUTO ACTIVE MARKER
   // ================================================================
 
-  void _handleTechnicalSpecificationChanged(
+  void _handleSpecificationChanged(
     dynamic entry,
-    String newValue,
+    String rawValue,
   ) {
-    final oldValue =
-        _normalizeTechnicalSpecText(
-      entry.specification.text,
+    final key = _entryKey(entry);
+
+    final newText = _normalizeSpecText(
+      rawValue,
     );
 
-    var value =
-        _normalizeTechnicalSpecText(newValue);
-
-    // Detect a newly inserted ENTER/newline.
-    final oldNewLineCount =
-        '\n'.allMatches(oldValue).length;
-
-    final newNewLineCount =
-        '\n'.allMatches(value).length;
-
-    if (newNewLineCount > oldNewLineCount) {
-      final selection =
-          entry.specification.selection;
-
-      var cursor = selection.isValid
-          ? selection.baseOffset
-          : value.length;
-
-      cursor = cursor.clamp(
-        0,
-        value.length,
-      );
-
-      // Find the newline that was just inserted.
-      var newLinePosition = cursor - 1;
-
-      if (newLinePosition >= 0 &&
-          newLinePosition < value.length &&
-          value[newLinePosition] == '\n') {
-        // Cursor is directly after Enter.
-      } else {
-        // Search backward for nearest newline.
-        newLinePosition =
-            value.lastIndexOf(
-          '\n',
-          cursor > 0 ? cursor - 1 : 0,
-        );
-      }
-
-      if (newLinePosition >= 0) {
-        final beforeNewLine = value.substring(
-          0,
-          newLinePosition,
-        );
-
-        final previousLineStart =
-            beforeNewLine.lastIndexOf('\n') + 1;
-
-        final previousLine =
-            beforeNewLine.substring(
-          previousLineStart,
-        );
-
-        // Inherit marker from previous line.
-        final inheritedMarker =
-            _getLineMarker(previousLine);
-
-        if (inheritedMarker.isNotEmpty) {
-          // Check that marker wasn't already inserted.
-          final afterNewLineStart =
-              newLinePosition + 1;
-
-          final afterNewLine =
-              value.substring(
-            afterNewLineStart,
-          );
-
-          final alreadyHasMarker =
-              _getLineMarker(afterNewLine)
-                  .isNotEmpty;
-
-          if (!alreadyHasMarker) {
-            value = value.replaceRange(
-              afterNewLineStart,
-              afterNewLineStart,
-              '$inheritedMarker ',
+    final previousText =
+        _previousTextByEntry[key] ??
+            _normalizeSpecText(
+              entry.specification.text,
             );
 
-            cursor +=
-                inheritedMarker.length + 1;
-          }
-        }
+    final previousNewlines =
+        '\n'.allMatches(previousText).length;
+
+    final newNewlines =
+        '\n'.allMatches(newText).length;
+
+    // Save current text for next onChanged.
+    _previousTextByEntry[key] = newText;
+
+    // No ENTER was inserted.
+    if (newNewlines <= previousNewlines) {
+      if (mounted) {
+        setState(() {});
       }
-    }
-
-    _setTechnicalSpecificationText(
-      entry,
-      value,
-      cursorOffset: entry
-              .specification
-              .selection
-              .isValid
-          ? entry.specification.selection.baseOffset
-              .clamp(0, value.length)
-          : value.length,
-    );
-  }
-
-  // ================================================================
-  // MANUAL + ADD LINE
-  //
-  // Same behavior as pressing ENTER.
-  // ================================================================
-
-  void _addTechnicalSpecificationLineFixed(
-    dynamic entry,
-  ) {
-    final current =
-        _normalizeTechnicalSpecText(
-      entry.specification.text,
-    );
-
-    // Empty first line.
-    if (current.isEmpty) {
       return;
     }
 
-    final lines = current.split('\n');
+    final marker = _activeMarker(entry);
 
-    final previousLine =
-        lines.isEmpty ? '' : lines.last;
-
-    final inheritedMarker =
-        _getLineMarker(previousLine);
-
-    String nextLine;
-
-    if (inheritedMarker.isEmpty) {
-      // NONE
-      nextLine = '';
-    } else {
-      nextLine = '$inheritedMarker ';
+    // NONE = normal newline only.
+    if (marker.isEmpty) {
+      if (mounted) {
+        setState(() {});
+      }
+      return;
     }
 
-    final updated =
-        '$current\n$nextLine';
+    final selection =
+        entry.specification.selection;
 
-    _setTechnicalSpecificationText(
+    var cursor = selection.isValid
+        ? selection.baseOffset
+        : newText.length;
+
+    cursor = cursor.clamp(
+      0,
+      newText.length,
+    );
+
+    // Cursor is normally immediately AFTER the newline.
+    final currentLineIndex =
+        _lineIndexFromCursor(
+      newText,
+      cursor,
+    );
+
+    final lines = newText.split('\n');
+
+    if (currentLineIndex >= lines.length) {
+      return;
+    }
+
+    // If new line does not already have a marker,
+    // automatically put the currently ACTIVE marker.
+    if (_markerFromLine(
+          lines[currentLineIndex],
+        ).isEmpty &&
+        lines[currentLineIndex].trim().isEmpty) {
+      lines[currentLineIndex] = '$marker ';
+
+      final updated = lines.join('\n');
+
+      // Calculate cursor position at end of marker.
+      var newCursor = 0;
+
+      for (
+        var i = 0;
+        i <= currentLineIndex;
+        i++
+      ) {
+        newCursor += lines[i].length;
+
+        if (i < currentLineIndex) {
+          newCursor++;
+        }
+      }
+
+      _setSpecText(
+        entry,
+        updated,
+        cursorOffset: newCursor,
+      );
+
+      return;
+    }
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  // ================================================================
+  // + ADD LINE
+  // ================================================================
+
+  void _addLineFixed(dynamic entry) {
+    final current = _normalizeSpecText(
+      entry.specification.text,
+    );
+
+    final marker = _activeMarker(entry);
+
+    String updated;
+
+    if (current.isEmpty) {
+      updated = marker.isEmpty
+          ? ''
+          : '$marker ';
+    } else if (current.endsWith('\n')) {
+      // Don't create double blank line.
+      updated = current;
+
+      if (marker.isNotEmpty) {
+        final lines = updated.split('\n');
+
+        if (lines.last.isEmpty) {
+          lines[lines.length - 1] =
+              '$marker ';
+
+          updated = lines.join('\n');
+        }
+      }
+    } else {
+      updated = marker.isEmpty
+          ? '$current\n'
+          : '$current\n$marker ';
+    }
+
+    _setSpecText(
       entry,
       updated,
       cursorOffset: updated.length,
@@ -305,15 +330,21 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
   }
 
   // ================================================================
-  // APPLY MARKER TO CURRENT LINE
+  // APPLY MARKER BUTTON
   // ================================================================
 
-  void _applyTechnicalSpecificationMarker(
+  void _applyMarkerFixed(
     dynamic entry,
     String marker,
   ) {
-    final current =
-        _normalizeTechnicalSpecText(
+    // THIS makes it the active/default marker
+    // for all following Enter / Add Line actions.
+    _setActiveMarker(
+      entry,
+      marker,
+    );
+
+    final current = _normalizeSpecText(
       entry.specification.text,
     );
 
@@ -330,8 +361,7 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
         ? selection.baseOffset
         : current.length;
 
-    var lineIndex =
-        _getCurrentSpecificationLineIndex(
+    var lineIndex = _lineIndexFromCursor(
       current,
       cursor,
     );
@@ -345,7 +375,7 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
     }
 
     final cleanText =
-        _removeLineMarker(
+        _removeMarker(
       lines[lineIndex],
     );
 
@@ -353,18 +383,21 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
       // NONE
       lines[lineIndex] = cleanText;
     } else {
-      // Actual marker.
-      lines[lineIndex] = cleanText.isEmpty
-          ? '$marker '
-          : '$marker $cleanText';
+      lines[lineIndex] =
+          cleanText.isEmpty
+              ? '$marker '
+              : '$marker $cleanText';
     }
 
     final updated = lines.join('\n');
 
-    // Put cursor at end of current edited line.
     var newCursor = 0;
 
-    for (var i = 0; i <= lineIndex; i++) {
+    for (
+      var i = 0;
+      i <= lineIndex;
+      i++
+    ) {
       newCursor += lines[i].length;
 
       if (i < lineIndex) {
@@ -372,7 +405,7 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
       }
     }
 
-    _setTechnicalSpecificationText(
+    _setSpecText(
       entry,
       updated,
       cursorOffset: newCursor,
@@ -380,15 +413,15 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
   }
 
   // ================================================================
-  // REMOVE ONE LOGICAL LINE
+  // DELETE LINE
   // ================================================================
 
-  void _removeTechnicalSpecificationLineFixed(
+  void _removeLineFixed(
     dynamic entry,
     int lineIndex,
   ) {
     final current =
-        _normalizeTechnicalSpecText(
+        _normalizeSpecText(
       entry.specification.text,
     );
 
@@ -401,14 +434,13 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
 
     lines.removeAt(lineIndex);
 
-    // Always retain at least one editable line.
     if (lines.isEmpty) {
       lines.add('');
     }
 
     final updated = lines.join('\n');
 
-    _setTechnicalSpecificationText(
+    _setSpecText(
       entry,
       updated,
       cursorOffset: updated.length,
@@ -416,54 +448,81 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
   }
 
   // ================================================================
-  // MARKER BUTTON
+  // MARKER BUTTON UI
   // ================================================================
 
-  Widget _technicalSpecMarkerButton({
+  Widget _markerButton({
     required dynamic entry,
     required String marker,
     required String label,
   }) {
-    final isCheck = marker == '✓';
+    final active =
+        _activeMarker(entry);
+
+    final selected =
+        active == marker;
+
+    final isCheck =
+        marker == '✓';
 
     return OutlinedButton(
       onPressed: () {
-        _applyTechnicalSpecificationMarker(
+        _applyMarkerFixed(
           entry,
           marker,
         );
       },
+
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(38, 32),
-        padding: const EdgeInsets.symmetric(
+        minimumSize:
+            const Size(38, 32),
+
+        padding:
+            const EdgeInsets.symmetric(
           horizontal: 9,
         ),
+
         foregroundColor:
             const Color(0xFF0B5D3B),
+
+        backgroundColor: selected
+            ? const Color(0xFFE2F2E8)
+            : Colors.transparent,
+
+        side: BorderSide(
+          color: selected
+              ? const Color(
+                  0xFF0B5D3B,
+                )
+              : const Color(
+                  0xFF8CA99A,
+                ),
+        ),
+
         visualDensity:
             VisualDensity.compact,
       ),
 
-      // For ✓ use Flutter Icon visually,
-      // while stored text remains actual "✓".
       child: isCheck
           ? const Icon(
               Icons.check,
               size: 18,
-              color: Color(0xFF0B5D3B),
+              color:
+                  Color(0xFF0B5D3B),
             )
           : Text(
               label,
               style: const TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w600,
+                fontWeight:
+                    FontWeight.w600,
               ),
             ),
     );
   }
 
   // ================================================================
-  // MAIN TECHNICAL SPECIFICATIONS SECTION
+  // MAIN UI
   // ================================================================
 
   Widget technicalSpecificationsFields() {
@@ -495,569 +554,603 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
               technicalSpecifications.length;
           index++
         )
-          Card(
-            elevation: 0,
+          Builder(
+            builder: (context) {
+              final entry =
+                  technicalSpecifications[
+                      index];
 
-            color:
-                const Color(0xFFF7FAF8),
+              // Initialize previous-text tracker
+              // BEFORE user starts typing.
+              final key =
+                  _entryKey(entry);
 
-            shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(12),
-              side: const BorderSide(
-                color: Color(0xFFDCE5DF),
-              ),
-            ),
+              _previousTextByEntry
+                  .putIfAbsent(
+                key,
+                () => _normalizeSpecText(
+                  entry.specification.text,
+                ),
+              );
 
-            margin:
-                const EdgeInsets.only(
-              bottom: 12,
-            ),
+              _activeMarker(entry);
 
-            child: Padding(
-              padding:
-                  const EdgeInsets.all(12),
+              return Card(
+                elevation: 0,
 
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.stretch,
+                color:
+                    const Color(
+                  0xFFF7FAF8,
+                ),
 
-                children: [
-                  // ==================================================
-                  // ITEM HEADER
-                  // ==================================================
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons
-                                  .inventory_2_outlined,
-                              size: 17,
-                              color: Color(
-                                0xFF0B5D3B,
-                              ),
-                            ),
-
-                            const SizedBox(
-                              width: 7,
-                            ),
-
-                            Text(
-                              'Item ${index + 1}',
-                              style:
-                                  const TextStyle(
-                                fontWeight:
-                                    FontWeight.bold,
-                                color: Color(
-                                  0xFF234B38,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      IconButton(
-                        tooltip:
-                            'Remove specification',
-
-                        visualDensity:
-                            VisualDensity.compact,
-
-                        onPressed: () {
-                          _removeTechnicalSpecification(
-                            index,
-                          );
-                        },
-
-                        icon: const Icon(
-                          Icons.delete_outline,
-                        ),
-                      ),
-                    ],
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
                   ),
 
-                  // ==================================================
-                  // SPECIFICATION INPUT
-                  //
-                  // ENTER automatically inherits active marker.
-                  // ==================================================
-
-                  TextField(
-                    controller:
-                        technicalSpecifications[
-                                index]
-                            .specification,
-
-                    keyboardType:
-                        TextInputType.multiline,
-
-                    textInputAction:
-                        TextInputAction.newline,
-
-                    minLines: 4,
-                    maxLines: 8,
-
-                    onChanged: (value) {
-                      _handleTechnicalSpecificationChanged(
-                        technicalSpecifications[
-                            index],
-                        value,
-                      );
-                    },
-
-                    decoration:
-                        InputDecoration(
-                      labelText:
-                          'Specification',
-
-                      alignLabelWithHint:
-                          true,
-
-                      filled: true,
-
-                      fillColor:
-                          Colors.white,
-
-                      contentPadding:
-                          const EdgeInsets
-                              .symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-
-                      border:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          10,
-                        ),
-                        borderSide:
-                            const BorderSide(
-                          color: Color(
-                            0xFFDCE5DF,
-                          ),
-                        ),
-                      ),
-
-                      enabledBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          10,
-                        ),
-                        borderSide:
-                            const BorderSide(
-                          color: Color(
-                            0xFFDCE5DF,
-                          ),
-                        ),
-                      ),
-
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          10,
-                        ),
-                        borderSide:
-                            const BorderSide(
-                          color: Color(
-                            0xFF0B5D3B,
-                          ),
-                          width: 1.4,
-                        ),
-                      ),
+                  side:
+                      const BorderSide(
+                    color:
+                        Color(
+                      0xFFDCE5DF,
                     ),
                   ),
+                ),
 
-                  // ==================================================
-                  // + ADD LINE
-                  // ==================================================
+                margin:
+                    const EdgeInsets.only(
+                  bottom: 12,
+                ),
 
-                  Align(
-                    alignment:
-                        Alignment.centerLeft,
-
-                    child: TextButton.icon(
-                      onPressed: () {
-                        _addTechnicalSpecificationLineFixed(
-                          technicalSpecifications[
-                              index],
-                        );
-                      },
-
-                      icon: const Icon(
-                        Icons.add,
-                        size: 18,
-                      ),
-
-                      label:
-                          const Text(
-                        'Add line',
-                      ),
-
-                      style:
-                          TextButton.styleFrom(
-                        foregroundColor:
-                            const Color(
-                          0xFF0B5D3B,
-                        ),
-
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 4,
-                        ),
-                      ),
-                    ),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.all(
+                    12,
                   ),
 
-                  // ==================================================
-                  // LINE PREVIEW
-                  //
-                  // IMPORTANT:
-                  // blank newly-created lines are also displayed.
-                  // ==================================================
-
-                  Builder(
-                    builder: (context) {
-                      final entry =
-                          technicalSpecifications[
-                              index];
-
-                      final text =
-                          _normalizeTechnicalSpecText(
-                        entry.specification.text,
-                      );
-
-                      final lines =
-                          text.split('\n');
-
-                      // Show preview once user has entered
-                      // something OR created a second line.
-                      final shouldShow =
-                          text.isNotEmpty ||
-                              lines.length > 1;
-
-                      if (!shouldShow) {
-                        return const SizedBox
-                            .shrink();
-                      }
-
-                      return Container(
-                        margin:
-                            const EdgeInsets
-                                .only(
-                          bottom: 8,
-                        ),
-
-                        padding:
-                            const EdgeInsets
-                                .all(8),
-
-                        decoration:
-                            BoxDecoration(
-                          color: Colors.white,
-
-                          borderRadius:
-                              BorderRadius
-                                  .circular(8),
-
-                          border:
-                              Border.all(
-                            color:
-                                const Color(
-                              0xFFDCE5DF,
-                            ),
-                          ),
-                        ),
-
-                        child: Column(
-                          children: [
-                            for (
-                              var lineIndex =
-                                  0;
-                              lineIndex <
-                                  lines.length;
-                              lineIndex++
-                            )
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      'Line ${lineIndex + 1}: ${lines[lineIndex]}',
-                                      style:
-                                          const TextStyle(
-                                        fontSize:
-                                            12,
-                                      ),
-                                    ),
-                                  ),
-
-                                  IconButton(
-                                    tooltip:
-                                        'Delete this line',
-
-                                    visualDensity:
-                                        VisualDensity
-                                            .compact,
-
-                                    icon:
-                                        const Icon(
-                                      Icons.close,
-                                      size: 18,
-                                      color: Colors
-                                          .redAccent,
-                                    ),
-
-                                    onPressed:
-                                        () {
-                                      _removeTechnicalSpecificationLineFixed(
-                                        entry,
-                                        lineIndex,
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-
-                  // ==================================================
-                  // MARKER BUTTONS
-                  //
-                  // None
-                  // •
-                  // ○
-                  // ■
-                  // ➢
-                  // ✓
-                  // ==================================================
-
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .stretch,
 
                     children: [
-                      for (
-                        final option
-                            in _specificationMarkers
-                      )
-                        _technicalSpecMarkerButton(
-                          entry:
-                              technicalSpecifications[
-                                  index],
+                      // ==============================================
+                      // ITEM HEADER
+                      // ==============================================
 
-                          marker:
-                              option.$1,
-
-                          label:
-                              option.$2,
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // ==================================================
-                  // QTY + UNIT
-                  // ==================================================
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: formField(
-                          label: 'Qty',
-
-                          controller:
-                              technicalSpecifications[
-                                      index]
-                                  .quantity,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        width: 8,
-                      ),
-
-                      Expanded(
-                        child: unitField(
-                          technicalSpecifications[
-                              index],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // ==================================================
-                  // PARAMETER
-                  // ==================================================
-
-                  if (technicalSpecifications[
-                          index]
-                      .hasParameter) ...[
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
-
-                      children: [
-                        Expanded(
-                          child: formField(
-                            label:
-                                'Parameter',
-
-                            controller:
-                                technicalSpecifications[
-                                        index]
-                                    .parameter,
-
-                            maxLines: 2,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          width: 4,
-                        ),
-
-                        IconButton(
-                          tooltip:
-                              'Remove parameter',
-
-                          visualDensity:
-                              VisualDensity
-                                  .compact,
-
-                          onPressed: () {
-                            _removeTechnicalSpecificationParameter(
-                              index,
-                            );
-                          },
-
-                          icon: const Icon(
-                            Icons.close,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else
-                    Align(
-                      alignment:
-                          Alignment.centerLeft,
-
-                      child:
-                          TextButton.icon(
-                        onPressed: () {
-                          _addTechnicalSpecificationParameter(
-                            index,
-                          );
-                        },
-
-                        icon: const Icon(
-                          Icons.add,
-                          size: 18,
-                        ),
-
-                        label:
-                            const Text(
-                          'Add parameter',
-                        ),
-
-                        style:
-                            TextButton
-                                .styleFrom(
-                          foregroundColor:
-                              const Color(
-                            0xFF0B5D3B,
-                          ),
-
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal:
-                                4,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  const SizedBox(height: 4),
-
-                  // ==================================================
-                  // COMPLY
-                  // ==================================================
-
-                  Align(
-                    alignment:
-                        Alignment.centerLeft,
-
-                    child: Container(
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            const Color(
-                          0xFFE2F2E8,
-                        ),
-
-                        borderRadius:
-                            BorderRadius
-                                .circular(20),
-                      ),
-
-                      child: const Row(
-                        mainAxisSize:
-                            MainAxisSize.min,
-
+                      Row(
                         children: [
-                          Icon(
-                            Icons.check,
-                            size: 15,
-                            color: Color(
-                              0xFF0B5D3B,
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons
+                                      .inventory_2_outlined,
+                                  size: 17,
+                                  color:
+                                      Color(
+                                    0xFF0B5D3B,
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  width: 7,
+                                ),
+
+                                Text(
+                                  'Item ${index + 1}',
+                                  style:
+                                      const TextStyle(
+                                    fontWeight:
+                                        FontWeight
+                                            .bold,
+
+                                    color:
+                                        Color(
+                                      0xFF234B38,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
 
-                          SizedBox(
-                            width: 5,
-                          ),
+                          IconButton(
+                            tooltip:
+                                'Remove specification',
 
-                          Text(
-                            'COMPLY',
-                            style:
-                                TextStyle(
-                              color: Color(
-                                0xFF0B5D3B,
-                              ),
-                              fontSize:
-                                  11.5,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
+                            onPressed: () {
+                              _activeMarkerByEntry
+                                  .remove(
+                                key,
+                              );
+
+                              _previousTextByEntry
+                                  .remove(
+                                key,
+                              );
+
+                              _removeTechnicalSpecification(
+                                index,
+                              );
+                            },
+
+                            icon:
+                                const Icon(
+                              Icons
+                                  .delete_outline,
                             ),
                           ),
                         ],
                       ),
-                    ),
+
+                      // ==============================================
+                      // SPECIFICATION
+                      // ==============================================
+
+                      TextField(
+                        controller:
+                            entry
+                                .specification,
+
+                        keyboardType:
+                            TextInputType
+                                .multiline,
+
+                        textInputAction:
+                            TextInputAction
+                                .newline,
+
+                        minLines: 4,
+                        maxLines: 8,
+
+                        onChanged:
+                            (value) {
+                          _handleSpecificationChanged(
+                            entry,
+                            value,
+                          );
+                        },
+
+                        decoration:
+                            InputDecoration(
+                          labelText:
+                              'Specification',
+
+                          alignLabelWithHint:
+                              true,
+
+                          filled: true,
+
+                          fillColor:
+                              Colors.white,
+
+                          contentPadding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal:
+                                12,
+                            vertical: 12,
+                          ),
+
+                          enabledBorder:
+                              OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              10,
+                            ),
+
+                            borderSide:
+                                const BorderSide(
+                              color:
+                                  Color(
+                                0xFFDCE5DF,
+                              ),
+                            ),
+                          ),
+
+                          focusedBorder:
+                              OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              10,
+                            ),
+
+                            borderSide:
+                                const BorderSide(
+                              color:
+                                  Color(
+                                0xFF0B5D3B,
+                              ),
+                              width: 1.4,
+                            ),
+                          ),
+
+                          border:
+                              OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              10,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // ==============================================
+                      // ADD LINE
+                      // ==============================================
+
+                      Align(
+                        alignment:
+                            Alignment
+                                .centerLeft,
+
+                        child:
+                            TextButton.icon(
+                          onPressed: () {
+                            _addLineFixed(
+                              entry,
+                            );
+                          },
+
+                          icon:
+                              const Icon(
+                            Icons.add,
+                            size: 18,
+                          ),
+
+                          label:
+                              const Text(
+                            'Add line',
+                          ),
+
+                          style:
+                              TextButton
+                                  .styleFrom(
+                            foregroundColor:
+                                const Color(
+                              0xFF0B5D3B,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // ==============================================
+                      // LINE LIST
+                      // ==============================================
+
+                      Builder(
+                        builder:
+                            (context) {
+                          final text =
+                              _normalizeSpecText(
+                            entry
+                                .specification
+                                .text,
+                          );
+
+                          final lines =
+                              text.split(
+                            '\n',
+                          );
+
+                          if (text.isEmpty &&
+                              lines.length ==
+                                  1) {
+                            return const SizedBox
+                                .shrink();
+                          }
+
+                          return Container(
+                            margin:
+                                const EdgeInsets
+                                    .only(
+                              bottom: 8,
+                            ),
+
+                            padding:
+                                const EdgeInsets
+                                    .all(8),
+
+                            decoration:
+                                BoxDecoration(
+                              color:
+                                  Colors.white,
+
+                              borderRadius:
+                                  BorderRadius
+                                      .circular(
+                                8,
+                              ),
+
+                              border:
+                                  Border.all(
+                                color:
+                                    const Color(
+                                  0xFFDCE5DF,
+                                ),
+                              ),
+                            ),
+
+                            child: Column(
+                              children: [
+                                for (
+                                  var lineIndex =
+                                      0;
+                                  lineIndex <
+                                      lines.length;
+                                  lineIndex++
+                                )
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child:
+                                            Text(
+                                          'Line ${lineIndex + 1}: ${lines[lineIndex]}',
+
+                                          style:
+                                              const TextStyle(
+                                            fontSize:
+                                                12,
+                                          ),
+                                        ),
+                                      ),
+
+                                      IconButton(
+                                        tooltip:
+                                            'Delete this line',
+
+                                        visualDensity:
+                                            VisualDensity
+                                                .compact,
+
+                                        icon:
+                                            const Icon(
+                                          Icons
+                                              .close,
+                                          size: 18,
+                                          color: Colors
+                                              .redAccent,
+                                        ),
+
+                                        onPressed:
+                                            () {
+                                          _removeLineFixed(
+                                            entry,
+                                            lineIndex,
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
+                      // ==============================================
+                      // MARKERS
+                      // ==============================================
+
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+
+                        children: [
+                          for (
+                            final option
+                                in _specificationMarkers
+                          )
+                            _markerButton(
+                              entry:
+                                  entry,
+
+                              marker:
+                                  option.$1,
+
+                              label:
+                                  option.$2,
+                            ),
+                        ],
+                      ),
+
+                      const SizedBox(
+                        height: 10,
+                      ),
+
+                      // ==============================================
+                      // QTY + UNIT
+                      // ==============================================
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child:
+                                formField(
+                              label:
+                                  'Qty',
+
+                              controller:
+                                  entry
+                                      .quantity,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            width: 8,
+                          ),
+
+                          Expanded(
+                            child:
+                                unitField(
+                              entry,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(
+                        height: 4,
+                      ),
+
+                      // ==============================================
+                      // PARAMETER
+                      // ==============================================
+
+                      if (entry
+                          .hasParameter) ...[
+                        Row(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+
+                          children: [
+                            Expanded(
+                              child:
+                                  formField(
+                                label:
+                                    'Parameter',
+
+                                controller:
+                                    entry
+                                        .parameter,
+
+                                maxLines:
+                                    2,
+                              ),
+                            ),
+
+                            IconButton(
+                              onPressed:
+                                  () {
+                                _removeTechnicalSpecificationParameter(
+                                  index,
+                                );
+                              },
+
+                              icon:
+                                  const Icon(
+                                Icons.close,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else
+                        Align(
+                          alignment:
+                              Alignment
+                                  .centerLeft,
+
+                          child:
+                              TextButton
+                                  .icon(
+                            onPressed:
+                                () {
+                              _addTechnicalSpecificationParameter(
+                                index,
+                              );
+                            },
+
+                            icon:
+                                const Icon(
+                              Icons.add,
+                              size: 18,
+                            ),
+
+                            label:
+                                const Text(
+                              'Add parameter',
+                            ),
+                          ),
+                        ),
+
+                      // ==============================================
+                      // COMPLY
+                      // ==============================================
+
+                      Align(
+                        alignment:
+                            Alignment
+                                .centerLeft,
+
+                        child:
+                            Container(
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal:
+                                10,
+                            vertical: 6,
+                          ),
+
+                          decoration:
+                              BoxDecoration(
+                            color:
+                                const Color(
+                              0xFFE2F2E8,
+                            ),
+
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              20,
+                            ),
+                          ),
+
+                          child:
+                              const Row(
+                            mainAxisSize:
+                                MainAxisSize
+                                    .min,
+
+                            children: [
+                              Icon(
+                                Icons
+                                    .check,
+                                size: 15,
+                                color:
+                                    Color(
+                                  0xFF0B5D3B,
+                                ),
+                              ),
+
+                              SizedBox(
+                                width: 5,
+                              ),
+
+                              Text(
+                                'COMPLY',
+
+                                style:
+                                    TextStyle(
+                                  color:
+                                      Color(
+                                    0xFF0B5D3B,
+                                  ),
+
+                                  fontSize:
+                                      11.5,
+
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
 
         // ============================================================
@@ -1072,7 +1165,8 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                   ? null
                   : _addTechnicalSpecification,
 
-          icon: const Icon(
+          icon:
+              const Icon(
             Icons.add,
           ),
 
@@ -1094,17 +1188,22 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
             side:
                 const BorderSide(
               color:
-                  Color(0xFF0B5D3B),
+                  Color(
+                0xFF0B5D3B,
+              ),
             ),
 
             minimumSize:
                 const Size
-                    .fromHeight(44),
+                    .fromHeight(
+              44,
+            ),
 
             shape:
                 RoundedRectangleBorder(
               borderRadius:
-                  BorderRadius.circular(
+                  BorderRadius
+                      .circular(
                 10,
               ),
             ),
