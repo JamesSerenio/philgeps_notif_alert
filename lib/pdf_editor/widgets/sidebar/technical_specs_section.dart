@@ -1,6 +1,10 @@
 part of '../../screens/pdf_editor_screen.dart';
 
 extension _TechnicalSpecsSection on _PdfEditorScreenState {
+  // ================================================================
+  // SUPPORTED MARKERS
+  // ================================================================
+
   static const List<(String, String)> _specificationMarkers = [
     ('', 'None'),
     ('•', '•'),
@@ -14,34 +18,79 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
       RegExp(r'^(?:•|○|■|➢|✓)\s*');
 
   // ================================================================
-  // NORMALIZE OLD SAVED TEXT
+  // NORMALIZE OLD / SAVED TEXT
   // ================================================================
 
-  String _normalizeSpecText(String text) {
+  String _normalizeTechnicalSpecText(String text) {
     final separator =
         _PdfEditorScreenState.specificationLineSeparator;
 
-    var result = text
+    var normalized = text
         .replaceAll('\r\n', '\n')
         .replaceAll('\r', '\n')
         .replaceAll('\u2029', '\n');
 
-    // Backward compatibility if old saved data used
-    // a custom logical separator instead of \n.
+    // Compatibility with old custom separator.
     if (separator.isNotEmpty && separator != '\n') {
-      result = result.replaceAll(separator, '\n');
+      normalized = normalized.replaceAll(
+        separator,
+        '\n',
+      );
     }
 
-    return result;
+    return normalized;
   }
 
-  void _setSpecificationText(
+  // ================================================================
+  // GET MARKER FROM A LINE
+  // ================================================================
+
+  String _getLineMarker(String line) {
+    final trimmed = line.trimLeft();
+
+    for (final option in _specificationMarkers) {
+      final marker = option.$1;
+
+      if (marker.isEmpty) {
+        continue;
+      }
+
+      if (trimmed.startsWith(marker)) {
+        return marker;
+      }
+    }
+
+    return '';
+  }
+
+  // ================================================================
+  // REMOVE MARKER FROM LINE
+  // ================================================================
+
+  String _removeLineMarker(String line) {
+    return line
+        .replaceFirst(_markerRegex, '')
+        .trimLeft();
+  }
+
+  // ================================================================
+  // SET TEXT + CURSOR
+  // ================================================================
+
+  void _setTechnicalSpecificationText(
     dynamic entry,
     String text, {
     int? cursorOffset,
   }) {
-    final offset =
-        (cursorOffset ?? text.length).clamp(0, text.length);
+    var offset = cursorOffset ?? text.length;
+
+    if (offset < 0) {
+      offset = 0;
+    }
+
+    if (offset > text.length) {
+      offset = text.length;
+    }
 
     entry.specification.value = TextEditingValue(
       text: text,
@@ -56,63 +105,199 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
   }
 
   // ================================================================
-  // + ADD LINE
+  // FIND CURRENT LINE BASED ON CURSOR
   // ================================================================
 
-  void _addSpecificationLineFixed(dynamic entry) {
-    final current =
-        _normalizeSpecText(entry.specification.text);
+  int _getCurrentSpecificationLineIndex(
+    String text,
+    int cursorOffset,
+  ) {
+    if (text.isEmpty) {
+      return 0;
+    }
 
+    final safeOffset =
+        cursorOffset.clamp(0, text.length);
+
+    final beforeCursor = text.substring(
+      0,
+      safeOffset,
+    );
+
+    return '\n'.allMatches(beforeCursor).length;
+  }
+
+  // ================================================================
+  // ENTER HANDLER
+  //
+  // Main behavior:
+  //
+  // ✓ Line 1
+  // press ENTER
+  //
+  // becomes:
+  //
+  // ✓ Line 1
+  // ✓
+  //
+  // If previous line uses NONE:
+  //
+  // Line 1
+  // press ENTER
+  //
+  // becomes:
+  //
+  // Line 1
+  //
+  // ================================================================
+
+  void _handleTechnicalSpecificationChanged(
+    dynamic entry,
+    String newValue,
+  ) {
+    final oldValue =
+        _normalizeTechnicalSpecText(
+      entry.specification.text,
+    );
+
+    var value =
+        _normalizeTechnicalSpecText(newValue);
+
+    // Detect a newly inserted ENTER/newline.
+    final oldNewLineCount =
+        '\n'.allMatches(oldValue).length;
+
+    final newNewLineCount =
+        '\n'.allMatches(value).length;
+
+    if (newNewLineCount > oldNewLineCount) {
+      final selection =
+          entry.specification.selection;
+
+      var cursor = selection.isValid
+          ? selection.baseOffset
+          : value.length;
+
+      cursor = cursor.clamp(
+        0,
+        value.length,
+      );
+
+      // Find the newline that was just inserted.
+      var newLinePosition = cursor - 1;
+
+      if (newLinePosition >= 0 &&
+          newLinePosition < value.length &&
+          value[newLinePosition] == '\n') {
+        // Cursor is directly after Enter.
+      } else {
+        // Search backward for nearest newline.
+        newLinePosition =
+            value.lastIndexOf(
+          '\n',
+          cursor > 0 ? cursor - 1 : 0,
+        );
+      }
+
+      if (newLinePosition >= 0) {
+        final beforeNewLine = value.substring(
+          0,
+          newLinePosition,
+        );
+
+        final previousLineStart =
+            beforeNewLine.lastIndexOf('\n') + 1;
+
+        final previousLine =
+            beforeNewLine.substring(
+          previousLineStart,
+        );
+
+        // Inherit marker from previous line.
+        final inheritedMarker =
+            _getLineMarker(previousLine);
+
+        if (inheritedMarker.isNotEmpty) {
+          // Check that marker wasn't already inserted.
+          final afterNewLineStart =
+              newLinePosition + 1;
+
+          final afterNewLine =
+              value.substring(
+            afterNewLineStart,
+          );
+
+          final alreadyHasMarker =
+              _getLineMarker(afterNewLine)
+                  .isNotEmpty;
+
+          if (!alreadyHasMarker) {
+            value = value.replaceRange(
+              afterNewLineStart,
+              afterNewLineStart,
+              '$inheritedMarker ',
+            );
+
+            cursor +=
+                inheritedMarker.length + 1;
+          }
+        }
+      }
+    }
+
+    _setTechnicalSpecificationText(
+      entry,
+      value,
+      cursorOffset: entry
+              .specification
+              .selection
+              .isValid
+          ? entry.specification.selection.baseOffset
+              .clamp(0, value.length)
+          : value.length,
+    );
+  }
+
+  // ================================================================
+  // MANUAL + ADD LINE
+  //
+  // Same behavior as pressing ENTER.
+  // ================================================================
+
+  void _addTechnicalSpecificationLineFixed(
+    dynamic entry,
+  ) {
+    final current =
+        _normalizeTechnicalSpecText(
+      entry.specification.text,
+    );
+
+    // Empty first line.
     if (current.isEmpty) {
       return;
     }
 
-    // Do not keep adding blank lines repeatedly.
-    if (current.endsWith('\n')) {
-      _setSpecificationText(
-        entry,
-        current,
-        cursorOffset: current.length,
-      );
-      return;
-    }
-
-    final updated = '$current\n';
-
-    _setSpecificationText(
-      entry,
-      updated,
-      cursorOffset: updated.length,
-    );
-  }
-
-  // ================================================================
-  // DELETE ONE LINE
-  // ================================================================
-
-  void _removeSpecificationLineFixed(
-    dynamic entry,
-    int lineIndex,
-  ) {
-    final current =
-        _normalizeSpecText(entry.specification.text);
-
     final lines = current.split('\n');
 
-    if (lineIndex < 0 || lineIndex >= lines.length) {
-      return;
+    final previousLine =
+        lines.isEmpty ? '' : lines.last;
+
+    final inheritedMarker =
+        _getLineMarker(previousLine);
+
+    String nextLine;
+
+    if (inheritedMarker.isEmpty) {
+      // NONE
+      nextLine = '';
+    } else {
+      nextLine = '$inheritedMarker ';
     }
 
-    lines.removeAt(lineIndex);
+    final updated =
+        '$current\n$nextLine';
 
-    // Remove unnecessary blank lines at the end.
-    while (lines.length > 1 && lines.last.isEmpty) {
-      lines.removeLast();
-    }
-
-    final updated = lines.join('\n');
-
-    _setSpecificationText(
+    _setTechnicalSpecificationText(
       entry,
       updated,
       cursorOffset: updated.length,
@@ -120,15 +305,17 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
   }
 
   // ================================================================
-  // APPLY MARKER TO CURRENT / LAST LINE
+  // APPLY MARKER TO CURRENT LINE
   // ================================================================
 
-  void _applySpecificationMarkerFixed(
+  void _applyTechnicalSpecificationMarker(
     dynamic entry,
     String marker,
   ) {
     final current =
-        _normalizeSpecText(entry.specification.text);
+        _normalizeTechnicalSpecText(
+      entry.specification.text,
+    );
 
     var lines = current.split('\n');
 
@@ -136,55 +323,56 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
       lines = [''];
     }
 
-    // Cursor position.
-    final selection = entry.specification.selection;
-    final cursor =
-        selection.isValid ? selection.baseOffset : current.length;
+    final selection =
+        entry.specification.selection;
 
-    // Determine which line the cursor is currently on.
-    var targetLine = 0;
-    var consumed = 0;
+    final cursor = selection.isValid
+        ? selection.baseOffset
+        : current.length;
 
-    for (var i = 0; i < lines.length; i++) {
-      final lineEnd = consumed + lines[i].length;
+    var lineIndex =
+        _getCurrentSpecificationLineIndex(
+      current,
+      cursor,
+    );
 
-      if (cursor <= lineEnd || i == lines.length - 1) {
-        targetLine = i;
-        break;
-      }
-
-      consumed = lineEnd + 1;
+    if (lineIndex >= lines.length) {
+      lineIndex = lines.length - 1;
     }
 
-    final oldLine = lines[targetLine];
+    if (lineIndex < 0) {
+      lineIndex = 0;
+    }
 
-    // Remove existing marker first.
-    final clean =
-        oldLine.replaceFirst(_markerRegex, '').trimLeft();
+    final cleanText =
+        _removeLineMarker(
+      lines[lineIndex],
+    );
 
     if (marker.isEmpty) {
       // NONE
-      lines[targetLine] = clean;
+      lines[lineIndex] = cleanText;
     } else {
-      // Actual Unicode marker.
-      lines[targetLine] =
-          clean.isEmpty ? '$marker ' : '$marker $clean';
+      // Actual marker.
+      lines[lineIndex] = cleanText.isEmpty
+          ? '$marker '
+          : '$marker $cleanText';
     }
 
     final updated = lines.join('\n');
 
-    // Put cursor at end of edited line.
+    // Put cursor at end of current edited line.
     var newCursor = 0;
 
-    for (var i = 0; i <= targetLine; i++) {
+    for (var i = 0; i <= lineIndex; i++) {
       newCursor += lines[i].length;
 
-      if (i < targetLine) {
+      if (i < lineIndex) {
         newCursor++;
       }
     }
 
-    _setSpecificationText(
+    _setTechnicalSpecificationText(
       entry,
       updated,
       cursorOffset: newCursor,
@@ -192,21 +380,57 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
   }
 
   // ================================================================
+  // REMOVE ONE LOGICAL LINE
+  // ================================================================
+
+  void _removeTechnicalSpecificationLineFixed(
+    dynamic entry,
+    int lineIndex,
+  ) {
+    final current =
+        _normalizeTechnicalSpecText(
+      entry.specification.text,
+    );
+
+    final lines = current.split('\n');
+
+    if (lineIndex < 0 ||
+        lineIndex >= lines.length) {
+      return;
+    }
+
+    lines.removeAt(lineIndex);
+
+    // Always retain at least one editable line.
+    if (lines.isEmpty) {
+      lines.add('');
+    }
+
+    final updated = lines.join('\n');
+
+    _setTechnicalSpecificationText(
+      entry,
+      updated,
+      cursorOffset: updated.length,
+    );
+  }
+
+  // ================================================================
   // MARKER BUTTON
   // ================================================================
 
-  Widget _buildSpecMarkerButton({
+  Widget _technicalSpecMarkerButton({
     required dynamic entry,
-    required String value,
+    required String marker,
     required String label,
   }) {
-    final isCheck = value == '✓';
+    final isCheck = marker == '✓';
 
     return OutlinedButton(
       onPressed: () {
-        _applySpecificationMarkerFixed(
+        _applyTechnicalSpecificationMarker(
           entry,
-          value,
+          marker,
         );
       },
       style: OutlinedButton.styleFrom(
@@ -214,11 +438,14 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
         padding: const EdgeInsets.symmetric(
           horizontal: 9,
         ),
-        foregroundColor: const Color(0xFF0B5D3B),
-        visualDensity: VisualDensity.compact,
+        foregroundColor:
+            const Color(0xFF0B5D3B),
+        visualDensity:
+            VisualDensity.compact,
       ),
 
-      // Visually use Flutter's proper check icon.
+      // For ✓ use Flutter Icon visually,
+      // while stored text remains actual "✓".
       child: isCheck
           ? const Icon(
               Icons.check,
@@ -236,7 +463,7 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
   }
 
   // ================================================================
-  // MAIN TECHNICAL SPECIFICATIONS
+  // MAIN TECHNICAL SPECIFICATIONS SECTION
   // ================================================================
 
   Widget technicalSpecificationsFields() {
@@ -264,26 +491,32 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
       children: [
         for (
           var index = 0;
-          index < technicalSpecifications.length;
+          index <
+              technicalSpecifications.length;
           index++
         )
           Card(
             elevation: 0,
-            color: const Color(0xFFF7FAF8),
+
+            color:
+                const Color(0xFFF7FAF8),
 
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius:
+                  BorderRadius.circular(12),
               side: const BorderSide(
                 color: Color(0xFFDCE5DF),
               ),
             ),
 
-            margin: const EdgeInsets.only(
+            margin:
+                const EdgeInsets.only(
               bottom: 12,
             ),
 
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding:
+                  const EdgeInsets.all(12),
 
               child: Column(
                 crossAxisAlignment:
@@ -300,20 +533,27 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                         child: Row(
                           children: [
                             const Icon(
-                              Icons.inventory_2_outlined,
+                              Icons
+                                  .inventory_2_outlined,
                               size: 17,
-                              color: Color(0xFF0B5D3B),
+                              color: Color(
+                                0xFF0B5D3B,
+                              ),
                             ),
 
-                            const SizedBox(width: 7),
+                            const SizedBox(
+                              width: 7,
+                            ),
 
                             Text(
                               'Item ${index + 1}',
-                              style: const TextStyle(
+                              style:
+                                  const TextStyle(
                                 fontWeight:
                                     FontWeight.bold,
-                                color:
-                                    Color(0xFF234B38),
+                                color: Color(
+                                  0xFF234B38,
+                                ),
                               ),
                             ),
                           ],
@@ -323,6 +563,7 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                       IconButton(
                         tooltip:
                             'Remove specification',
+
                         visualDensity:
                             VisualDensity.compact,
 
@@ -340,15 +581,15 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                   ),
 
                   // ==================================================
-                  // SPECIFICATION TEXTAREA
+                  // SPECIFICATION INPUT
                   //
-                  // IMPORTANT:
-                  // Normal ENTER automatically creates a new line.
+                  // ENTER automatically inherits active marker.
                   // ==================================================
 
                   TextField(
                     controller:
-                        technicalSpecifications[index]
+                        technicalSpecifications[
+                                index]
                             .specification,
 
                     keyboardType:
@@ -360,51 +601,73 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                     minLines: 4,
                     maxLines: 8,
 
-                    decoration: InputDecoration(
-                      labelText: 'Specification',
-                      alignLabelWithHint: true,
+                    onChanged: (value) {
+                      _handleTechnicalSpecificationChanged(
+                        technicalSpecifications[
+                            index],
+                        value,
+                      );
+                    },
+
+                    decoration:
+                        InputDecoration(
+                      labelText:
+                          'Specification',
+
+                      alignLabelWithHint:
+                          true,
 
                       filled: true,
-                      fillColor: Colors.white,
+
+                      fillColor:
+                          Colors.white,
 
                       contentPadding:
-                          const EdgeInsets.symmetric(
+                          const EdgeInsets
+                              .symmetric(
                         horizontal: 12,
                         vertical: 12,
                       ),
 
-                      border: OutlineInputBorder(
+                      border:
+                          OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(10),
-
+                            BorderRadius.circular(
+                          10,
+                        ),
                         borderSide:
                             const BorderSide(
-                          color:
-                              Color(0xFFDCE5DF),
+                          color: Color(
+                            0xFFDCE5DF,
+                          ),
                         ),
                       ),
 
                       enabledBorder:
                           OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(10),
-
+                            BorderRadius.circular(
+                          10,
+                        ),
                         borderSide:
                             const BorderSide(
-                          color:
-                              Color(0xFFDCE5DF),
+                          color: Color(
+                            0xFFDCE5DF,
+                          ),
                         ),
                       ),
 
                       focusedBorder:
                           OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(10),
-
+                            BorderRadius.circular(
+                          10,
+                        ),
                         borderSide:
                             const BorderSide(
-                          color:
-                              Color(0xFF0B5D3B),
+                          color: Color(
+                            0xFF0B5D3B,
+                          ),
                           width: 1.4,
                         ),
                       ),
@@ -416,11 +679,12 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                   // ==================================================
 
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment:
+                        Alignment.centerLeft,
 
                     child: TextButton.icon(
                       onPressed: () {
-                        _addSpecificationLineFixed(
+                        _addTechnicalSpecificationLineFixed(
                           technicalSpecifications[
                               index],
                         );
@@ -431,16 +695,21 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                         size: 18,
                       ),
 
-                      label: const Text(
+                      label:
+                          const Text(
                         'Add line',
                       ),
 
-                      style: TextButton.styleFrom(
+                      style:
+                          TextButton.styleFrom(
                         foregroundColor:
-                            const Color(0xFF0B5D3B),
+                            const Color(
+                          0xFF0B5D3B,
+                        ),
 
                         padding:
-                            const EdgeInsets.symmetric(
+                            const EdgeInsets
+                                .symmetric(
                           horizontal: 4,
                         ),
                       ),
@@ -448,7 +717,10 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                   ),
 
                   // ==================================================
-                  // LINE LIST
+                  // LINE PREVIEW
+                  //
+                  // IMPORTANT:
+                  // blank newly-created lines are also displayed.
                   // ==================================================
 
                   Builder(
@@ -458,43 +730,47 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                               index];
 
                       final text =
-                          _normalizeSpecText(
+                          _normalizeTechnicalSpecText(
                         entry.specification.text,
                       );
 
                       final lines =
                           text.split('\n');
 
-                      final hasLines =
-                          lines.any(
-                        (line) =>
-                            line.trim().isNotEmpty,
-                      );
+                      // Show preview once user has entered
+                      // something OR created a second line.
+                      final shouldShow =
+                          text.isNotEmpty ||
+                              lines.length > 1;
 
-                      if (!hasLines) {
-                        return const SizedBox.shrink();
+                      if (!shouldShow) {
+                        return const SizedBox
+                            .shrink();
                       }
 
                       return Container(
                         margin:
-                            const EdgeInsets.only(
+                            const EdgeInsets
+                                .only(
                           bottom: 8,
                         ),
 
                         padding:
-                            const EdgeInsets.all(8),
+                            const EdgeInsets
+                                .all(8),
 
                         decoration:
                             BoxDecoration(
                           color: Colors.white,
 
                           borderRadius:
-                              BorderRadius.circular(
-                            8,
-                          ),
+                              BorderRadius
+                                  .circular(8),
 
-                          border: Border.all(
-                            color: const Color(
+                          border:
+                              Border.all(
+                            color:
+                                const Color(
                               0xFFDCE5DF,
                             ),
                           ),
@@ -503,53 +779,51 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                         child: Column(
                           children: [
                             for (
-                              var lineIndex = 0;
+                              var lineIndex =
+                                  0;
                               lineIndex <
                                   lines.length;
                               lineIndex++
                             )
-                              if (lines[lineIndex]
-                                  .trim()
-                                  .isNotEmpty)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        'Line ${lineIndex + 1}: ${lines[lineIndex]}',
-
-                                        style:
-                                            const TextStyle(
-                                          fontSize:
-                                              12,
-                                        ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Line ${lineIndex + 1}: ${lines[lineIndex]}',
+                                      style:
+                                          const TextStyle(
+                                        fontSize:
+                                            12,
                                       ),
                                     ),
+                                  ),
 
-                                    IconButton(
-                                      tooltip:
-                                          'Delete this line',
+                                  IconButton(
+                                    tooltip:
+                                        'Delete this line',
 
-                                      visualDensity:
-                                          VisualDensity
-                                              .compact,
+                                    visualDensity:
+                                        VisualDensity
+                                            .compact,
 
-                                      icon:
-                                          const Icon(
-                                        Icons.close,
-                                        size: 18,
-                                        color: Colors
-                                            .redAccent,
-                                      ),
-
-                                      onPressed: () {
-                                        _removeSpecificationLineFixed(
-                                          entry,
-                                          lineIndex,
-                                        );
-                                      },
+                                    icon:
+                                        const Icon(
+                                      Icons.close,
+                                      size: 18,
+                                      color: Colors
+                                          .redAccent,
                                     ),
-                                  ],
-                                ),
+
+                                    onPressed:
+                                        () {
+                                      _removeTechnicalSpecificationLineFixed(
+                                        entry,
+                                        lineIndex,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
                       );
@@ -557,9 +831,14 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                   ),
 
                   // ==================================================
-                  // MARKERS
+                  // MARKER BUTTONS
                   //
-                  // None • ○ ■ ➢ ✓
+                  // None
+                  // •
+                  // ○
+                  // ■
+                  // ➢
+                  // ✓
                   // ==================================================
 
                   Wrap(
@@ -571,13 +850,16 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                         final option
                             in _specificationMarkers
                       )
-                        _buildSpecMarkerButton(
+                        _technicalSpecMarkerButton(
                           entry:
                               technicalSpecifications[
                                   index],
 
-                          value: option.$1,
-                          label: option.$2,
+                          marker:
+                              option.$1,
+
+                          label:
+                              option.$2,
                         ),
                     ],
                   ),
@@ -601,7 +883,9 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                         ),
                       ),
 
-                      const SizedBox(width: 8),
+                      const SizedBox(
+                        width: 8,
+                      ),
 
                       Expanded(
                         child: unitField(
@@ -615,19 +899,22 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                   const SizedBox(height: 4),
 
                   // ==================================================
-                  // OPTIONAL PARAMETER
+                  // PARAMETER
                   // ==================================================
 
-                  if (technicalSpecifications[index]
+                  if (technicalSpecifications[
+                          index]
                       .hasParameter) ...[
                     Row(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
 
                       children: [
                         Expanded(
                           child: formField(
-                            label: 'Parameter',
+                            label:
+                                'Parameter',
 
                             controller:
                                 technicalSpecifications[
@@ -638,14 +925,17 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                           ),
                         ),
 
-                        const SizedBox(width: 4),
+                        const SizedBox(
+                          width: 4,
+                        ),
 
                         IconButton(
                           tooltip:
                               'Remove parameter',
 
                           visualDensity:
-                              VisualDensity.compact,
+                              VisualDensity
+                                  .compact,
 
                           onPressed: () {
                             _removeTechnicalSpecificationParameter(
@@ -664,7 +954,8 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                       alignment:
                           Alignment.centerLeft,
 
-                      child: TextButton.icon(
+                      child:
+                          TextButton.icon(
                         onPressed: () {
                           _addTechnicalSpecificationParameter(
                             index,
@@ -676,12 +967,14 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                           size: 18,
                         ),
 
-                        label: const Text(
+                        label:
+                            const Text(
                           'Add parameter',
                         ),
 
                         style:
-                            TextButton.styleFrom(
+                            TextButton
+                                .styleFrom(
                           foregroundColor:
                               const Color(
                             0xFF0B5D3B,
@@ -690,7 +983,8 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                           padding:
                               const EdgeInsets
                                   .symmetric(
-                            horizontal: 4,
+                            horizontal:
+                                4,
                           ),
                         ),
                       ),
@@ -708,21 +1002,22 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
 
                     child: Container(
                       padding:
-                          const EdgeInsets.symmetric(
+                          const EdgeInsets
+                              .symmetric(
                         horizontal: 10,
                         vertical: 6,
                       ),
 
-                      decoration: BoxDecoration(
+                      decoration:
+                          BoxDecoration(
                         color:
                             const Color(
                           0xFFE2F2E8,
                         ),
 
                         borderRadius:
-                            BorderRadius.circular(
-                          20,
-                        ),
+                            BorderRadius
+                                .circular(20),
                       ),
 
                       child: const Row(
@@ -730,7 +1025,6 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                             MainAxisSize.min,
 
                         children: [
-                          // Real visual check.
                           Icon(
                             Icons.check,
                             size: 15,
@@ -739,18 +1033,22 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
                             ),
                           ),
 
-                          SizedBox(width: 5),
+                          SizedBox(
+                            width: 5,
+                          ),
 
                           Text(
                             'COMPLY',
-
-                            style: TextStyle(
+                            style:
+                                TextStyle(
                               color: Color(
                                 0xFF0B5D3B,
                               ),
-                              fontSize: 11.5,
+                              fontSize:
+                                  11.5,
                               fontWeight:
-                                  FontWeight.bold,
+                                  FontWeight
+                                      .bold,
                             ),
                           ),
                         ],
@@ -763,39 +1061,52 @@ extension _TechnicalSpecsSection on _PdfEditorScreenState {
           ),
 
         // ============================================================
-        // + ADD SPECIFICATION
+        // ADD SPECIFICATION
         // ============================================================
 
         OutlinedButton.icon(
           onPressed:
-              technicalSpecifications.length >=
+              technicalSpecifications
+                          .length >=
                       72
                   ? null
                   : _addTechnicalSpecification,
 
-          icon: const Icon(Icons.add),
+          icon: const Icon(
+            Icons.add,
+          ),
 
           label: Text(
-            technicalSpecifications.length >=
+            technicalSpecifications
+                        .length >=
                     72
                 ? 'Maximum of 72 specifications'
                 : 'Add Specification',
           ),
 
-          style: OutlinedButton.styleFrom(
+          style:
+              OutlinedButton.styleFrom(
             foregroundColor:
-                const Color(0xFF0B5D3B),
+                const Color(
+              0xFF0B5D3B,
+            ),
 
-            side: const BorderSide(
-              color: Color(0xFF0B5D3B),
+            side:
+                const BorderSide(
+              color:
+                  Color(0xFF0B5D3B),
             ),
 
             minimumSize:
-                const Size.fromHeight(44),
+                const Size
+                    .fromHeight(44),
 
-            shape: RoundedRectangleBorder(
+            shape:
+                RoundedRectangleBorder(
               borderRadius:
-                  BorderRadius.circular(10),
+                  BorderRadius.circular(
+                10,
+              ),
             ),
           ),
         ),
