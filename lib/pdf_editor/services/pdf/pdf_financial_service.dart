@@ -7,7 +7,7 @@ class _AfsPlacement {
   int get endExclusive => startIndex + pageCount;
 }
 
-Future<_AfsPlacement> _replaceAfsSection(PdfDocument document) async {
+Future<void> _replaceAfsSection(PdfDocument document) async {
   // After the selected SLCC template has been inserted, the legacy Audited
   // Financial Statements occupy PDF pages 29-46 inclusive.
   const afsPageIndex = 28;
@@ -72,10 +72,6 @@ Future<_AfsPlacement> _replaceAfsSection(PdfDocument document) async {
       ),
       fittedSize,
     );
-    targetPage.graphics.drawString(
-        _afsMarker(index + 1), PdfStandardFont(PdfFontFamily.helvetica, 1),
-        brush: PdfSolidBrush(PdfColor(255, 255, 255)),
-        bounds: const Rect.fromLTWH(1, 1, 90, 3));
     await Future<void>.delayed(const Duration(milliseconds: 1));
   }
   sourceDocument.dispose();

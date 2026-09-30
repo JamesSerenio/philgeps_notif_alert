@@ -309,13 +309,13 @@ class PdfService {
     // stable while the document is being prepared.
     await _replaceSlccSection(document, values);
     await yieldToBrowser();
-    final afsPlacement = await _replaceAfsSection(document);
+    await _replaceAfsSection(document);
     await yieldToBrowser();
 
     // Reverse final PDF pages 29-43 while preserving every page exactly.
     // Export them as templates first, remove the original range, then insert
     // them back in reverse order at the same position.
-    if (document.pages.count >= 43 && _findAfsMarkerPages(document).isEmpty) {
+    if (document.pages.count >= 43) {
       const reverseStartIndex = 28;
       const reversePageCount = 15;
       // Templates created directly from `document` become invalid as soon as
@@ -378,7 +378,7 @@ class PdfService {
     await yieldToBrowser();
 
     if (values['documentTemplateMode'] == 'initao') {
-      await _insertInitaoDocumentPages(document, values, afsPlacement);
+      await _insertInitaoDocumentPages(document, values);
       await yieldToBrowser();
     }
 
