@@ -1,20 +1,12 @@
 part of '../pdf_service.dart';
 
-class _AfsPlacement {
-  const _AfsPlacement({required this.startIndex, required this.pageCount});
-  final int startIndex;
-  final int pageCount;
-  int get endExclusive => startIndex + pageCount;
-}
-
 Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
   // After the selected SLCC template has been inserted, the legacy Audited
   // Financial Statements occupy PDF pages 29-46 inclusive.
   const afsPageIndex = 28;
   const legacyAfsPageCount = 18;
   if (afsPageIndex >= document.pages.count) {
-    throw StateError(
-        'Cannot replace AFS: insertion index is outside the document.');
+    return null;
   }
 
   // Earlier optional-page cleanup can shorten the pages before Technical
@@ -38,6 +30,7 @@ Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
   final sourceDocument = PdfDocument(
     inputBytes: data.buffer.asUint8List(),
   );
+  final sourceAfsPageCount = sourceDocument.pages.count;
 
   for (var page = 0;
       page < removableAfsPageCount && afsPageIndex < document.pages.count;
@@ -49,7 +42,7 @@ Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
   }
 
   const a4Size = Size(595.28, 841.89);
-  for (var index = 0; index < sourceDocument.pages.count; index++) {
+  for (var index = 0; index < sourceAfsPageCount; index++) {
     final sourcePage = sourceDocument.pages[index];
     final sourceSize = sourcePage.size;
     final scale = (a4Size.width / sourceSize.width)
@@ -74,7 +67,12 @@ Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
     );
     await Future<void>.delayed(const Duration(milliseconds: 1));
   }
+  final placement = _AfsPlacement(
+    startIndex: afsPageIndex,
+    pageCount: sourceAfsPageCount,
+  );
   sourceDocument.dispose();
+  return placement;
 }
 
 Future<void> _replaceNfccPage(

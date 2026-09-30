@@ -3,6 +3,7 @@ part of '../pdf_service.dart';
 Future<void> _insertInitaoDocumentPages(
   PdfDocument document,
   Map<String, String> values,
+  _AfsPlacement afsPlacement,
 ) async {
   final data = await rootBundle.load(
     'assets/pdf/New_tab_and_pages_Initao_LGU_template.pdf',
@@ -48,16 +49,26 @@ Future<void> _insertInitaoDocumentPages(
 
     final afsStart = afsPlacement.startIndex;
     final afsEndExclusive = afsPlacement.endExclusive;
-    if (afsPlacement.pageCount != 15 ||
-        afsStart < 0 ||
-        afsEndExclusive > snapshot.pages.count)
-      throw StateError('Invalid structural AFS placement.');
-    final afsPages = <int>[for (var i = afsStart; i < afsEndExclusive; i++) i];
-    final afs = afsStart;
+    if (afsPlacement.pageCount != 15) {
+      throw StateError("Expected 15 AFS pages, got ${afsPlacement.pageCount}.");
+    }
+    if (afsStart < 0 || afsEndExclusive > snapshot.pages.count) {
+      throw StateError(
+        "AFS placement is outside snapshot bounds: start=$afsStart end=$afsEndExclusive snapshot=${snapshot.pages.count}.",
+      );
+    }
+    if (nfcc != afsEndExclusive) {
+      throw StateError(
+        "NFCC must immediately follow the complete AFS block: afsEnd=$afsEndExclusive nfcc=$nfcc.",
+      );
+    }
+    final afsPages = <int>[
+      for (var i = afsStart; i < afsEndExclusive; i++) i,
+    ];
     final boundaries = [
       ongoing,
       philgeps,
-      afs,
+      afsStart,
       nfcc,
       specifications,
       security,
@@ -80,7 +91,7 @@ Future<void> _insertInitaoDocumentPages(
         ];
     // Logical groups follow the INITAO checklist. Continuation pages remain
     // attached to their section; no final page numbers are hardcoded.
-    final legalDocuments = [...range(philgeps, afs), ...range(0, ongoing)];
+    final legalDocuments = [...range(philgeps, afsStart), ...range(0, ongoing)];
     final technicalDocuments = [
       ...range(ongoing, philgeps), // Ongoing contracts, SLCC and acceptance
       ...range(security, schedule),
@@ -91,8 +102,11 @@ Future<void> _insertInitaoDocumentPages(
     ];
     final financialDocuments = [
       ...afsPages,
-      ...range(afsEndExclusive, specifications)
+      ...range(afsEndExclusive, specifications),
     ];
+    if (financialDocuments.where(afsPages.contains).length != afsPages.length) {
+      throw StateError("INITAO ordering omitted an AFS page.");
+    }
     final financialComponentDocuments = range(bidForm, snapshot.pages.count);
     final ordered = [
       ...legalDocuments,
