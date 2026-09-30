@@ -1,4 +1,4 @@
-﻿import '../models/item_pricing.dart';
+import '../models/item_pricing.dart';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -315,7 +315,7 @@ class PdfService {
     // Reverse final PDF pages 29-43 while preserving every page exactly.
     // Export them as templates first, remove the original range, then insert
     // them back in reverse order at the same position.
-    if (document.pages.count >= 43) {
+    if (document.pages.count >= 43 && _findAfsMarkerPages(document).isEmpty) {
       const reverseStartIndex = 28;
       const reversePageCount = 15;
       // Templates created directly from `document` become invalid as soon as
