@@ -1,45 +1,21 @@
 part of '../pdf_service.dart';
 
-const _afsMarkerPrefix = 'PHILGEPS_AFS_PAGE_';
-
-String _afsMarker(int index) => '$_afsMarkerPrefix$index';
-
-Future<int> _expectedAfsPageCount() async {
-  final data = await rootBundle.load('assets/pdf/AFS_template.pdf');
-  final source = PdfDocument(inputBytes: data.buffer.asUint8List());
-  try {
-    return source.pages.count;
-  } finally {
-    source.dispose();
-  }
+class _AfsPlacement {
+  const _AfsPlacement({required this.startIndex, required this.pageCount});
+  final int startIndex;
+  final int pageCount;
+  int get endExclusive => startIndex + pageCount;
 }
 
-List<int> _findAfsMarkerPages(PdfDocument document) {
-  final extractor = PdfTextExtractor(document);
-  return [
-    for (var i = 0; i < document.pages.count; i++)
-      if (extractor.extractText(startPageIndex: i, endPageIndex: i).contains(_afsMarkerPrefix)) i,
-  ];
-}
-
-Future<void> _requireCompleteAfsBlock(PdfDocument document, {required String phase}) async {
-  final expected = await _expectedAfsPageCount();
-  final pages = _findAfsMarkerPages(document);
-  if (pages.length != expected || pages.asMap().entries.any((entry) => entry.value != pages.first + entry.key)) {
-    throw StateError('AFS integrity failure during $phase: expected $expected consecutive pages, found ${pages.length}.');
-  }
-  final extractor = PdfTextExtractor(document);
-  for (var index = 0; index < expected; index++) {
-    final value = extractor.extractText(startPageIndex: pages[index], endPageIndex: pages[index]);
-    if (!value.contains(_afsMarker(index + 1))) throw StateError('AFS integrity failure during $phase: AFS page ${index + 1} is missing or out of order.');
-  }
-}
-Future<void> _replaceAfsSection(PdfDocument document) async {
+Future<_AfsPlacement> _replaceAfsSection(PdfDocument document) async {
   // After the selected SLCC template has been inserted, the legacy Audited
   // Financial Statements occupy PDF pages 29-46 inclusive.
   const afsPageIndex = 28;
   const legacyAfsPageCount = 18;
-  if (afsPageIndex >= document.pages.count) return;
+  if (afsPageIndex >= document.pages.count) {
+    throw StateError(
+        'Cannot replace AFS: insertion index is outside the document.');
+  }
 
   // Earlier optional-page cleanup can shorten the pages before Technical
   // Specifications (notably when SLCC=None). Never let the fixed legacy AFS
@@ -96,7 +72,10 @@ Future<void> _replaceAfsSection(PdfDocument document) async {
       ),
       fittedSize,
     );
-    targetPage.graphics.drawString(_afsMarker(index + 1), PdfStandardFont(PdfFontFamily.helvetica, 1), brush: PdfSolidBrush(PdfColor(255, 255, 255)), bounds: const Rect.fromLTWH(1, 1, 90, 3));
+    targetPage.graphics.drawString(
+        _afsMarker(index + 1), PdfStandardFont(PdfFontFamily.helvetica, 1),
+        brush: PdfSolidBrush(PdfColor(255, 255, 255)),
+        bounds: const Rect.fromLTWH(1, 1, 90, 3));
     await Future<void>.delayed(const Duration(milliseconds: 1));
   }
   sourceDocument.dispose();

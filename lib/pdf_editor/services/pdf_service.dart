@@ -309,7 +309,7 @@ class PdfService {
     // stable while the document is being prepared.
     await _replaceSlccSection(document, values);
     await yieldToBrowser();
-    await _replaceAfsSection(document);
+    final afsPlacement = await _replaceAfsSection(document);
     await yieldToBrowser();
 
     // Reverse final PDF pages 29-43 while preserving every page exactly.
@@ -378,7 +378,7 @@ class PdfService {
     await yieldToBrowser();
 
     if (values['documentTemplateMode'] == 'initao') {
-      await _insertInitaoDocumentPages(document, values);
+      await _insertInitaoDocumentPages(document, values, afsPlacement);
       await yieldToBrowser();
     }
 

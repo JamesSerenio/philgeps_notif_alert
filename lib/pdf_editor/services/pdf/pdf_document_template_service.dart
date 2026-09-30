@@ -46,17 +46,14 @@ Future<void> _insertInitaoDocumentPages(
     final afterSales = anchor('SALESSERVICECERTIFICATE');
     final bidForm = anchor('BIDFORM');
 
-    // AFS pages are marked when inserted. Do not infer their start from NFCC:
-    // subsequent inserts and reordering can shift page indexes.
-    final afsPages = [for (var i = 0; i < text.length; i++) if (text[i].contains(_afsMarkerPrefix)) i];
-    final expectedAfsCount = await _expectedAfsPageCount();
-    if (afsPages.length != expectedAfsCount || afsPages.asMap().entries.any((entry) => entry.value != afsPages.first + entry.key)) {
-      throw StateError('Cannot organize INITAO PDF: expected $expectedAfsCount consecutive marked AFS pages, found ${afsPages.length}.');
-    }
-    final afs = afsPages.first;
-    final afsEnd = afsPages.last;
-    if (afsEnd + 1 != nfcc) {
-      throw StateError('Cannot organize INITAO PDF: NFCC must immediately follow the complete AFS block.');
+    final afs = afsPlacement.startIndex;
+    final afsEndExclusive = afsPlacement.endExclusive;
+    if (afsPlacement.pageCount != 15 ||
+        afs < 0 ||
+        afsEndExclusive > snapshot.pages.count ||
+        afsEndExclusive != nfcc) {
+      throw StateError(
+          'AFS structural validation failed: start=, count=, endExclusive=, nfcc=, snapshotPages=.');
     }
     final boundaries = [
       ongoing,
@@ -93,7 +90,10 @@ Future<void> _insertInitaoDocumentPages(
       ...range(afterSales, bidForm), // After-sales and warranty
       ...range(omnibus, afterSales), // Omnibus, including its jurat
     ];
-    final financialDocuments = range(afs, specifications); // AFS then NFCC
+    final financialDocuments = [
+      ...range(afs, afsEndExclusive),
+      ...range(afsEndExclusive, specifications)
+    ];
     final financialComponentDocuments = range(bidForm, snapshot.pages.count);
     final ordered = [
       ...legalDocuments,
@@ -133,8 +133,13 @@ Future<void> _insertInitaoDocumentPages(
     }
     await _requireCompleteAfsBlock(document, phase: 'INITAO final ordering');
     final finalAfs = _findAfsMarkerPages(document);
-    final nextText = PdfTextExtractor(document).extractText(startPageIndex: finalAfs.last + 1, endPageIndex: finalAfs.last + 1).toUpperCase();
-    if (!nextText.contains('NET FINANCIAL CONTRACTING CAPACITY')) throw StateError('INITAO AFS integrity failure: NFCC does not follow AFS.');
+    final nextText = PdfTextExtractor(document)
+        .extractText(
+            startPageIndex: finalAfs.last + 1, endPageIndex: finalAfs.last + 1)
+        .toUpperCase();
+    if (!nextText.contains('NET FINANCIAL CONTRACTING CAPACITY'))
+      throw StateError(
+          'INITAO AFS integrity failure: NFCC does not follow AFS.');
   } finally {
     snapshot?.dispose();
     template.dispose();
