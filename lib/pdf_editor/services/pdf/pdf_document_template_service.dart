@@ -46,10 +46,14 @@ Future<void> _insertInitaoDocumentPages(
     final afterSales = anchor('SALESSERVICECERTIFICATE');
     final bidForm = anchor('BIDFORM');
 
-    final afsData = await rootBundle.load('assets/pdf/AFS_template.pdf');
-    final afsTemplate = PdfDocument(inputBytes: afsData.buffer.asUint8List());
-    final afs = nfcc - afsTemplate.pages.count;
-    afsTemplate.dispose();
+    final afsStart = afsPlacement.startIndex;
+    final afsEndExclusive = afsPlacement.endExclusive;
+    if (afsPlacement.pageCount != 15 ||
+        afsStart < 0 ||
+        afsEndExclusive > snapshot.pages.count)
+      throw StateError('Invalid structural AFS placement.');
+    final afsPages = <int>[for (var i = afsStart; i < afsEndExclusive; i++) i];
+    final afs = afsStart;
     final boundaries = [
       ongoing,
       philgeps,
@@ -85,7 +89,10 @@ Future<void> _insertInitaoDocumentPages(
       ...range(afterSales, bidForm), // After-sales and warranty
       ...range(omnibus, afterSales), // Omnibus, including its jurat
     ];
-    final financialDocuments = range(afs, specifications);
+    final financialDocuments = [
+      ...afsPages,
+      ...range(afsEndExclusive, specifications)
+    ];
     final financialComponentDocuments = range(bidForm, snapshot.pages.count);
     final ordered = [
       ...legalDocuments,

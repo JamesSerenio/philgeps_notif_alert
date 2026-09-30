@@ -27,6 +27,15 @@ part 'pdf/pdf_schedule_requirements_service.dart';
 part 'pdf/pdf_bid_price_summary_service.dart';
 
 /// Public entry point; feature parts retain the original drawing operations.
+class _AfsPlacement {
+  const _AfsPlacement({required this.startIndex, required this.pageCount});
+  final int startIndex;
+  final int pageCount;
+  int get endExclusive => startIndex + pageCount;
+  bool isValidFor(PdfDocument document) =>
+      startIndex >= 0 && pageCount > 0 && endExclusive <= document.pages.count;
+}
+
 class PdfService {
   const PdfService._();
 
@@ -309,7 +318,10 @@ class PdfService {
     // stable while the document is being prepared.
     await _replaceSlccSection(document, values);
     await yieldToBrowser();
-    await _replaceAfsSection(document);
+    final afsPlacement = await _replaceAfsSection(document);
+    if (afsPlacement == null || !afsPlacement.isValidFor(document)) {
+      throw StateError('AFS replacement failed or returned invalid placement.');
+    }
     await yieldToBrowser();
 
     // Reverse final PDF pages 29-43 while preserving every page exactly.
@@ -378,7 +390,7 @@ class PdfService {
     await yieldToBrowser();
 
     if (values['documentTemplateMode'] == 'initao') {
-      await _insertInitaoDocumentPages(document, values);
+      await _insertInitaoDocumentPages(document, values, afsPlacement);
       await yieldToBrowser();
     }
 

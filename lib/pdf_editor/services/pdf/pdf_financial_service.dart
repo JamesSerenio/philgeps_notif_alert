@@ -7,7 +7,7 @@ class _AfsPlacement {
   int get endExclusive => startIndex + pageCount;
 }
 
-Future<void> _replaceAfsSection(PdfDocument document) async {
+Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
   // After the selected SLCC template has been inserted, the legacy Audited
   // Financial Statements occupy PDF pages 29-46 inclusive.
   const afsPageIndex = 28;
