@@ -45,6 +45,7 @@ class PdfService {
     Future<void> yieldToBrowser() =>
         Future<void>.delayed(const Duration(milliseconds: 1));
 
+    await _ensurePdfUnicodeMarkerFont();
     values = values.map(
       (key, value) => MapEntry(key, _pdfSafeText(value)),
     );

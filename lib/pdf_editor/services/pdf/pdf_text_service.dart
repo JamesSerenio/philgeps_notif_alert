@@ -1,5 +1,24 @@
 part of '../pdf_service.dart';
 
+ByteData? _pdfUnicodeMarkerFontData;
+
+Future<void> _ensurePdfUnicodeMarkerFont() async {
+  _pdfUnicodeMarkerFontData ??=
+      await rootBundle.load('assets/fonts/seguisym.ttf');
+}
+
+PdfFont _pdfUnicodeMarkerFont(double size) {
+  final data = _pdfUnicodeMarkerFontData;
+  if (data == null) {
+    throw StateError('Unicode marker font was not initialized.');
+  }
+  return PdfTrueTypeFont(data.buffer.asUint8List(), size);
+}
+
+final RegExp _pdfSpecificationMarkerPattern = RegExp(
+  '^\\s*(\\u2713|\\u2022|\\u25CB|\\u25A0|\\u27A2)\\s*',
+);
+
 String _pdfSafeText(String value) => value
     .replaceAll(String.fromCharCode(8292), '')
     // Remove invisible direction/isolation characters commonly carried by
@@ -69,13 +88,6 @@ String _pdfStandardFontSafeText(String value) {
       case 0x2014:
         result.write('-');
         continue;
-      case 0x2022:
-        result.write('*');
-        continue;
-      case 0x2713:
-      case 0x2714:
-        result.write('v');
-        continue;
     }
     if (rune == 0x0A ||
         rune == 0x0D ||
@@ -108,7 +120,7 @@ void _drawMarkedSpecificationText(
   bool centerVertically = true,
 }) {
   text = _pdfSafeText(text);
-  final markerPattern = RegExp(r'^\s*(\u2713|\u2022|\u25CB|\u25A0|\u27A2)\s*');
+  final markerPattern = _pdfSpecificationMarkerPattern;
   final entries = <({String? marker, String content, double height})>[];
   for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
     final match = markerPattern.firstMatch(sourceLine);
@@ -134,58 +146,20 @@ void _drawMarkedSpecificationText(
     top +=
         ((bounds.height - totalHeight) / 2).clamp(0, bounds.height).toDouble();
   }
-  final markerPen = PdfPen(PdfColor(0, 0, 0), width: 1.15);
   final markerBrush = PdfSolidBrush(PdfColor(0, 0, 0));
 
   for (final entry in entries) {
     final marker = entry.marker;
     var textLeft = bounds.left;
     if (marker != null) {
-      final markerTop = top + (entry.height - 9) / 2;
-      switch (marker) {
-        case '\u2713':
-          graphics.drawLine(
-            markerPen,
-            Offset(bounds.left + 1, markerTop + 5),
-            Offset(bounds.left + 4, markerTop + 8),
-          );
-          graphics.drawLine(
-            markerPen,
-            Offset(bounds.left + 4, markerTop + 8),
-            Offset(bounds.left + 10, markerTop + 1),
-          );
-          break;
-        case '\u2022':
-          graphics.drawEllipse(
-            Rect.fromLTWH(bounds.left + 3, markerTop + 3, 5, 5),
-            brush: markerBrush,
-          );
-          break;
-        case '\u25CB':
-          graphics.drawEllipse(
-            Rect.fromLTWH(bounds.left + 2, markerTop + 2, 7, 7),
-            pen: markerPen,
-          );
-          break;
-        case '\u25A0':
-          graphics.drawRectangle(
-            brush: markerBrush,
-            bounds: Rect.fromLTWH(bounds.left + 2, markerTop + 2, 7, 7),
-          );
-          break;
-        case '\u27A2':
-          graphics.drawLine(
-            markerPen,
-            Offset(bounds.left + 1, markerTop + 1),
-            Offset(bounds.left + 10, markerTop + 5),
-          );
-          graphics.drawLine(
-            markerPen,
-            Offset(bounds.left + 10, markerTop + 5),
-            Offset(bounds.left + 1, markerTop + 9),
-          );
-          break;
-      }
+      final markerFont = _pdfUnicodeMarkerFont(font.size);
+      graphics.drawString(
+        marker,
+        markerFont,
+        brush: markerBrush,
+        bounds: Rect.fromLTWH(bounds.left, top, 14, entry.height),
+        format: PdfStringFormat(lineAlignment: PdfVerticalAlignment.middle),
+      );
       textLeft += 14;
     }
     graphics.drawString(
@@ -210,10 +184,7 @@ double _measureMarkedSpecificationTextHeight(
   double width,
 ) {
   text = _pdfSafeText(text);
-  final markerPattern = RegExp(
-    r'^\s*(\u2713|\u2714|\u26F3|\u2022|\u25CB|\u25A0|\u27A2|-|\[x\])\s*',
-    caseSensitive: false,
-  );
+  final markerPattern = _pdfSpecificationMarkerPattern;
   var totalHeight = 0.0;
 
   for (final rawLine in text.replaceAll('\u2029', '\n').split('\n')) {
@@ -246,10 +217,7 @@ List<List<String>> _chunkMarkedSpecificationLines(
   sourceLines = <String>[
     for (final line in sourceLines) _pdfSafeText(line),
   ];
-  final markerPattern = RegExp(
-    r'^\s*(\u2713|\u2714|\u26F3|\u2022|\u25CB|\u25A0|\u27A2|-|\[x\])\s*',
-    caseSensitive: false,
-  );
+  final markerPattern = _pdfSpecificationMarkerPattern;
   final visualLines = <String>[];
   for (final sourceLine in sourceLines) {
     final match = markerPattern.firstMatch(sourceLine);

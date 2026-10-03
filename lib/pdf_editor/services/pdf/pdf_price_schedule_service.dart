@@ -50,10 +50,7 @@ int _drawPriceSchedule(
   final measuringFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
 
   List<String> wrapPriceSpecificationLine(String sourceLine) {
-    final markerMatch = RegExp(
-      r'^\s*(Ã¢Å“â€œ|Ã¢Å“â€|Ã¢â€ºÂ³|Ã¢â‚¬Â¢|Ã¢â€”â€¹|Ã¢â€“Â |Ã¢Å¾Â¢|-|\[x\])\s*',
-      caseSensitive: false,
-    ).firstMatch(sourceLine);
+    final markerMatch = _pdfSpecificationMarkerPattern.firstMatch(sourceLine);
     final marker = markerMatch?.group(1);
     final content = _pdfStandardFontSafeText(
       markerMatch == null
@@ -80,9 +77,7 @@ int _drawPriceSchedule(
     }
     if (current.isNotEmpty) wrapped.add(current);
     if (marker != null && wrapped.isNotEmpty) {
-      final safeMarker =
-          marker == 'Ã¢Å“â€' || marker == 'Ã¢â€ºÂ³' ? 'Ã¢Å“â€œ' : marker;
-      wrapped[0] = '$safeMarker ${wrapped[0]}';
+      wrapped[0] = '$marker ${wrapped[0]}';
     }
     return wrapped.isEmpty ? <String>[''] : wrapped;
   }
