@@ -318,52 +318,11 @@ class PdfService {
     // stable while the document is being prepared.
     await _replaceSlccSection(document, values);
     await yieldToBrowser();
-    final afsPlacement = await _replaceAfsSection(document);
-    if (afsPlacement == null || !afsPlacement.isValidFor(document)) {
-      throw StateError('AFS replacement failed or returned invalid placement.');
-    }
+    final afsPlacement = _validateAfsPlacement(
+      document,
+      await _replaceAfsSection(document),
+    );
     await yieldToBrowser();
-
-    // Reverse final PDF pages 29-43 while preserving every page exactly.
-    // Export them as templates first, remove the original range, then insert
-    // them back in reverse order at the same position.
-    if (document.pages.count >= 43) {
-      const reverseStartIndex = 28;
-      const reversePageCount = 15;
-      // Templates created directly from `document` become invalid as soon as
-      // their source pages are removed. Reopen a snapshot and keep it alive
-      // until all reversed pages have been drawn.
-      final snapshotBytes = await document.save();
-      final snapshotDocument = PdfDocument(inputBytes: snapshotBytes);
-      final reversedTemplates = <({PdfTemplate template, Size size})>[
-        for (var index = reverseStartIndex + reversePageCount - 1;
-            index >= reverseStartIndex;
-            index--)
-          (
-            template: snapshotDocument.pages[index].createTemplate(),
-            size: snapshotDocument.pages[index].size,
-          ),
-      ];
-      for (var page = 0; page < reversePageCount; page++) {
-        document.pages.removeAt(reverseStartIndex);
-        if (page % 3 == 2) await yieldToBrowser();
-      }
-      for (var index = 0; index < reversedTemplates.length; index++) {
-        final source = reversedTemplates[index];
-        final target = document.pages.insert(
-          reverseStartIndex + index,
-          source.size,
-          PdfMargins()..all = 0,
-        );
-        target.graphics.drawPdfTemplate(
-          source.template,
-          Offset.zero,
-          source.size,
-        );
-        if (index % 3 == 2) await yieldToBrowser();
-      }
-      snapshotDocument.dispose();
-    }
 
     // _replaceAfsSection already removes the complete 18-page legacy AFS and
     // attachment range before inserting the clean AFS template. Do not remove
@@ -394,15 +353,6 @@ class PdfService {
       await yieldToBrowser();
     }
 
-    // Final post-processing: move the current human pages 54-67 (zero-based
-    // indexes 53-66) as one unchanged block to the document end. This runs
-    // after every page source has completed its own generation and insertion.
-    await _moveFinalPageRangeToEnd(
-      document,
-      startPageIndex: 53,
-      endPageIndexInclusive: 66,
-    );
-    await yieldToBrowser();
     // Keep Syncfusion's normal incremental output here. Chrome/PDFium resolves
     // this revision correctly; the Railway compatibility service flattens its
     // visible overlays into permanent page content for the other readers.
@@ -410,4 +360,30 @@ class PdfService {
     document.dispose();
     return Uint8List.fromList(outputBytes);
   }
+}
+
+_AfsPlacement _validateAfsPlacement(
+  PdfDocument document,
+  _AfsPlacement? placement,
+) {
+  if (placement == null || !placement.isValidFor(document)) {
+    throw StateError('AFS replacement failed or returned invalid placement.');
+  }
+  final afsStart = placement.startIndex;
+  final afsEndExclusive = placement.endExclusive;
+  final firstAfsPageMissing = afsStart >= document.pages.count;
+  final secondAfsPageMissing = afsStart + 1 >= document.pages.count;
+  if (placement.pageCount != 15 ||
+      firstAfsPageMissing ||
+      secondAfsPageMissing ||
+      afsEndExclusive > document.pages.count) {
+    throw StateError(
+      'AFS integrity failure: expected=15 '
+      'missing first AFS page=${firstAfsPageMissing} '
+      'missing second AFS page=${secondAfsPageMissing} '
+      'start=${afsStart} end=${afsEndExclusive} '
+      'documentPages=${document.pages.count}.',
+    );
+  }
+  return placement;
 }

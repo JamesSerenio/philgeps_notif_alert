@@ -108,7 +108,7 @@ void _drawMarkedSpecificationText(
   bool centerVertically = true,
 }) {
   text = _pdfSafeText(text);
-  final markerPattern = RegExp(r'^\s*(âœ“|â€¢|â—‹|â– |âž¢)\s*');
+  final markerPattern = RegExp(r'^\s*(\u2713|\u2022|\u25CB|\u25A0|\u27A2)\s*');
   final entries = <({String? marker, String content, double height})>[];
   for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
     final match = markerPattern.firstMatch(sourceLine);
@@ -143,7 +143,7 @@ void _drawMarkedSpecificationText(
     if (marker != null) {
       final markerTop = top + (entry.height - 9) / 2;
       switch (marker) {
-        case 'âœ“':
+        case '\u2713':
           graphics.drawLine(
             markerPen,
             Offset(bounds.left + 1, markerTop + 5),
@@ -155,25 +155,25 @@ void _drawMarkedSpecificationText(
             Offset(bounds.left + 10, markerTop + 1),
           );
           break;
-        case 'â€¢':
+        case '\u2022':
           graphics.drawEllipse(
             Rect.fromLTWH(bounds.left + 3, markerTop + 3, 5, 5),
             brush: markerBrush,
           );
           break;
-        case 'â—‹':
+        case '\u25CB':
           graphics.drawEllipse(
             Rect.fromLTWH(bounds.left + 2, markerTop + 2, 7, 7),
             pen: markerPen,
           );
           break;
-        case 'â– ':
+        case '\u25A0':
           graphics.drawRectangle(
             brush: markerBrush,
             bounds: Rect.fromLTWH(bounds.left + 2, markerTop + 2, 7, 7),
           );
           break;
-        case 'âž¢':
+        case '\u27A2':
           graphics.drawLine(
             markerPen,
             Offset(bounds.left + 1, markerTop + 1),
@@ -211,7 +211,7 @@ double _measureMarkedSpecificationTextHeight(
 ) {
   text = _pdfSafeText(text);
   final markerPattern = RegExp(
-    r'^\s*(âœ“|âœ”|â›³|â€¢|â—‹|â– |âž¢|-|\[x\])\s*',
+    r'^\s*(\u2713|\u2714|\u26F3|\u2022|\u25CB|\u25A0|\u27A2|-|\[x\])\s*',
     caseSensitive: false,
   );
   var totalHeight = 0.0;
@@ -247,7 +247,7 @@ List<List<String>> _chunkMarkedSpecificationLines(
     for (final line in sourceLines) _pdfSafeText(line),
   ];
   final markerPattern = RegExp(
-    r'^\s*(âœ“|âœ”|â›³|â€¢|â—‹|â– |âž¢|-|\[x\])\s*',
+    r'^\s*(\u2713|\u2714|\u26F3|\u2022|\u25CB|\u25A0|\u27A2|-|\[x\])\s*',
     caseSensitive: false,
   );
   final visualLines = <String>[];

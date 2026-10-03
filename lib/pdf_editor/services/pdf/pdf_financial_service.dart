@@ -1,40 +1,51 @@
 part of '../pdf_service.dart';
 
 Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
-  // After the selected SLCC template has been inserted, the legacy Audited
-  // Financial Statements occupy PDF pages 29-46 inclusive.
-  const afsPageIndex = 28;
-  const legacyAfsPageCount = 18;
-  if (afsPageIndex >= document.pages.count) {
-    return null;
-  }
-
-  // Earlier optional-page cleanup can shorten the pages before Technical
-  // Specifications (notably when SLCC=None). Never let the fixed legacy AFS
-  // range consume NFCC or the first Technical Specifications page.
-  var removableAfsPageCount = legacyAfsPageCount;
-  final lines = PdfTextExtractor(document).extractTextLines();
-  for (final line in lines) {
+  final textLines = PdfTextExtractor(document).extractTextLines();
+  int? philgepsPageIndex;
+  int? annexPageIndex;
+  int? technicalSpecificationsPageIndex;
+  for (final line in textLines) {
     final title =
         line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (line.pageIndex >= afsPageIndex &&
-        title.contains('TECHNICAL SPECIFICATIONS')) {
-      removableAfsPageCount = (line.pageIndex - afsPageIndex - 1)
-          .clamp(0, legacyAfsPageCount)
-          .toInt();
-      break;
+    if (line.pageIndex >= 20 &&
+        title.contains('CERTIFICATE OF PHILGEPS REGISTRATION')) {
+      philgepsPageIndex ??= line.pageIndex;
     }
+    if (line.pageIndex >= 20 && title.contains('ANNEX A')) {
+      annexPageIndex = line.pageIndex;
+    }
+    if (line.pageIndex >= 20 && title.contains('TECHNICAL SPECIFICATIONS')) {
+      technicalSpecificationsPageIndex ??= line.pageIndex;
+    }
+  }
+  if (philgepsPageIndex == null ||
+      annexPageIndex == null ||
+      technicalSpecificationsPageIndex == null) {
+    throw StateError(
+      'Cannot replace AFS structurally: missing PhilGEPS or Technical Specifications anchor.',
+    );
+  }
+
+  // AFS follows the PhilGEPS certificate and ends immediately before NFCC,
+  // which is directly before Technical Specifications. These anchors survive
+  // any number of pages inserted by preceding sections.
+  final afsPageIndex = philgepsPageIndex + 1;
+  final nfccPageIndex = technicalSpecificationsPageIndex - 1;
+  final removableAfsPageCount = nfccPageIndex - afsPageIndex;
+  if (removableAfsPageCount < 0 || afsPageIndex > document.pages.count) {
+    throw StateError('Cannot replace AFS structurally: invalid boundaries.');
   }
 
   final data = await rootBundle.load('assets/pdf/AFS_template.pdf');
-  final sourceDocument = PdfDocument(
-    inputBytes: data.buffer.asUint8List(),
-  );
+  final sourceDocument = PdfDocument(inputBytes: data.buffer.asUint8List());
   final sourceAfsPageCount = sourceDocument.pages.count;
+  if (sourceAfsPageCount != 15) {
+    sourceDocument.dispose();
+    throw StateError('AFS source integrity failure: expected 15 pages.');
+  }
 
-  for (var page = 0;
-      page < removableAfsPageCount && afsPageIndex < document.pages.count;
-      page++) {
+  for (var page = 0; page < removableAfsPageCount; page++) {
     document.pages.removeAt(afsPageIndex);
     if (page % 3 == 2) {
       await Future<void>.delayed(const Duration(milliseconds: 1));
@@ -48,10 +59,8 @@ Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
     final scale = (a4Size.width / sourceSize.width)
         .clamp(0.0, a4Size.height / sourceSize.height)
         .toDouble();
-    final fittedSize = Size(
-      sourceSize.width * scale,
-      sourceSize.height * scale,
-    );
+    final fittedSize =
+        Size(sourceSize.width * scale, sourceSize.height * scale);
     final targetPage = document.pages.insert(
       afsPageIndex + index,
       a4Size,

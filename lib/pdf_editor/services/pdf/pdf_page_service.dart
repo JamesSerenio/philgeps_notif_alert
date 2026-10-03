@@ -36,43 +36,6 @@ Future<void> _moveBusinessPermitBeforeTaxClearance(
   snapshotDocument.dispose();
 }
 
-Future<void> _moveFinalPageRangeToEnd(
-  PdfDocument document, {
-  required int startPageIndex,
-  required int endPageIndexInclusive,
-}) async {
-  if (startPageIndex < 0 ||
-      endPageIndexInclusive < startPageIndex ||
-      document.pages.count <= endPageIndexInclusive) {
-    return;
-  }
-
-  final pageCount = endPageIndexInclusive - startPageIndex + 1;
-  final snapshotBytes = await document.save();
-  final snapshot = PdfDocument(inputBytes: snapshotBytes);
-  final movedPages = <({PdfTemplate template, Size size})>[
-    for (var index = 0; index < pageCount; index++)
-      (
-        template: snapshot.pages[startPageIndex + index].createTemplate(),
-        size: snapshot.pages[startPageIndex + index].size,
-      ),
-  ];
-
-  // Remove exactly the original contiguous range, then append it intact.
-  for (var index = 0; index < pageCount; index++) {
-    document.pages.removeAt(startPageIndex);
-  }
-  for (final source in movedPages) {
-    final target = document.pages.insert(
-      document.pages.count,
-      source.size,
-      PdfMargins()..all = 0,
-    );
-    target.graphics.drawPdfTemplate(source.template, Offset.zero, source.size);
-  }
-  snapshot.dispose();
-}
-
 void _replacePagesWithBlankSize(
   PdfDocument document,
   int startPageIndex,

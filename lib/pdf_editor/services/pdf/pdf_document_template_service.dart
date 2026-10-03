@@ -39,7 +39,6 @@ Future<void> _insertInitaoDocumentPages(
 
     final ongoing = anchor('STATEMENTOFALLITSONGOING');
     final philgeps = anchor('CERTIFICATEOFPHILGEPSREGISTRATION');
-    final nfcc = anchor('NETFINANCIALCONTRACTINGCAPACITY(NFCC)');
     final specifications = anchor('TECHNICALSPECIFICATIONS');
     final security = anchor('BIDSECURINGDECLARATION');
     final schedule = anchor('SCHEDULEOFREQUIREMENTS');
@@ -57,10 +56,12 @@ Future<void> _insertInitaoDocumentPages(
         "AFS placement is outside snapshot bounds: start=$afsStart end=$afsEndExclusive snapshot=${snapshot.pages.count}.",
       );
     }
-    if (nfcc != afsEndExclusive) {
-      throw StateError(
-        "NFCC must immediately follow the complete AFS block: afsEnd=$afsEndExclusive nfcc=$nfcc.",
-      );
+    final nfcc = text.indexWhere(
+      (value) => value.contains('NETFINANCIALCONTRACTINGCAPACITY(NFCC)'),
+      afsEndExclusive,
+    );
+    if (nfcc < 0) {
+      throw StateError('Cannot organize INITAO PDF: missing NFCC after AFS.');
     }
     final afsPages = <int>[
       for (var i = afsStart; i < afsEndExclusive; i++) i,
@@ -115,11 +116,35 @@ Future<void> _insertInitaoDocumentPages(
       ...financialComponentDocuments
     ];
     final expected = range(0, snapshot.pages.count);
+    final orderedSet = ordered.toSet();
     if (ordered.length != expected.length ||
-        ordered.toSet().length != expected.length ||
-        !ordered.toSet().containsAll(expected)) {
+        orderedSet.length != expected.length ||
+        !orderedSet.containsAll(expected)) {
       throw StateError(
           'Cannot organize INITAO PDF: duplicate or missing pages.');
+    }
+    final ongoingOccurrences =
+        ordered.where((index) => index == ongoing).length;
+    if (ongoingOccurrences != 1) {
+      throw StateError(
+        'Statement of Ongoing Contracts page is missing from final order: '
+        'index=${ongoing} occurrences=${ongoingOccurrences}.',
+      );
+    }
+    final afsOccurrences = <int, int>{
+      for (final index in afsPages)
+        index: ordered.where((candidate) => candidate == index).length,
+    };
+    final missingFirstAfsPage = afsOccurrences[afsStart] != 1;
+    final missingSecondAfsPage = afsOccurrences[afsStart + 1] != 1;
+    if (afsOccurrences.values.any((count) => count != 1)) {
+      throw StateError(
+        'AFS integrity failure: expected=${afsPlacement.pageCount} '
+        'missing first AFS page=${missingFirstAfsPage} '
+        'missing second AFS page=${missingSecondAfsPage} '
+        'start=${afsStart} end=${afsEndExclusive} '
+        'documentPages=${snapshot.pages.count}.',
+      );
     }
 
     _drawInitaoContentsFields(template.pages[0], values);
