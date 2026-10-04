@@ -12,34 +12,138 @@ PdfFont _pdfUnicodeMarkerFont(double size) {
   if (data == null) {
     throw StateError('Unicode marker font was not initialized.');
   }
-  return PdfTrueTypeFont(data.buffer.asUint8List(), size);
+  return PdfTrueTypeFont(
+    data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    size,
+  );
+}
+
+double _pdfSpecificationMarkerWidth(PdfFont textFont, String? marker) {
+  if (marker == null || marker.isEmpty) return 0;
+  // Reserve the actual symbol width. A fixed 14-point cell can be narrower
+  // than Segoe UI Symbol's checkmark, which makes Syncfusion wrap the glyph
+  // out of the visible cell.
+  return _pdfUnicodeMarkerFont(textFont.size).measureString(marker).width + 3;
 }
 
 final RegExp _pdfSpecificationMarkerPattern = RegExp(
   '^\\s*(\\u2713|\\u2022|\\u25CB|\\u25A0|\\u27A2)\\s*',
 );
 
-String _pdfSafeText(String value) => value
-    .replaceAll(String.fromCharCode(8292), '')
-    // Remove invisible direction/isolation characters commonly carried by
-    // text copied from web pages and office documents. PdfStandardFont
-    // cannot encode these controls (for example U+2064 / decimal 8292),
-    // even though they have no visible appearance in the resulting PDF.
-    .replaceAll(
-      RegExp(
-        '[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]',
-      ),
-      '',
-    )
-    // Also handle a JSON payload that contains the escaped form before it
-    // is decoded into the individual specification fields.
-    .replaceAll(r'\u2064', '')
-    .replaceAll('\u00A0', ' ')
-    .replaceAll('\u2714', '\u2713')
-    // Some previously saved specifications contain U+26F3 in place of the
-    // check marker. Standard PDF fonts cannot measure or draw that glyph.
-    .replaceAll('\u26F3', '\u2713')
-    .replaceAll('\u221A', '\u2713');
+/// Converts marker sequences saved by older Windows-1252/UTF-8 editor builds
+/// back to their original Unicode symbols before layout or PDF drawing.
+String _pdfNormalizeSpecificationMarkerEncoding(String value) => value
+    .replaceAll(String.fromCharCodes(const [0xE2, 0x153, 0x201C]), '\u2713')
+    .replaceAll(String.fromCharCodes(const [0xE2, 0x20AC, 0xA2]), '\u2022')
+    .replaceAll(String.fromCharCodes(const [0xE2, 0x2014, 0x2039]), '\u25CB')
+    .replaceAll(String.fromCharCodes(const [0xE2, 0x2013, 0xA0]), '\u25A0')
+    .replaceAll(String.fromCharCodes(const [0xE2, 0x17E, 0xA2]), '\u27A2');
+
+/// Produces one display line while avoiding duplicate markers if a saved line
+/// already includes the selected marker.
+String _pdfSpecificationDisplayLine(
+    {String marker = '', required String text}) {
+  final normalizedMarker =
+      _pdfNormalizeSpecificationMarkerEncoding(marker).trim();
+  var normalizedText = _pdfNormalizeSpecificationMarkerEncoding(text).trim();
+  // A prior PDF-only workaround stored its checkmark marker as a standalone
+  // leading `v`. Migrate that marker token here, at the specification-line
+  // boundary, without changing ordinary v characters in body text.
+  normalizedText = normalizedText.replaceFirstMapped(
+    RegExp(r'^v(?=\s)'),
+    (_) => '\u2713',
+  );
+  final effectiveMarker = normalizedMarker == 'v' ? '\u2713' : normalizedMarker;
+  if (effectiveMarker.isEmpty || normalizedText.startsWith(effectiveMarker)) {
+    return normalizedText;
+  }
+  return '$effectiveMarker $normalizedText';
+}
+
+({String marker, String text}) _pdfParseSpecificationDisplayLine(
+  String value,
+) {
+  assert(() {
+    print('RAW SPEC LINE = "$value"');
+    print(
+      'RAW CODEPOINTS = ${value.runes.map((r) => 'U+${r.toRadixString(16).toUpperCase()}').join(' ')}',
+    );
+    return true;
+  }());
+  final line = _pdfSpecificationDisplayLine(text: value);
+  assert(() {
+    print('NORMALIZED SPEC LINE = "$line"');
+    return true;
+  }());
+  final match = _pdfSpecificationMarkerPattern.firstMatch(line);
+  final parsed = (
+    marker: match?.group(1) ?? '',
+    text: match == null ? line : line.substring(match.end),
+  );
+  assert(() {
+    print('PARSED MARKER = "${parsed.marker}"');
+    print('PARSED TEXT = "${parsed.text}"');
+    return true;
+  }());
+  return parsed;
+}
+
+void _drawSpecificationMarkerGlyph({
+  required PdfGraphics graphics,
+  required String marker,
+  required PdfBrush brush,
+  required double x,
+  required double y,
+  required double lineHeight,
+  required PdfFont textFont,
+}) {
+  if (marker.isEmpty) return;
+  assert(marker != 'v', 'BUG: legacy v marker reached PDF renderer.');
+  final markerFont = _pdfUnicodeMarkerFont(textFont.size);
+  final markerWidth = _pdfSpecificationMarkerWidth(textFont, marker);
+  assert(() {
+    print(
+      'FINAL PDF MARKER = "$marker" U+${marker.runes.first.toRadixString(16).toUpperCase()} '
+      'markerWidth=$markerWidth x=$x y=$y',
+    );
+    return true;
+  }());
+  graphics.drawString(
+    marker,
+    markerFont,
+    brush: brush,
+    bounds: Rect.fromLTWH(x, y, markerWidth, lineHeight),
+    format: PdfStringFormat(
+      lineAlignment: PdfVerticalAlignment.middle,
+      wordWrap: PdfWordWrapType.none,
+    ),
+  );
+}
+
+String _pdfSafeText(String value) {
+  value = _pdfNormalizeSpecificationMarkerEncoding(value);
+  return value
+      .replaceAll(String.fromCharCode(8292), '')
+      // Remove invisible direction/isolation characters commonly carried by
+      // text copied from web pages and office documents. PdfStandardFont
+      // cannot encode these controls (for example U+2064 / decimal 8292),
+      // even though they have no visible appearance in the resulting PDF.
+      .replaceAll(
+        RegExp(
+          '[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]',
+        ),
+        '',
+      )
+      // Also handle a JSON payload that contains the escaped form before it
+      // is decoded into the individual specification fields.
+      .replaceAll(r'\u2064', '')
+      .replaceAll('\u00A0', ' ')
+      .replaceAll('\u2714', '\u2713')
+      // Some previously saved specifications contain U+26F3 in place of the
+      // check marker. Standard PDF fonts cannot measure or draw that glyph.
+      .replaceAll('\u26F3', '\u2713')
+      .replaceAll('\u221A', '\u2713');
+}
 
 /// Returns explicit editor Add line records while preserving normal newlines.
 List<String> _pdfSpecificationBlocks(dynamic value) => (value ?? '')
@@ -120,22 +224,22 @@ void _drawMarkedSpecificationText(
   bool centerVertically = true,
 }) {
   text = _pdfSafeText(text);
-  final markerPattern = _pdfSpecificationMarkerPattern;
   final entries = <({String? marker, String content, double height})>[];
-  for (final sourceLine in text.split(RegExp(r'\r?\n'))) {
-    final match = markerPattern.firstMatch(sourceLine);
-    final marker = match?.group(1);
+  for (final rawSourceLine in text.split(RegExp(r'\r?\n'))) {
+    final parsed = _pdfParseSpecificationDisplayLine(rawSourceLine);
+    final marker = parsed.marker;
     final content = _pdfStandardFontSafeText(
-      match == null ? sourceLine : sourceLine.substring(match.end),
+      parsed.text,
     );
-    final contentWidth = bounds.width - (marker == null ? 0 : 14);
+    final contentWidth =
+        bounds.width - _pdfSpecificationMarkerWidth(font, marker);
     final measured = font.measureString(
       content.isEmpty ? ' ' : content,
       layoutArea: Size(contentWidth, bounds.height),
       format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
     );
     entries.add((
-      marker: marker,
+      marker: marker.isEmpty ? null : marker,
       content: content,
       height: measured.height.clamp(font.size + 2, bounds.height).toDouble(),
     ));
@@ -152,15 +256,17 @@ void _drawMarkedSpecificationText(
     final marker = entry.marker;
     var textLeft = bounds.left;
     if (marker != null) {
-      final markerFont = _pdfUnicodeMarkerFont(font.size);
-      graphics.drawString(
-        marker,
-        markerFont,
+      final markerWidth = _pdfSpecificationMarkerWidth(font, marker);
+      _drawSpecificationMarkerGlyph(
+        graphics: graphics,
+        marker: marker,
         brush: markerBrush,
-        bounds: Rect.fromLTWH(bounds.left, top, 14, entry.height),
-        format: PdfStringFormat(lineAlignment: PdfVerticalAlignment.middle),
+        x: bounds.left,
+        y: top,
+        lineHeight: entry.height,
+        textFont: font,
       );
-      textLeft += 14;
+      textLeft += markerWidth;
     }
     graphics.drawString(
       entry.content,
@@ -184,15 +290,15 @@ double _measureMarkedSpecificationTextHeight(
   double width,
 ) {
   text = _pdfSafeText(text);
-  final markerPattern = _pdfSpecificationMarkerPattern;
   var totalHeight = 0.0;
 
   for (final rawLine in text.replaceAll('\u2029', '\n').split('\n')) {
-    final match = markerPattern.firstMatch(rawLine);
+    final parsed = _pdfParseSpecificationDisplayLine(rawLine);
     final content = _pdfStandardFontSafeText(
-      match == null ? rawLine.trim() : rawLine.substring(match.end).trim(),
+      parsed.text.trim(),
     );
-    final rawContentWidth = width - (match == null ? 0 : 14);
+    final rawContentWidth =
+        width - _pdfSpecificationMarkerWidth(font, parsed.marker);
     final contentWidth = rawContentWidth < 1.0 ? 1.0 : rawContentWidth;
     final measured = font.measureString(
       content.isEmpty ? ' ' : content,
@@ -217,17 +323,14 @@ List<List<String>> _chunkMarkedSpecificationLines(
   sourceLines = <String>[
     for (final line in sourceLines) _pdfSafeText(line),
   ];
-  final markerPattern = _pdfSpecificationMarkerPattern;
   final visualLines = <String>[];
-  for (final sourceLine in sourceLines) {
-    final match = markerPattern.firstMatch(sourceLine);
-    final marker = match?.group(1);
+  for (final rawSourceLine in sourceLines) {
+    final parsed = _pdfParseSpecificationDisplayLine(rawSourceLine);
+    final marker = parsed.marker;
     final content = _pdfStandardFontSafeText(
-      match == null
-          ? sourceLine.trim()
-          : sourceLine.substring(match.end).trim(),
+      parsed.text.trim(),
     );
-    final contentWidth = (width - (marker == null ? 0 : 14))
+    final contentWidth = (width - _pdfSpecificationMarkerWidth(font, marker))
         .clamp(1.0, double.infinity)
         .toDouble();
     final wrapped = <String>[];
@@ -247,7 +350,7 @@ List<List<String>> _chunkMarkedSpecificationLines(
     }
     if (currentLine.isNotEmpty) wrapped.add(currentLine);
     if (wrapped.isEmpty) wrapped.add('');
-    if (marker != null) wrapped[0] = '$marker ${wrapped[0]}'.trimRight();
+    if (marker.isNotEmpty) wrapped[0] = '$marker ${wrapped[0]}'.trimRight();
     visualLines.addAll(wrapped);
   }
 

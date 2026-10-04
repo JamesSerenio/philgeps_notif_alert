@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,29 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('draws an isolated Unicode check glyph with the bundled font', () async {
+    final data = await rootBundle.load('assets/fonts/seguisym.ttf');
+    final font = PdfTrueTypeFont(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+      12,
+    );
+    expect(font.measureString('\u2713').width, greaterThan(0));
+
+    final document = PdfDocument();
+    final page = document.pages.add();
+    page.graphics.drawString(
+      '\u2713',
+      font,
+      bounds: const Rect.fromLTWH(48, 48, 32, 24),
+      format: PdfStringFormat(wordWrap: PdfWordWrapType.none),
+    );
+    final bytes = await document.save();
+    document.dispose();
+    await Directory('build/test_logs').create(recursive: true);
+    await File('build/test_logs/isolated_check_glyph.pdf').writeAsBytes(bytes);
+    expect(bytes, isNotEmpty);
+  });
+
   test('renders specification markers as their selected Unicode glyphs',
       () async {
     const specification = '''TEST NONE
@@ -15,7 +39,8 @@ void main() {
 ○ TEST CIRCLE
 ■ TEST SQUARE
 ➢ TEST ARROW
-✓ TEST CHECK''';
+✓ TEST CHECK
+v TEST LEGACY CHECK''';
     final values = <String, String>{
       'province': 'Misamis Oriental',
       'municipality': 'Initao',
@@ -50,6 +75,8 @@ void main() {
     expect(fontBytes.lengthInBytes, greaterThan(0));
 
     final bytes = await PdfService.generateBidDocs(values: values);
+    await Directory('build/test_logs').create(recursive: true);
+    await File('build/test_logs/pdf_marker_rendering.pdf').writeAsBytes(bytes);
     final document = PdfDocument(inputBytes: bytes);
     final text = PdfTextExtractor(document).extractText();
     document.dispose();
@@ -64,6 +91,7 @@ void main() {
       'TEST SQUARE',
       'TEST ARROW',
       'TEST CHECK',
+      'TEST LEGACY CHECK',
     ]) {
       expect(
           RegExp(markerLine).allMatches(text).length, greaterThanOrEqualTo(4));

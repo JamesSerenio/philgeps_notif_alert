@@ -32,6 +32,13 @@ extension _EditorPreview on _PdfEditorScreenState {
       await _saveAfterSalesSettings();
       final generatedProjectTitle = projectTitleController.text.trim();
       final generatedReferenceNumber = referenceNumberController.text.trim();
+      assert(() {
+        debugPrint('=== REAL PDF SPEC DATA ===');
+        for (final entry in technicalSpecifications) {
+          debugPrint('raw="${entry.specification.text}"');
+        }
+        return true;
+      }());
       lastObservedContentSignature = _currentContentSignature();
       final generatedRevision = contentRevision;
       final rawBytes = await PdfService.generateBidDocs(

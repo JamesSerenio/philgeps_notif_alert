@@ -61,16 +61,16 @@ int _drawBidPriceSummary(
   final summaryMeasuringFont = PdfStandardFont(PdfFontFamily.timesRoman, 12);
 
   List<String> wrapSummaryLine(String sourceLine) {
-    final markerMatch = _pdfSpecificationMarkerPattern.firstMatch(sourceLine);
-    final marker = markerMatch?.group(1);
+    final parsed = _pdfParseSpecificationDisplayLine(sourceLine);
+    final marker = parsed.marker;
     final content = _pdfStandardFontSafeText(
-      markerMatch == null
-          ? sourceLine.trim()
-          : sourceLine.substring(markerMatch.end).trim(),
+      parsed.text.trim(),
     );
+    final contentWidth = summaryDescriptionWidth -
+        _pdfSpecificationMarkerWidth(summaryMeasuringFont, marker);
     final words = content.split(RegExp(r'\s+'));
     if (words.isEmpty || (words.length == 1 && words.first.isEmpty)) {
-      return <String>[marker ?? ''];
+      return <String>[marker];
     }
     final wrapped = <String>[];
     var current = '';
@@ -79,8 +79,7 @@ int _drawBidPriceSummary(
         current.isEmpty ? word : '$current $word',
       );
       if (current.isNotEmpty &&
-          summaryMeasuringFont.measureString(candidate).width >
-              summaryDescriptionWidth) {
+          summaryMeasuringFont.measureString(candidate).width > contentWidth) {
         wrapped.add(current);
         current = word;
       } else {
@@ -88,7 +87,7 @@ int _drawBidPriceSummary(
       }
     }
     if (current.isNotEmpty) wrapped.add(current);
-    if (marker != null && wrapped.isNotEmpty) {
+    if (marker.isNotEmpty && wrapped.isNotEmpty) {
       wrapped[0] = '$marker ${wrapped[0]}';
     }
     return wrapped.isEmpty ? <String>[''] : wrapped;
