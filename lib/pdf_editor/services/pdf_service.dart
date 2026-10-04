@@ -71,9 +71,6 @@ class PdfService {
       ),
     );
 
-    // Explicit global modes take precedence over stale per-section
-    // preferences. Calls without a global mode retain the existing
-    // section-level API.
     if (values.containsKey('documentTemplateMode')) {
       final initao = values['documentTemplateMode'] == 'initao';
 
@@ -98,7 +95,6 @@ class PdfService {
       inputBytes: templateBytes,
     );
 
-    // PDF work on Flutter Web shares the UI thread.
     await yieldToBrowser();
 
     // ============================================================
@@ -116,7 +112,6 @@ class PdfService {
     // ONGOING CONTRACTS
     // ============================================================
 
-    // Original Page 20.
     if (document.pages.count > 19) {
       _drawContractStatementPage(
         document.pages[19],
@@ -128,7 +123,6 @@ class PdfService {
       );
     }
 
-    // Original Page 21.
     if (document.pages.count > 20) {
       _drawContractStatementPage(
         document.pages[20],
@@ -149,10 +143,6 @@ class PdfService {
     // TECHNICAL SPECIFICATIONS
     // ============================================================
 
-    // Rebuild editable Technical Specifications sheets on blank pages.
-    //
-    // Painting white over bundled rows can leave old PDF stream content
-    // visible in external PDF readers.
     if (document.pages.count > 46) {
       _drawTechnicalSpecificationsHeader(
         document.pages[46],
@@ -240,7 +230,6 @@ class PdfService {
     for (final pageEntry in mappedFields.entries) {
       final int pageIndex = pageEntry.key;
 
-      // Page 1 is already handled above.
       if (pageIndex == 0) {
         continue;
       }
@@ -282,17 +271,13 @@ class PdfService {
           font,
           bounds: bounds,
           format: PdfStringFormat(
-            alignment:
-                PdfTextAlignment.left,
-            lineAlignment:
-                PdfVerticalAlignment.top,
-            wordWrap:
-                PdfWordWrapType.word,
+            alignment: PdfTextAlignment.left,
+            lineAlignment: PdfVerticalAlignment.top,
+            wordWrap: PdfWordWrapType.word,
           ),
         );
       }
 
-      // Large bid documents map many pages.
       await yieldToBrowser();
     }
 
@@ -354,9 +339,6 @@ class PdfService {
           pageIndex,
         );
       }
-
-      // Keep the two Bid Securing Declaration sheets immediately
-      // before Price Schedule.
     }
 
     if (technicalSpecificationPageCount < 3 &&
@@ -388,8 +370,6 @@ class PdfService {
     };
 
     if (useDeclarationWithTable) {
-      // Locate actual form by text because optional Technical Spec
-      // pages can move its final page index.
       _drawBidSecuringDeclarationDetails(
         document,
         values,
@@ -404,15 +384,9 @@ class PdfService {
     await yieldToBrowser();
 
     // ============================================================
-    // REMOVE SAMPLE OFFICIAL RECEIPT
+    // IMPORTANT:
+    // NO FIXED PAGE DELETION HERE
     // ============================================================
-
-    // This remains an existing template-specific operation.
-    if (document.pages.count > 45) {
-      document.pages.removeAt(45);
-    }
-
-    await yieldToBrowser();
 
     // ============================================================
     // OMNIBUS
@@ -495,13 +469,12 @@ class PdfService {
 
     // ============================================================
     // FINAL STRUCTURAL PHASE
-    //
-    // IMPORTANT:
-    // Everything that can change page indexes BEFORE AFS must finish
-    // BEFORE we capture the AFS placement.
     // ============================================================
 
-    // Replace the legacy SLCC section.
+    // ============================================================
+    // SLCC
+    // ============================================================
+
     await _replaceSlccSection(
       document,
       values,
@@ -509,10 +482,6 @@ class PdfService {
 
     await yieldToBrowser();
 
-    // If the user selected NO SLCC, remove it now.
-    //
-    // This MUST happen before AFS placement is captured because removing
-    // pages before AFS changes all following page indexes.
     if (values['slccTemplateType']
             ?.trim()
             .toLowerCase() ==
@@ -528,10 +497,6 @@ class PdfService {
     // NFCC
     // ============================================================
 
-    // Resolve and replace NFCC AFTER optional SLCC changes.
-    //
-    // NFCC is located structurally using Technical Specifications,
-    // not using a fixed final page number.
     await _replaceNfccPage(
       document,
       values,
@@ -543,20 +508,7 @@ class PdfService {
     // BUSINESS PERMIT / TAX CLEARANCE
     // ============================================================
 
-    // This operation may change page positions.
-    // Therefore it MUST happen before AFS placement is captured.
     await _moveBusinessPermitBeforeTaxClearance(
-      document,
-    );
-
-    await yieldToBrowser();
-
-    // ============================================================
-    // PHILGEPS CERTIFICATE
-    // ============================================================
-
-    // This replacement can also affect the page structure before AFS.
-    await _replacePhilgepsCertificateSection(
       document,
     );
 
@@ -566,19 +518,7 @@ class PdfService {
     // AFS
     // ============================================================
 
-    // CRITICAL:
-    //
-    // AFS replacement is deliberately LAST among all operations that
-    // can move pages before the AFS block.
-    //
-    // The placement returned here therefore points at the REAL final
-    // AFS location.
-    //
-    // For the current source:
-    //
-    // pageCount = 15
-    //
-    // and those 15 pages must remain one atomic block.
+    // Resolve AFS while the original PhilGEPS text anchor still exists.
     final afsPlacement =
         _validateAfsPlacement(
       document,
@@ -590,13 +530,52 @@ class PdfService {
     await yieldToBrowser();
 
     // ============================================================
+    // PHILGEPS CERTIFICATE
+    // ============================================================
+
+    final pageCountBeforePhilgepsReplacement =
+        document.pages.count;
+
+    await _replacePhilgepsCertificateSection(
+      document,
+    );
+
+    await yieldToBrowser();
+
+    final pageCountAfterPhilgepsReplacement =
+        document.pages.count;
+
+    if (pageCountAfterPhilgepsReplacement !=
+        pageCountBeforePhilgepsReplacement) {
+      throw StateError(
+        'PhilGEPS replacement changed document page count after AFS '
+        'placement was captured. '
+        'before=$pageCountBeforePhilgepsReplacement '
+        'after=$pageCountAfterPhilgepsReplacement '
+        'afsStart=${afsPlacement.startIndex} '
+        'afsEnd=${afsPlacement.endExclusive}.',
+      );
+    }
+
+    _validateAfsPlacement(
+      document,
+      afsPlacement,
+    );
+
+    // ============================================================
+    // REQUIRED PAGE INTEGRITY CHECK
+    // ============================================================
+
+    _validateStatementOfOngoingPresent(
+      document,
+    );
+
+    // ============================================================
     // INITAO FINAL REORDERING
     // ============================================================
 
     if (values['documentTemplateMode'] ==
         'initao') {
-      // No page-changing operation may occur between AFS placement
-      // capture and this INITAO reorder.
       await _insertInitaoDocumentPages(
         document,
         values,
@@ -605,10 +584,6 @@ class PdfService {
 
       await yieldToBrowser();
     } else {
-      // OLD mode does not perform the INITAO rearrangement.
-      //
-      // Revalidate the structural placement immediately before save
-      // so a broken block cannot silently reach the final PDF.
       _validateAfsPlacement(
         document,
         afsPlacement,
@@ -619,7 +594,6 @@ class PdfService {
     // FINAL SAVE
     // ============================================================
 
-    // Keep Syncfusion's normal incremental output.
     final List<int> outputBytes =
         await document.save();
 
@@ -631,11 +605,77 @@ class PdfService {
   }
 }
 
-/// Validate the structural AFS placement.
+/// Fail immediately only if Statement of Ongoing disappears entirely.
 ///
-/// NOTE:
-/// This validates the numeric structural range. INITAO performs additional
-/// exact ordering checks inside _insertInitaoDocumentPages().
+/// IMPORTANT:
+/// The Ongoing Contracts section may occupy MORE THAN ONE PAGE.
+/// Therefore 2 detected pages is valid.
+void _validateStatementOfOngoingPresent(
+  PdfDocument document,
+) {
+  if (document.pages.count == 0) {
+    throw StateError(
+      'Statement of Ongoing Contracts integrity failure: document is empty.',
+    );
+  }
+
+  final extractor = PdfTextExtractor(document);
+
+  final ongoingPages = <int>[];
+
+  for (var pageIndex = 0;
+      pageIndex < document.pages.count;
+      pageIndex++) {
+    final text = extractor
+        .extractText(
+          startPageIndex: pageIndex,
+          endPageIndex: pageIndex,
+        )
+        .replaceAll(
+          '\u0000',
+          '',
+        )
+        .replaceAll(
+          RegExp(r'\s+'),
+          '',
+        )
+        .toUpperCase();
+
+    if (text.contains(
+      'STATEMENTOFALLITSONGOING',
+    )) {
+      ongoingPages.add(
+        pageIndex,
+      );
+    }
+  }
+
+  // One page is okay.
+  // Two pages are okay.
+  // Three or more pages are also okay if the section genuinely spans them.
+  //
+  // The only invalid state is ZERO pages.
+  if (ongoingPages.isEmpty) {
+    throw StateError(
+      'Statement of Ongoing Contracts integrity failure: '
+      'no Ongoing Contracts page exists before final document ordering. '
+      'documentPages=${document.pages.count}.',
+    );
+  }
+
+  for (final pageIndex in ongoingPages) {
+    if (pageIndex < 0 ||
+        pageIndex >= document.pages.count) {
+      throw StateError(
+        'Statement of Ongoing Contracts integrity failure: '
+        'invalid page index=$pageIndex '
+        'documentPages=${document.pages.count}.',
+      );
+    }
+  }
+}
+
+/// Validate the structural AFS placement.
 _AfsPlacement _validateAfsPlacement(
   PdfDocument document,
   _AfsPlacement? placement,
