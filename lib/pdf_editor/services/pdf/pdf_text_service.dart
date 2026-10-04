@@ -9,85 +9,177 @@ Future<void> _ensurePdfUnicodeMarkerFont() async {
 
 PdfFont _pdfUnicodeMarkerFont(double size) {
   final data = _pdfUnicodeMarkerFontData;
+
   if (data == null) {
     throw StateError('Unicode marker font was not initialized.');
   }
+
   return PdfTrueTypeFont(
-    data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    ),
     size,
   );
 }
 
-double _pdfSpecificationMarkerWidth(PdfFont textFont, String? marker) {
-  if (marker == null || marker.isEmpty) return 0;
-  // Reserve the actual symbol width. A fixed 14-point cell can be narrower
-  // than Segoe UI Symbol's checkmark, which makes Syncfusion wrap the glyph
-  // out of the visible cell.
-  return _pdfUnicodeMarkerFont(textFont.size).measureString(marker).width + 3;
+/// Width reserved before specification text.
+///
+/// ✓ is drawn manually as vector lines, so it does not depend on
+/// the PDF font supporting U+2713.
+double _pdfSpecificationMarkerWidth(
+  PdfFont textFont,
+  String? marker,
+) {
+  if (marker == null || marker.isEmpty) {
+    return 0;
+  }
+
+  var actualMarker = marker;
+
+  if (actualMarker == 'v' || actualMarker == '✔') {
+    actualMarker = '✓';
+  }
+
+  if (actualMarker == '✓') {
+    return (textFont.size + 5.0).clamp(12.0, 18.0).toDouble();
+  }
+
+  final markerFont = _pdfUnicodeMarkerFont(textFont.size);
+
+  return markerFont.measureString(actualMarker).width + 4.0;
 }
 
-final RegExp _pdfSpecificationMarkerPattern = RegExp(
-  '^\\s*(\\u2713|\\u2022|\\u25CB|\\u25A0|\\u27A2)\\s*',
-);
+/// Converts older incorrectly encoded marker sequences back to the
+/// intended Unicode symbols.
+String _pdfNormalizeSpecificationMarkerEncoding(String value) {
+  return value
+      .replaceAll(
+        String.fromCharCodes(
+          const [0xE2, 0x153, 0x201C],
+        ),
+        '✓',
+      )
+      .replaceAll(
+        String.fromCharCodes(
+          const [0xE2, 0x20AC, 0xA2],
+        ),
+        '•',
+      )
+      .replaceAll(
+        String.fromCharCodes(
+          const [0xE2, 0x2014, 0x2039],
+        ),
+        '○',
+      )
+      .replaceAll(
+        String.fromCharCodes(
+          const [0xE2, 0x2013, 0xA0],
+        ),
+        '■',
+      )
+      .replaceAll(
+        String.fromCharCodes(
+          const [0xE2, 0x17E, 0xA2],
+        ),
+        '➢',
+      );
+}
 
-/// Converts marker sequences saved by older Windows-1252/UTF-8 editor builds
-/// back to their original Unicode symbols before layout or PDF drawing.
-String _pdfNormalizeSpecificationMarkerEncoding(String value) => value
-    .replaceAll(String.fromCharCodes(const [0xE2, 0x153, 0x201C]), '\u2713')
-    .replaceAll(String.fromCharCodes(const [0xE2, 0x20AC, 0xA2]), '\u2022')
-    .replaceAll(String.fromCharCodes(const [0xE2, 0x2014, 0x2039]), '\u25CB')
-    .replaceAll(String.fromCharCodes(const [0xE2, 0x2013, 0xA0]), '\u25A0')
-    .replaceAll(String.fromCharCodes(const [0xE2, 0x17E, 0xA2]), '\u27A2');
-
-/// Produces one display line while avoiding duplicate markers if a saved line
-/// already includes the selected marker.
-String _pdfSpecificationDisplayLine(
-    {String marker = '', required String text}) {
-  final normalizedMarker =
+/// Produces a display line without duplicating a marker.
+String _pdfSpecificationDisplayLine({
+  String marker = '',
+  required String text,
+}) {
+  var normalizedMarker =
       _pdfNormalizeSpecificationMarkerEncoding(marker).trim();
-  var normalizedText = _pdfNormalizeSpecificationMarkerEncoding(text).trim();
-  // A prior PDF-only workaround stored its checkmark marker as a standalone
-  // leading `v`. Migrate that marker token here, at the specification-line
-  // boundary, without changing ordinary v characters in body text.
-  normalizedText = normalizedText.replaceFirstMapped(
-    RegExp(r'^v(?=\s)'),
-    (_) => '\u2713',
-  );
-  final effectiveMarker = normalizedMarker == 'v' ? '\u2713' : normalizedMarker;
-  if (effectiveMarker.isEmpty || normalizedText.startsWith(effectiveMarker)) {
+
+  var normalizedText =
+      _pdfNormalizeSpecificationMarkerEncoding(text).trim();
+
+  // Old workaround:
+  // v MODEL -> ✓ MODEL
+  //
+  // Only a leading "v " is treated as a legacy marker.
+  if (normalizedText.startsWith('v ')) {
+    normalizedText = '✓ ${normalizedText.substring(2)}';
+  }
+
+  if (normalizedText.startsWith('✔')) {
+    normalizedText = '✓${normalizedText.substring(1)}';
+  }
+
+  if (normalizedMarker == 'v' || normalizedMarker == '✔') {
+    normalizedMarker = '✓';
+  }
+
+  if (normalizedMarker.isEmpty ||
+      normalizedText.startsWith(normalizedMarker)) {
     return normalizedText;
   }
-  return '$effectiveMarker $normalizedText';
+
+  return '$normalizedMarker $normalizedText';
 }
 
+/// IMPORTANT:
+/// No regex is used here anymore.
+///
+/// The previous regex incorrectly used \s\* and failed to recognize
+/// ✓ MODEL...
+///
+/// We now inspect the actual first Unicode character directly.
 ({String marker, String text}) _pdfParseSpecificationDisplayLine(
   String value,
 ) {
-  assert(() {
-    print('RAW SPEC LINE = "$value"');
-    print(
-      'RAW CODEPOINTS = ${value.runes.map((r) => 'U+${r.toRadixString(16).toUpperCase()}').join(' ')}',
+  var line = _pdfNormalizeSpecificationMarkerEncoding(value).trimLeft();
+
+  // Legacy saved fake checkmark.
+  if (line.startsWith('v ')) {
+    line = '✓ ${line.substring(2)}';
+  }
+
+  // Heavy check -> normal check.
+  if (line.startsWith('✔')) {
+    line = '✓${line.substring(1)}';
+  }
+
+  if (line.isEmpty) {
+    return (
+      marker: '',
+      text: '',
     );
-    return true;
-  }());
-  final line = _pdfSpecificationDisplayLine(text: value);
-  assert(() {
-    print('NORMALIZED SPEC LINE = "$line"');
-    return true;
-  }());
-  final match = _pdfSpecificationMarkerPattern.firstMatch(line);
-  final parsed = (
-    marker: match?.group(1) ?? '',
-    text: match == null ? line : line.substring(match.end),
+  }
+
+  final firstRune = line.runes.first;
+  final firstCharacter = String.fromCharCode(firstRune);
+
+  const supportedMarkers = <String>{
+    '✓',
+    '•',
+    '○',
+    '■',
+    '➢',
+  };
+
+  if (supportedMarkers.contains(firstCharacter)) {
+    final markerLength = firstCharacter.length;
+
+    return (
+      marker: firstCharacter,
+      text: line.substring(markerLength).trimLeft(),
+    );
+  }
+
+  return (
+    marker: '',
+    text: line,
   );
-  assert(() {
-    print('PARSED MARKER = "${parsed.marker}"');
-    print('PARSED TEXT = "${parsed.text}"');
-    return true;
-  }());
-  return parsed;
 }
 
+/// Draw one marker.
+///
+/// ✓ is drawn as TWO VECTOR STROKES.
+/// Therefore it no longer depends on Segoe UI Symbol or any Unicode font.
 void _drawSpecificationMarkerGlyph({
   required PdfGraphics graphics,
   required String marker,
@@ -97,23 +189,74 @@ void _drawSpecificationMarkerGlyph({
   required double lineHeight,
   required PdfFont textFont,
 }) {
-  if (marker.isEmpty) return;
-  assert(marker != 'v', 'BUG: legacy v marker reached PDF renderer.');
-  final markerFont = _pdfUnicodeMarkerFont(textFont.size);
-  final markerWidth = _pdfSpecificationMarkerWidth(textFont, marker);
-  assert(() {
-    print(
-      'FINAL PDF MARKER = "$marker" U+${marker.runes.first.toRadixString(16).toUpperCase()} '
-      'markerWidth=$markerWidth x=$x y=$y',
+  if (marker.isEmpty) {
+    return;
+  }
+
+  var actualMarker = marker;
+
+  if (actualMarker == 'v' || actualMarker == '✔') {
+    actualMarker = '✓';
+  }
+
+  // ============================================================
+  // CHECKMARK — DRAW AS VECTOR
+  // ============================================================
+  if (actualMarker == '✓') {
+    final checkWidth =
+        (textFont.size * 0.85).clamp(8.0, 11.0).toDouble();
+
+    final startX = x + 1.0;
+    final middleX = startX + (checkWidth * 0.34);
+    final endX = startX + checkWidth;
+
+    // Align checkmark with first line of text.
+    final startY = y + (lineHeight * 0.48);
+    final middleY = y + (lineHeight * 0.70);
+    final endY = y + (lineHeight * 0.22);
+
+    final checkPen = PdfPen(
+      PdfColor(0, 0, 0),
+      width: 1.5,
     );
-    return true;
-  }());
+
+    // Short downward stroke.
+    graphics.drawLine(
+      checkPen,
+      Offset(startX, startY),
+      Offset(middleX, middleY),
+    );
+
+    // Long upward stroke.
+    graphics.drawLine(
+      checkPen,
+      Offset(middleX, middleY),
+      Offset(endX, endY),
+    );
+
+    return;
+  }
+
+  // ============================================================
+  // OTHER MARKERS
+  // ============================================================
+  final markerFont = _pdfUnicodeMarkerFont(textFont.size);
+
+  final markerWidth =
+      _pdfSpecificationMarkerWidth(textFont, actualMarker);
+
   graphics.drawString(
-    marker,
+    actualMarker,
     markerFont,
     brush: brush,
-    bounds: Rect.fromLTWH(x, y, markerWidth, lineHeight),
+    bounds: Rect.fromLTWH(
+      x,
+      y,
+      markerWidth,
+      lineHeight,
+    ),
     format: PdfStringFormat(
+      alignment: PdfTextAlignment.left,
       lineAlignment: PdfVerticalAlignment.middle,
       wordWrap: PdfWordWrapType.none,
     ),
@@ -122,77 +265,114 @@ void _drawSpecificationMarkerGlyph({
 
 String _pdfSafeText(String value) {
   value = _pdfNormalizeSpecificationMarkerEncoding(value);
+
   return value
-      .replaceAll(String.fromCharCode(8292), '')
-      // Remove invisible direction/isolation characters commonly carried by
-      // text copied from web pages and office documents. PdfStandardFont
-      // cannot encode these controls (for example U+2064 / decimal 8292),
-      // even though they have no visible appearance in the resulting PDF.
+      .replaceAll(
+        String.fromCharCode(8292),
+        '',
+      )
       .replaceAll(
         RegExp(
           '[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]',
         ),
         '',
       )
-      // Also handle a JSON payload that contains the escaped form before it
-      // is decoded into the individual specification fields.
-      .replaceAll(r'\u2064', '')
-      .replaceAll('\u00A0', ' ')
-      .replaceAll('\u2714', '\u2713')
-      // Some previously saved specifications contain U+26F3 in place of the
-      // check marker. Standard PDF fonts cannot measure or draw that glyph.
-      .replaceAll('\u26F3', '\u2713')
-      .replaceAll('\u221A', '\u2713');
+      .replaceAll(
+        r'\u2064',
+        '',
+      )
+      .replaceAll(
+        '\u00A0',
+        ' ',
+      )
+      .replaceAll(
+        '✔',
+        '✓',
+      )
+      .replaceAll(
+        '\u26F3',
+        '✓',
+      )
+      .replaceAll(
+        '\u221A',
+        '✓',
+      );
 }
 
-/// Returns explicit editor Add line records while preserving normal newlines.
-List<String> _pdfSpecificationBlocks(dynamic value) => (value ?? '')
-    .toString()
-    .replaceAll('minified:Gc.specificationLineSeparator', '')
-    .replaceAll('minified:Gc.specificationLineSeparator?', '')
-    .split('\u2029');
+/// Explicit Add line records.
+List<String> _pdfSpecificationBlocks(
+  dynamic value,
+) {
+  return (value ?? '')
+      .toString()
+      .replaceAll(
+        'minified:Gc.specificationLineSeparator',
+        '',
+      )
+      .replaceAll(
+        'minified:Gc.specificationLineSeparator?',
+        '',
+      )
+      .split('\u2029');
+}
 
-/// Converts explicit Add line records into paragraphs for plain-text consumers.
-String _pdfSpecificationText(dynamic value) =>
-    _pdfSpecificationBlocks(value).join('\n\n');
+String _pdfSpecificationText(
+  dynamic value,
+) {
+  return _pdfSpecificationBlocks(value).join('\n\n');
+}
 
-dynamic _pdfSafeDecodedValue(dynamic value) {
-  if (value is String) return _pdfSafeText(value);
+dynamic _pdfSafeDecodedValue(
+  dynamic value,
+) {
+  if (value is String) {
+    return _pdfSafeText(value);
+  }
+
   if (value is List) {
     return <dynamic>[
       for (final item in value) _pdfSafeDecodedValue(item),
     ];
   }
+
   if (value is Map) {
     return <dynamic, dynamic>{
       for (final entry in value.entries)
         entry.key: _pdfSafeDecodedValue(entry.value),
     };
   }
+
   return value;
 }
 
-/// PdfStandardFont only supports a Windows-1252-sized character set. This
-/// final guard is used immediately before measuring/drawing user content so
-/// an invisible or unsupported Unicode rune can never reach Syncfusion.
-
-String _pdfStandardFontSafeText(String value) {
+/// Standard PDF fonts do not support all Unicode.
+///
+/// IMPORTANT:
+/// Markers are removed from the body text BEFORE this helper is called.
+/// Therefore ✓ / • / ○ / ■ / ➢ must never reach this function as markers.
+String _pdfStandardFontSafeText(
+  String value,
+) {
   final result = StringBuffer();
+
   for (final rune in value.runes) {
     switch (rune) {
       case 0x2018:
       case 0x2019:
         result.write("'");
         continue;
+
       case 0x201C:
       case 0x201D:
         result.write('"');
         continue;
+
       case 0x2013:
       case 0x2014:
         result.write('-');
         continue;
     }
+
     if (rune == 0x0A ||
         rune == 0x0D ||
         rune == 0x09 ||
@@ -201,20 +381,46 @@ String _pdfStandardFontSafeText(String value) {
       result.writeCharCode(rune);
     }
   }
+
   return result.toString();
 }
 
-String _numericPart(dynamic value) {
-  final text = (value ?? '').toString().replaceAll(',', '').trim();
-  final match = RegExp(r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)').firstMatch(text);
+String _numericPart(
+  dynamic value,
+) {
+  final text = (value ?? '')
+      .toString()
+      .replaceAll(',', '')
+      .trim();
+
+  final match = RegExp(
+    r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)',
+  ).firstMatch(text);
+
   return match?.group(0) ?? '';
 }
 
-double _displayedPdfTotal(ItemPricing pricing, Map price) =>
-    price['isManualTotalOverride'] == true
-        ? parseCurrency(price['manualTotal'])
-        : pricing.calculatedTotal;
+double _displayedPdfTotal(
+  ItemPricing pricing,
+  Map price,
+) {
+  return price['isManualTotalOverride'] == true
+      ? parseCurrency(price['manualTotal'])
+      : pricing.calculatedTotal;
+}
 
+/// Draws specification text with per-line markers.
+///
+/// Example:
+///
+/// ✓ MODEL: ABC
+///
+/// becomes:
+///
+/// marker = ✓
+/// content = MODEL: ABC
+///
+/// The marker is drawn separately from the standard-font body text.
 void _drawMarkedSpecificationText(
   PdfGraphics graphics,
   String text,
@@ -224,50 +430,109 @@ void _drawMarkedSpecificationText(
   bool centerVertically = true,
 }) {
   text = _pdfSafeText(text);
-  final entries = <({String? marker, String content, double height})>[];
+
+  final entries =
+      <({
+        String? marker,
+        String content,
+        double height,
+      })>[];
+
   for (final rawSourceLine in text.split(RegExp(r'\r?\n'))) {
-    final parsed = _pdfParseSpecificationDisplayLine(rawSourceLine);
+    final parsed =
+        _pdfParseSpecificationDisplayLine(rawSourceLine);
+
     final marker = parsed.marker;
-    final content = _pdfStandardFontSafeText(
-      parsed.text,
+
+    final content =
+        _pdfStandardFontSafeText(parsed.text);
+
+    final markerWidth =
+        _pdfSpecificationMarkerWidth(
+      font,
+      marker,
     );
+
+    final rawContentWidth =
+        bounds.width - markerWidth;
+
     final contentWidth =
-        bounds.width - _pdfSpecificationMarkerWidth(font, marker);
+        rawContentWidth < 1 ? 1.0 : rawContentWidth;
+
     final measured = font.measureString(
       content.isEmpty ? ' ' : content,
-      layoutArea: Size(contentWidth, bounds.height),
-      format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      layoutArea: Size(
+        contentWidth,
+        bounds.height,
+      ),
+      format: PdfStringFormat(
+        wordWrap: PdfWordWrapType.word,
+      ),
     );
-    entries.add((
-      marker: marker.isEmpty ? null : marker,
-      content: content,
-      height: measured.height.clamp(font.size + 2, bounds.height).toDouble(),
-    ));
+
+    final minimumHeight = font.size + 2;
+
+    final measuredHeight =
+        measured.height > minimumHeight
+            ? measured.height
+            : minimumHeight;
+
+    entries.add(
+      (
+        marker: marker.isEmpty ? null : marker,
+        content: content,
+        height: measuredHeight
+            .clamp(
+              minimumHeight,
+              bounds.height,
+            )
+            .toDouble(),
+      ),
+    );
   }
-  final totalHeight = entries.fold<double>(0, (sum, row) => sum + row.height);
+
+  final totalHeight =
+      entries.fold<double>(
+    0,
+    (sum, row) => sum + row.height,
+  );
+
   var top = bounds.top;
+
   if (centerVertically) {
-    top +=
-        ((bounds.height - totalHeight) / 2).clamp(0, bounds.height).toDouble();
+    top += ((bounds.height - totalHeight) / 2)
+        .clamp(0, bounds.height)
+        .toDouble();
   }
-  final markerBrush = PdfSolidBrush(PdfColor(0, 0, 0));
 
   for (final entry in entries) {
     final marker = entry.marker;
+
     var textLeft = bounds.left;
+
     if (marker != null) {
-      final markerWidth = _pdfSpecificationMarkerWidth(font, marker);
+      final markerWidth =
+          _pdfSpecificationMarkerWidth(
+        font,
+        marker,
+      );
+
       _drawSpecificationMarkerGlyph(
         graphics: graphics,
         marker: marker,
-        brush: markerBrush,
+        brush: brush,
         x: bounds.left,
         y: top,
         lineHeight: entry.height,
         textFont: font,
       );
+
       textLeft += markerWidth;
     }
+
+    final remainingWidth =
+        bounds.right - textLeft;
+
     graphics.drawString(
       entry.content,
       font,
@@ -275,45 +540,86 @@ void _drawMarkedSpecificationText(
       bounds: Rect.fromLTWH(
         textLeft,
         top,
-        bounds.right - textLeft,
+        remainingWidth > 1 ? remainingWidth : 1,
         entry.height,
       ),
-      format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.left,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.word,
+      ),
     );
+
     top += entry.height;
   }
 }
 
+/// Measures specification text using the same marker spacing used
+/// during rendering.
 double _measureMarkedSpecificationTextHeight(
   String text,
   PdfFont font,
   double width,
 ) {
   text = _pdfSafeText(text);
+
   var totalHeight = 0.0;
 
-  for (final rawLine in text.replaceAll('\u2029', '\n').split('\n')) {
-    final parsed = _pdfParseSpecificationDisplayLine(rawLine);
-    final content = _pdfStandardFontSafeText(
+  for (final rawLine
+      in text.replaceAll('\u2029', '\n').split('\n')) {
+    final parsed =
+        _pdfParseSpecificationDisplayLine(rawLine);
+
+    final marker = parsed.marker;
+
+    final content =
+        _pdfStandardFontSafeText(
       parsed.text.trim(),
     );
+
     final rawContentWidth =
-        width - _pdfSpecificationMarkerWidth(font, parsed.marker);
-    final contentWidth = rawContentWidth < 1.0 ? 1.0 : rawContentWidth;
+        width -
+            _pdfSpecificationMarkerWidth(
+              font,
+              marker,
+            );
+
+    final contentWidth =
+        rawContentWidth < 1 ? 1.0 : rawContentWidth;
+
     final measured = font.measureString(
       content.isEmpty ? ' ' : content,
-      layoutArea: Size(contentWidth, 10000),
-      format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      layoutArea: Size(
+        contentWidth,
+        10000,
+      ),
+      format: PdfStringFormat(
+        wordWrap: PdfWordWrapType.word,
+      ),
     );
+
     final minimumLineHeight = font.size + 2;
-    totalHeight += measured.height > minimumLineHeight
-        ? measured.height
-        : minimumLineHeight;
+
+    totalHeight +=
+        measured.height > minimumLineHeight
+            ? measured.height
+            : minimumLineHeight;
   }
 
   return totalHeight;
 }
 
+/// Wrap specification lines while keeping a marker only on the
+/// first visual line.
+///
+/// Example:
+///
+/// ✓ VOLTAGE/CAPACITY: 3.2V/70 (+5) Ah LIFEPO4 BATTERY
+///
+/// can become:
+///
+/// ✓ VOLTAGE/CAPACITY: 3.2V/70 (+5) Ah
+///   LIFEPO4 BATTERY
 List<List<String>> _chunkMarkedSpecificationLines(
   List<String> sourceLines,
   PdfFont font,
@@ -323,34 +629,77 @@ List<List<String>> _chunkMarkedSpecificationLines(
   sourceLines = <String>[
     for (final line in sourceLines) _pdfSafeText(line),
   ];
+
   final visualLines = <String>[];
+
   for (final rawSourceLine in sourceLines) {
-    final parsed = _pdfParseSpecificationDisplayLine(rawSourceLine);
+    final parsed =
+        _pdfParseSpecificationDisplayLine(
+      rawSourceLine,
+    );
+
     final marker = parsed.marker;
-    final content = _pdfStandardFontSafeText(
+
+    final content =
+        _pdfStandardFontSafeText(
       parsed.text.trim(),
     );
-    final contentWidth = (width - _pdfSpecificationMarkerWidth(font, marker))
-        .clamp(1.0, double.infinity)
-        .toDouble();
+
+    final markerWidth =
+        _pdfSpecificationMarkerWidth(
+      font,
+      marker,
+    );
+
+    final contentWidth =
+        (width - markerWidth)
+            .clamp(
+              1.0,
+              double.infinity,
+            )
+            .toDouble();
+
     final wrapped = <String>[];
+
     var currentLine = '';
+
     for (final word in content.split(RegExp(r'\s+'))) {
-      if (word.isEmpty) continue;
-      final candidate = _pdfStandardFontSafeText(
-        currentLine.isEmpty ? word : '$currentLine $word',
+      if (word.isEmpty) {
+        continue;
+      }
+
+      final candidate =
+          _pdfStandardFontSafeText(
+        currentLine.isEmpty
+            ? word
+            : '$currentLine $word',
       );
+
       if (currentLine.isNotEmpty &&
-          font.measureString(candidate).width > contentWidth) {
+          font.measureString(candidate).width >
+              contentWidth) {
         wrapped.add(currentLine);
         currentLine = word;
       } else {
         currentLine = candidate;
       }
     }
-    if (currentLine.isNotEmpty) wrapped.add(currentLine);
-    if (wrapped.isEmpty) wrapped.add('');
-    if (marker.isNotEmpty) wrapped[0] = '$marker ${wrapped[0]}'.trimRight();
+
+    if (currentLine.isNotEmpty) {
+      wrapped.add(currentLine);
+    }
+
+    if (wrapped.isEmpty) {
+      wrapped.add('');
+    }
+
+    // Put the marker back only on the first visual line.
+    // _drawMarkedSpecificationText parses it again before drawing.
+    if (marker.isNotEmpty) {
+      wrapped[0] =
+          '$marker ${wrapped[0]}'.trimRight();
+    }
+
     visualLines.addAll(wrapped);
   }
 
@@ -358,19 +707,30 @@ List<List<String>> _chunkMarkedSpecificationLines(
   var current = <String>[];
 
   for (final line in visualLines) {
-    final candidate = <String>[...current, line];
-    final candidateHeight = _measureMarkedSpecificationTextHeight(
+    final candidate = <String>[
+      ...current,
+      line,
+    ];
+
+    final candidateHeight =
+        _measureMarkedSpecificationTextHeight(
       candidate.join('\n'),
       font,
       width,
     );
-    if (current.isNotEmpty && candidateHeight > maximumHeight) {
+
+    if (current.isNotEmpty &&
+        candidateHeight > maximumHeight) {
       chunks.add(current);
       current = <String>[line];
     } else {
       current = candidate;
     }
   }
-  if (current.isNotEmpty) chunks.add(current);
+
+  if (current.isNotEmpty) {
+    chunks.add(current);
+  }
+
   return chunks;
 }
