@@ -284,72 +284,40 @@ class PdfService {
     await yieldToBrowser();
 
     // ============================================================
-    // REMOVE UNUSED CONTINUATION TEMPLATE PAGES
+    // KEEP ORIGINAL CONTINUATION TEMPLATE PAGES
+    // ============================================================
+    //
+    // IMPORTANT:
+    //
+    // Do NOT delete unused continuation/template pages here.
+    //
+    // The old code removed:
+    //
+    // - Schedule Requirements continuation pages
+    // - Summary continuation pages
+    // - Price Schedule continuation pages
+    // - Technical Specification continuation pages
+    //
+    // Those removals changed the total page count and shifted every
+    // following fixed-index source page.
+    //
+    // This is what caused:
+    //
+    // 86 -> 83 pages
+    //
+    // and also caused later SLCC / NFCC / AFS logic to hit the
+    // wrong document pages.
+    //
+    // Keep the original template structure intact until all final
+    // structural replacements are finished.
     // ============================================================
 
-    if (scheduleRequirementsStartPage >= 0) {
-      for (var pageIndex =
-              (scheduleRequirementsStartPage + 2)
-                  .clamp(
-                    0,
-                    document.pages.count - 1,
-                  )
-                  .toInt();
-          pageIndex >=
-              scheduleRequirementsStartPage +
-                  scheduleRequirementsPageCount;
-          pageIndex--) {
-        document.pages.removeAt(
-          pageIndex,
-        );
-      }
-    }
-
-    if (bidPriceSummaryStartPage >= 0) {
-      for (var pageIndex =
-              (bidPriceSummaryStartPage + 2)
-                  .clamp(
-                    0,
-                    document.pages.count - 1,
-                  )
-                  .toInt();
-          pageIndex >=
-              bidPriceSummaryStartPage +
-                  bidPriceSummaryPageCount;
-          pageIndex--) {
-        document.pages.removeAt(
-          pageIndex,
-        );
-      }
-    }
-
-    if (priceScheduleStartPage >= 0) {
-      for (var pageIndex =
-              (priceScheduleStartPage + 7)
-                  .clamp(
-                    0,
-                    document.pages.count - 1,
-                  )
-                  .toInt();
-          pageIndex >=
-              priceScheduleStartPage +
-                  priceSchedulePageCount;
-          pageIndex--) {
-        document.pages.removeAt(
-          pageIndex,
-        );
-      }
-    }
-
-    if (technicalSpecificationPageCount < 3 &&
-        document.pages.count > 48) {
-      document.pages.removeAt(48);
-    }
-
-    if (technicalSpecificationPageCount < 2 &&
-        document.pages.count > 47) {
-      document.pages.removeAt(47);
-    }
+    // Keep these variables because their draw functions may use them
+    // for internal layout decisions, but DO NOT remove source pages.
+    final _ = technicalSpecificationPageCount;
+    final __ = priceSchedulePageCount;
+    final ___ = bidPriceSummaryPageCount;
+    final ____ = scheduleRequirementsPageCount;
 
     await yieldToBrowser();
 
@@ -518,7 +486,6 @@ class PdfService {
     // AFS
     // ============================================================
 
-    // Resolve AFS while the original PhilGEPS text anchor still exists.
     final afsPlacement =
         _validateAfsPlacement(
       document,
@@ -650,11 +617,6 @@ void _validateStatementOfOngoingPresent(
     }
   }
 
-  // One page is okay.
-  // Two pages are okay.
-  // Three or more pages are also okay if the section genuinely spans them.
-  //
-  // The only invalid state is ZERO pages.
   if (ongoingPages.isEmpty) {
     throw StateError(
       'Statement of Ongoing Contracts integrity failure: '
