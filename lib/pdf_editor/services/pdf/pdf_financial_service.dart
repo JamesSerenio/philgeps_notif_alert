@@ -1,191 +1,634 @@
 part of '../pdf_service.dart';
 
-Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
-  final textLines = PdfTextExtractor(document).extractTextLines();
-  int? philgepsPageIndex;
-  int? annexPageIndex;
-  int? technicalSpecificationsPageIndex;
-  for (final line in textLines) {
-    final title =
-        line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (line.pageIndex >= 20 &&
-        title.contains('CERTIFICATE OF PHILGEPS REGISTRATION')) {
-      philgepsPageIndex ??= line.pageIndex;
-    }
-    if (line.pageIndex >= 20 && title.contains('ANNEX A')) {
-      annexPageIndex = line.pageIndex;
-    }
-    if (line.pageIndex >= 20 && title.contains('TECHNICAL SPECIFICATIONS')) {
-      technicalSpecificationsPageIndex ??= line.pageIndex;
-    }
-  }
-  if (philgepsPageIndex == null ||
-      annexPageIndex == null ||
-      technicalSpecificationsPageIndex == null) {
+Future<_AfsPlacement?> _replaceAfsSection(
+  PdfDocument document,
+) async {
+  if (document.pages.count == 0) {
     throw StateError(
-      'Cannot replace AFS structurally: missing PhilGEPS or Technical Specifications anchor.',
+      'Cannot replace AFS: document contains no pages.',
     );
   }
 
-  // AFS follows the PhilGEPS certificate and ends immediately before NFCC,
-  // which is directly before Technical Specifications. These anchors survive
-  // any number of pages inserted by preceding sections.
-if (!(philgepsPageIndex < annexPageIndex &&
-    annexPageIndex < technicalSpecificationsPageIndex)) {
-  throw StateError(
-    'Cannot replace AFS structurally: invalid PhilGEPS/Annex A/Technical Specs order. '
-    'philgeps=$philgepsPageIndex '
-    'annex=$annexPageIndex '
-    'technical=$technicalSpecificationsPageIndex',
-  );
-}
+  // ============================================================
+  // FIND TECHNICAL SPECIFICATIONS
+  // ============================================================
+  //
+  // NFCC is structurally the page immediately before
+  // Technical Specifications.
+  //
+  // We intentionally do NOT calculate AFS from:
+  //
+  // PhilGEPS + 1
+  // Annex A + 1
+  //
+  // because those ranges may contain other required documents.
+  //
+  // The current replacement AFS has exactly 15 pages.
+  // Therefore the old AFS block we replace is the 15 pages
+  // immediately before NFCC.
+  // ============================================================
 
-// Annex A / List of Eligibility Documents is NOT part of AFS.
-// AFS starts immediately AFTER Annex A.
-final afsPageIndex = annexPageIndex + 1;
+  final textLines =
+      PdfTextExtractor(document).extractTextLines();
 
-// NFCC is immediately before Technical Specifications.
-final nfccPageIndex = technicalSpecificationsPageIndex - 1;
+  int? technicalSpecificationsPageIndex;
 
-final removableAfsPageCount = nfccPageIndex - afsPageIndex;
+  for (final line in textLines) {
+    final text = line.text
+        .replaceAll('\u0000', '')
+        .toUpperCase()
+        .replaceAll(
+          RegExp(r'\s+'),
+          ' ',
+        )
+        .trim();
 
-if (removableAfsPageCount <= 0 ||
-    afsPageIndex < 0 ||
-    afsPageIndex >= document.pages.count ||
-    nfccPageIndex >= document.pages.count) {
-  throw StateError(
-    'Cannot replace AFS structurally: invalid AFS boundaries. '
-    'afsStart=$afsPageIndex '
-    'nfcc=$nfccPageIndex '
-    'technical=$technicalSpecificationsPageIndex '
-    'pages=${document.pages.count}',
-  );
-}
-  if (removableAfsPageCount < 0 || afsPageIndex > document.pages.count) {
-    throw StateError('Cannot replace AFS structurally: invalid boundaries.');
-  }
+    final isChecklistText =
+        text.contains(
+          'CHECKLIST OF ELIGIBILITY REQUIREMENTS',
+        ) ||
+        text.contains(
+          'TABLE OF CONTENTS',
+        );
 
-  final data = await rootBundle.load('assets/pdf/AFS_template.pdf');
-  final sourceDocument = PdfDocument(inputBytes: data.buffer.asUint8List());
-  final sourceAfsPageCount = sourceDocument.pages.count;
-  if (sourceAfsPageCount != 15) {
-    sourceDocument.dispose();
-    throw StateError('AFS source integrity failure: expected 15 pages.');
-  }
-
-  for (var page = 0; page < removableAfsPageCount; page++) {
-    document.pages.removeAt(afsPageIndex);
-    if (page % 3 == 2) {
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+    if (!isChecklistText &&
+        technicalSpecificationsPageIndex == null &&
+        text.contains(
+          'TECHNICAL SPECIFICATIONS',
+        )) {
+      technicalSpecificationsPageIndex =
+          line.pageIndex;
     }
   }
 
-  const a4Size = Size(595.28, 841.89);
-  for (var index = 0; index < sourceAfsPageCount; index++) {
-    final sourcePage = sourceDocument.pages[index];
-    final sourceSize = sourcePage.size;
-    final scale = (a4Size.width / sourceSize.width)
-        .clamp(0.0, a4Size.height / sourceSize.height)
-        .toDouble();
-    final fittedSize =
-        Size(sourceSize.width * scale, sourceSize.height * scale);
-    final targetPage = document.pages.insert(
-      afsPageIndex + index,
-      a4Size,
-      PdfMargins()..all = 0,
+  if (technicalSpecificationsPageIndex == null ||
+      technicalSpecificationsPageIndex <= 0) {
+    throw StateError(
+      'Cannot replace AFS: '
+      'Technical Specifications anchor not found.',
     );
-    targetPage.graphics.drawPdfTemplate(
-      sourcePage.createTemplate(),
-      Offset(
-        (a4Size.width - fittedSize.width) / 2,
-        (a4Size.height - fittedSize.height) / 2,
-      ),
-      fittedSize,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 1));
   }
-  final placement = _AfsPlacement(
-    startIndex: afsPageIndex,
-    pageCount: sourceAfsPageCount,
+
+  // ============================================================
+  // NFCC
+  // ============================================================
+
+  final nfccPageIndex =
+      technicalSpecificationsPageIndex - 1;
+
+  if (nfccPageIndex < 0 ||
+      nfccPageIndex >= document.pages.count) {
+    throw StateError(
+      'Cannot replace AFS: invalid NFCC position. '
+      'nfcc=$nfccPageIndex '
+      'technical=$technicalSpecificationsPageIndex '
+      'documentPages=${document.pages.count}.',
+    );
+  }
+
+  // ============================================================
+  // LOAD AFS TEMPLATE
+  // ============================================================
+
+  final data = await rootBundle.load(
+    'assets/pdf/AFS_template.pdf',
   );
-  sourceDocument.dispose();
-  return placement;
+
+  final sourceDocument = PdfDocument(
+    inputBytes: data.buffer.asUint8List(),
+  );
+
+  try {
+    final sourceAfsPageCount =
+        sourceDocument.pages.count;
+
+    // The supplied AFS_template.pdf must always have 15 pages.
+    if (sourceAfsPageCount != 15) {
+      throw StateError(
+        'AFS source integrity failure: '
+        'expected 15 pages, '
+        'got $sourceAfsPageCount.',
+      );
+    }
+
+    // ============================================================
+    // CALCULATE EXACT AFS RANGE
+    // ============================================================
+
+    // IMPORTANT:
+    //
+    // Replace ONLY 15 pages.
+    //
+    // Previous logic could remove a larger range between Annex A
+    // and NFCC. If that range contained 18 pages while the new AFS
+    // contained 15 pages:
+    //
+    // 18 removed
+    // 15 inserted
+    // = document loses 3 pages
+    //
+    // Example:
+    //
+    // expected 86 pages
+    // generated 83 pages
+    //
+    // This implementation cannot shrink the document because AFS
+    // replacement is strictly 15 -> 15.
+
+    final oldAfsPageCount =
+        sourceAfsPageCount;
+
+    final afsPageIndex =
+        nfccPageIndex - oldAfsPageCount;
+
+    final afsEndExclusive =
+        afsPageIndex + oldAfsPageCount;
+
+    if (afsPageIndex < 0 ||
+        afsPageIndex >= document.pages.count) {
+      throw StateError(
+        'Cannot replace AFS: invalid AFS start. '
+        'afsStart=$afsPageIndex '
+        'afsPages=$oldAfsPageCount '
+        'nfcc=$nfccPageIndex '
+        'technical=$technicalSpecificationsPageIndex '
+        'documentPages=${document.pages.count}.',
+      );
+    }
+
+    if (afsEndExclusive != nfccPageIndex) {
+      throw StateError(
+        'Cannot replace AFS: AFS does not terminate at NFCC. '
+        'afsStart=$afsPageIndex '
+        'afsEnd=$afsEndExclusive '
+        'nfcc=$nfccPageIndex.',
+      );
+    }
+
+    if (afsEndExclusive >
+        document.pages.count) {
+      throw StateError(
+        'Cannot replace AFS: AFS range exceeds document bounds. '
+        'afsStart=$afsPageIndex '
+        'afsEnd=$afsEndExclusive '
+        'documentPages=${document.pages.count}.',
+      );
+    }
+
+    // Preserve total page count.
+    final documentPageCountBefore =
+        document.pages.count;
+
+    // ============================================================
+    // REMOVE EXACTLY 15 OLD AFS PAGES
+    // ============================================================
+
+    for (var page = 0;
+        page < oldAfsPageCount;
+        page++) {
+      if (afsPageIndex >=
+          document.pages.count) {
+        throw StateError(
+          'AFS removal unexpectedly exceeded document bounds. '
+          'removed=$page '
+          'expected=$oldAfsPageCount '
+          'afsStart=$afsPageIndex '
+          'documentPages=${document.pages.count}.',
+        );
+      }
+
+      // Always remove at the same index.
+      //
+      // After one page is removed, the next old AFS page shifts
+      // into this same index.
+      document.pages.removeAt(
+        afsPageIndex,
+      );
+
+      if (page % 3 == 2) {
+        await Future<void>.delayed(
+          const Duration(milliseconds: 1),
+        );
+      }
+    }
+
+    final expectedPagesAfterRemoval =
+        documentPageCountBefore -
+            oldAfsPageCount;
+
+    if (document.pages.count !=
+        expectedPagesAfterRemoval) {
+      throw StateError(
+        'AFS removal page-count mismatch. '
+        'before=$documentPageCountBefore '
+        'removed=$oldAfsPageCount '
+        'expectedAfter=$expectedPagesAfterRemoval '
+        'actualAfter=${document.pages.count}.',
+      );
+    }
+
+    // ============================================================
+    // INSERT ALL 15 AFS TEMPLATE PAGES
+    // ============================================================
+
+    const a4Size = Size(
+      595.28,
+      841.89,
+    );
+
+    for (var index = 0;
+        index < sourceAfsPageCount;
+        index++) {
+      final sourcePage =
+          sourceDocument.pages[index];
+
+      final sourceSize =
+          sourcePage.size;
+
+      final widthScale =
+          a4Size.width / sourceSize.width;
+
+      final heightScale =
+          a4Size.height / sourceSize.height;
+
+      final scale =
+          widthScale < heightScale
+              ? widthScale
+              : heightScale;
+
+      final fittedSize = Size(
+        sourceSize.width * scale,
+        sourceSize.height * scale,
+      );
+
+      final insertIndex =
+          afsPageIndex + index;
+
+      if (insertIndex < 0 ||
+          insertIndex >
+              document.pages.count) {
+        throw StateError(
+          'AFS insertion index is invalid. '
+          'sourcePage=${index + 1} '
+          'insertIndex=$insertIndex '
+          'documentPages=${document.pages.count}.',
+        );
+      }
+
+      final targetPage =
+          document.pages.insert(
+        insertIndex,
+        a4Size,
+        PdfMargins()..all = 0,
+      );
+
+      targetPage.graphics.drawPdfTemplate(
+        sourcePage.createTemplate(),
+        Offset(
+          (a4Size.width -
+                  fittedSize.width) /
+              2,
+          (a4Size.height -
+                  fittedSize.height) /
+              2,
+        ),
+        fittedSize,
+      );
+
+      if (index % 3 == 2) {
+        await Future<void>.delayed(
+          const Duration(milliseconds: 1),
+        );
+      }
+    }
+
+    // ============================================================
+    // PAGE COUNT MUST NOT CHANGE
+    // ============================================================
+
+    if (document.pages.count !=
+        documentPageCountBefore) {
+      throw StateError(
+        'AFS replacement changed total document page count. '
+        'before=$documentPageCountBefore '
+        'after=${document.pages.count} '
+        'removed=$oldAfsPageCount '
+        'inserted=$sourceAfsPageCount.',
+      );
+    }
+
+    // ============================================================
+    // CREATE STRUCTURAL PLACEMENT
+    // ============================================================
+
+    final placement =
+        _AfsPlacement(
+      startIndex: afsPageIndex,
+      pageCount: sourceAfsPageCount,
+    );
+
+    if (!placement.isValidFor(
+      document,
+    )) {
+      throw StateError(
+        'AFS placement invalid after replacement. '
+        'start=${placement.startIndex} '
+        'pages=${placement.pageCount} '
+        'end=${placement.endExclusive} '
+        'documentPages=${document.pages.count}.',
+      );
+    }
+
+    // ============================================================
+    // FIRST + SECOND AFS PAGE PROTECTION
+    // ============================================================
+
+    final firstAfsPageIndex =
+        placement.startIndex;
+
+    final secondAfsPageIndex =
+        placement.startIndex + 1;
+
+    if (firstAfsPageIndex < 0 ||
+        firstAfsPageIndex >=
+            document.pages.count) {
+      throw StateError(
+        'AFS integrity failure: '
+        'first AFS page is missing. '
+        'start=${placement.startIndex} '
+        'end=${placement.endExclusive} '
+        'documentPages=${document.pages.count}.',
+      );
+    }
+
+    if (secondAfsPageIndex < 0 ||
+        secondAfsPageIndex >=
+            document.pages.count) {
+      throw StateError(
+        'AFS integrity failure: '
+        'second AFS page is missing. '
+        'start=${placement.startIndex} '
+        'second=$secondAfsPageIndex '
+        'end=${placement.endExclusive} '
+        'documentPages=${document.pages.count}.',
+      );
+    }
+
+    // ============================================================
+    // CONFIRM NFCC IS STILL AFTER AFS
+    // ============================================================
+
+    // 15 pages were removed and 15 pages inserted at exactly the
+    // same start location.
+    //
+    // Therefore NFCC must remain immediately after the AFS block.
+
+    final expectedNfccPageIndex =
+        placement.endExclusive;
+
+    if (expectedNfccPageIndex >=
+        document.pages.count) {
+      throw StateError(
+        'AFS/NFCC integrity failure: '
+        'expected NFCC index is outside document. '
+        'afsStart=${placement.startIndex} '
+        'afsEnd=${placement.endExclusive} '
+        'expectedNfcc=$expectedNfccPageIndex '
+        'documentPages=${document.pages.count}.',
+      );
+    }
+
+    return placement;
+  } finally {
+    sourceDocument.dispose();
+  }
 }
 
 Future<void> _replaceNfccPage(
   PdfDocument document,
   Map<String, String> values,
 ) async {
-  // The legacy NFCC is commonly a flattened scan, so its own title cannot
-  // always be extracted. Anchor it to the document structure instead: NFCC
-  // is the page immediately before the generated Technical Specifications
-  // section. This remains correct when earlier sections gain extra pages.
-  int? nfccPageIndex;
-  final documentLines = PdfTextExtractor(document).extractTextLines();
-  int? technicalSpecificationsPageIndex;
-  for (final line in documentLines) {
-    final text = line.text.toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-    if (line.pageIndex >= 20 && text.contains('TECHNICAL SPECIFICATIONS')) {
-      technicalSpecificationsPageIndex ??= line.pageIndex;
-    }
-    if (line.pageIndex >= 20 &&
-        text.contains('NET FINANCIAL CONTRACTING CAPACITY') &&
-        text.contains('NFCC') &&
-        text.length < 100) {
-      nfccPageIndex = line.pageIndex;
-    }
-  }
-  if (technicalSpecificationsPageIndex != null &&
-      technicalSpecificationsPageIndex > 0) {
-    nfccPageIndex = technicalSpecificationsPageIndex - 1;
-  }
-  if (nfccPageIndex == null) return;
-
-  final data = await rootBundle.load('assets/pdf/NFCC_Template.pdf');
-  final sourceDocument = PdfDocument(inputBytes: data.buffer.asUint8List());
-  if (sourceDocument.pages.count == 0) {
-    sourceDocument.dispose();
+  if (document.pages.count == 0) {
     return;
   }
 
-  final sourcePage = sourceDocument.pages[0];
-  final graphics = sourcePage.graphics;
-  final white = PdfSolidBrush(PdfColor(255, 255, 255));
-  final black = PdfSolidBrush(PdfColor(0, 0, 0));
-  final regular = PdfStandardFont(PdfFontFamily.helvetica, 12);
-  final bold = PdfStandardFont(
+  // ============================================================
+  // LOCATE NFCC
+  // ============================================================
+  //
+  // NFCC may be scanned/flattened, so its own text is not always
+  // reliable.
+  //
+  // The structural relationship used here is:
+  //
+  // [NFCC]
+  // [TECHNICAL SPECIFICATIONS]
+  //
+  // Therefore Technical Specifications is the reliable anchor and
+  // NFCC is the page immediately before it.
+  // ============================================================
+
+  int? nfccPageIndex;
+
+  final documentLines =
+      PdfTextExtractor(document)
+          .extractTextLines();
+
+  int? technicalSpecificationsPageIndex;
+
+  for (final line in documentLines) {
+    final text = line.text
+        .replaceAll(
+          '\u0000',
+          '',
+        )
+        .toUpperCase()
+        .replaceAll(
+          RegExp(r'\s+'),
+          ' ',
+        )
+        .trim();
+
+    final isChecklistText =
+        text.contains(
+          'CHECKLIST OF ELIGIBILITY REQUIREMENTS',
+        ) ||
+        text.contains(
+          'TABLE OF CONTENTS',
+        );
+
+    if (!isChecklistText &&
+        technicalSpecificationsPageIndex ==
+            null &&
+        text.contains(
+          'TECHNICAL SPECIFICATIONS',
+        )) {
+      technicalSpecificationsPageIndex =
+          line.pageIndex;
+    }
+
+    if (!isChecklistText &&
+        nfccPageIndex == null &&
+        text.contains(
+          'NET FINANCIAL CONTRACTING CAPACITY',
+        ) &&
+        text.contains(
+          'NFCC',
+        ) &&
+        text.length < 100) {
+      nfccPageIndex =
+          line.pageIndex;
+    }
+  }
+
+  if (technicalSpecificationsPageIndex !=
+          null &&
+      technicalSpecificationsPageIndex >
+          0) {
+    nfccPageIndex =
+        technicalSpecificationsPageIndex -
+            1;
+  }
+
+  if (nfccPageIndex == null) {
+    throw StateError(
+      'Cannot replace NFCC: '
+      'Technical Specifications/NFCC anchor was not found.',
+    );
+  }
+
+  if (nfccPageIndex < 0 ||
+      nfccPageIndex >=
+          document.pages.count) {
+    throw StateError(
+      'Cannot replace NFCC: invalid NFCC index. '
+      'nfcc=$nfccPageIndex '
+      'technical=$technicalSpecificationsPageIndex '
+      'documentPages=${document.pages.count}.',
+    );
+  }
+
+  // ============================================================
+  // LOAD NFCC TEMPLATE
+  // ============================================================
+
+  final data = await rootBundle.load(
+    'assets/pdf/NFCC_Template.pdf',
+  );
+
+  final sourceDocument = PdfDocument(
+    inputBytes: data.buffer.asUint8List(),
+  );
+
+  if (sourceDocument.pages.count == 0) {
+    sourceDocument.dispose();
+
+    throw StateError(
+      'NFCC_Template.pdf contains no pages.',
+    );
+  }
+
+  final sourcePage =
+      sourceDocument.pages[0];
+
+  final graphics =
+      sourcePage.graphics;
+
+  final white = PdfSolidBrush(
+    PdfColor(
+      255,
+      255,
+      255,
+    ),
+  );
+
+  final black = PdfSolidBrush(
+    PdfColor(
+      0,
+      0,
+      0,
+    ),
+  );
+
+  final regular =
+      PdfStandardFont(
+    PdfFontFamily.helvetica,
+    12,
+  );
+
+  final bold =
+      PdfStandardFont(
     PdfFontFamily.helvetica,
     12,
     style: PdfFontStyle.bold,
   );
-  final italic = PdfStandardFont(
+
+  final italic =
+      PdfStandardFont(
     PdfFontFamily.helvetica,
     12,
     style: PdfFontStyle.italic,
   );
-  final headerLabelFont = PdfStandardFont(PdfFontFamily.timesRoman, 11);
-  final headerValueFont = PdfStandardFont(
+
+  final headerLabelFont =
+      PdfStandardFont(
+    PdfFontFamily.timesRoman,
+    11,
+  );
+
+  final headerValueFont =
+      PdfStandardFont(
     PdfFontFamily.timesRoman,
     11,
     style: PdfFontStyle.bold,
   );
-  final red = PdfSolidBrush(PdfColor(210, 0, 0));
-  final procuringEntity = (values['procuringEntity'] ?? '').trim();
-  final referenceNumber = (values['referenceNumber'] ?? '').trim();
-  final projectTitle = (values['projectTitle'] ?? '').trim();
-  final submittedBy = (values['submittedBy'] ?? '').trim();
-  final date = (values['date'] ?? '').trim();
-  const address = _permanentBusinessAddress;
 
-  // Values in the supplied NFCC file are sometimes encoded together in a
-  // single text object. Clear the complete variable header instead of
-  // trying to replace individual extracted lines.
+  final red =
+      PdfSolidBrush(
+    PdfColor(
+      210,
+      0,
+      0,
+    ),
+  );
+
+  final procuringEntity =
+      (values['procuringEntity'] ?? '')
+          .trim();
+
+  final referenceNumber =
+      (values['referenceNumber'] ?? '')
+          .trim();
+
+  final projectTitle =
+      (values['projectTitle'] ?? '')
+          .trim();
+
+  final submittedBy =
+      (values['submittedBy'] ?? '')
+          .trim();
+
+  final date =
+      (values['date'] ?? '')
+          .trim();
+
+  const address =
+      _permanentBusinessAddress;
+
+  // ============================================================
+  // CLEAR OLD HEADER
+  // ============================================================
+
   graphics.drawRectangle(
     brush: white,
-    // Cover only the legacy header. Keep a clear gap before the first body
-    // line, which starts at about y=178 in the supplied template.
-    bounds: Rect.fromLTWH(18, 58, sourcePage.size.width - 36, 110),
+    bounds: Rect.fromLTWH(
+      18,
+      58,
+      sourcePage.size.width - 36,
+      110,
+    ),
   );
+
   void drawHeader(
     String label,
     String value,
@@ -196,14 +639,26 @@ Future<void> _replaceNfccPage(
       label,
       headerLabelFont,
       brush: black,
-      bounds: Rect.fromLTWH(20, top, 174, 18),
+      bounds: Rect.fromLTWH(
+        20,
+        top,
+        174,
+        18,
+      ),
     );
+
     graphics.drawString(
       ':',
       headerLabelFont,
       brush: black,
-      bounds: Rect.fromLTWH(196, top, 10, 18),
+      bounds: Rect.fromLTWH(
+        196,
+        top,
+        10,
+        18,
+      ),
     );
+
     graphics.drawString(
       value,
       headerValueFont,
@@ -214,7 +669,9 @@ Future<void> _replaceNfccPage(
         sourcePage.size.width - 232,
         valueHeight,
       ),
-      format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+      format: PdfStringFormat(
+        wordWrap: PdfWordWrapType.word,
+      ),
     );
   }
 
@@ -223,22 +680,42 @@ Future<void> _replaceNfccPage(
     procuringEntity.toUpperCase(),
     61,
   );
-  drawHeader('PROJECT TITLE', projectTitle.toUpperCase(), 76, valueHeight: 30);
-  drawHeader('REFERENCE NUMBER', referenceNumber, 108);
+
+  drawHeader(
+    'PROJECT TITLE',
+    projectTitle.toUpperCase(),
+    76,
+    valueHeight: 30,
+  );
+
+  drawHeader(
+    'REFERENCE NUMBER',
+    referenceNumber,
+    108,
+  );
+
   drawHeader(
     'CONTRACTOR',
-    (values['bidderName'] ?? '').trim().toUpperCase(),
+    (values['bidderName'] ?? '')
+        .trim()
+        .toUpperCase(),
     123,
   );
-  drawHeader('ADDRESS', address, 138, valueHeight: 27);
 
-  // Replace the complete signatory block using the editor's selected date.
-  // The original signatory block starts well above the bottom margin.
-  // Clear from there through the bottom so both the old and any previously
-  // generated values are removed before drawing the single final block.
-  // Begin below the NFCC computation table. This is high enough to remove
-  // the legacy MARLJONE block but does not cover the Computed NFCC row.
-  final footerTop = sourcePage.size.height - 235;
+  drawHeader(
+    'ADDRESS',
+    address,
+    138,
+    valueHeight: 27,
+  );
+
+  // ============================================================
+  // CLEAR OLD SIGNATORY
+  // ============================================================
+
+  final footerTop =
+      sourcePage.size.height - 235;
+
   graphics.drawRectangle(
     brush: white,
     bounds: Rect.fromLTWH(
@@ -248,82 +725,204 @@ Future<void> _replaceNfccPage(
       247,
     ),
   );
+
   graphics.drawString(
     'Submitted',
     regular,
     brush: black,
-    bounds: Rect.fromLTWH(20, footerTop, 105, 18),
+    bounds: Rect.fromLTWH(
+      20,
+      footerTop,
+      105,
+      18,
+    ),
   );
+
   graphics.drawString(
     submittedBy.toUpperCase(),
     bold,
     brush: black,
-    bounds: Rect.fromLTWH(125, footerTop, 330, 18),
+    bounds: Rect.fromLTWH(
+      125,
+      footerTop,
+      330,
+      18,
+    ),
   );
-  final submittedWidth = bold.measureString(submittedBy.toUpperCase()).width;
+
+  final submittedWidth =
+      bold
+          .measureString(
+            submittedBy.toUpperCase(),
+          )
+          .width;
+
   graphics.drawLine(
-    PdfPen(PdfColor(0, 0, 0), width: 0.7),
-    Offset(125, footerTop + 14),
-    Offset(125 + submittedWidth, footerTop + 14),
+    PdfPen(
+      PdfColor(
+        0,
+        0,
+        0,
+      ),
+      width: 0.7,
+    ),
+    Offset(
+      125,
+      footerTop + 14,
+    ),
+    Offset(
+      125 + submittedWidth,
+      footerTop + 14,
+    ),
   );
+
   graphics.drawString(
     'Designation',
     regular,
     brush: black,
-    bounds: Rect.fromLTWH(20, footerTop + 18, 105, 18),
+    bounds: Rect.fromLTWH(
+      20,
+      footerTop + 18,
+      105,
+      18,
+    ),
   );
+
   graphics.drawString(
     ':    Authorized Representative',
     italic,
     brush: black,
-    bounds: Rect.fromLTWH(125, footerTop + 18, 330, 18),
+    bounds: Rect.fromLTWH(
+      125,
+      footerTop + 18,
+      330,
+      18,
+    ),
   );
+
   graphics.drawString(
     'Date',
     regular,
     brush: black,
-    bounds: Rect.fromLTWH(20, footerTop + 36, 105, 18),
+    bounds: Rect.fromLTWH(
+      20,
+      footerTop + 36,
+      105,
+      18,
+    ),
   );
+
   graphics.drawString(
     ':    $date',
     regular,
     brush: black,
-    bounds: Rect.fromLTWH(125, footerTop + 36, 280, 18),
-  );
-
-  // Save and reopen the edited NFCC template before importing it. Creating a
-  // template directly from sourcePage can copy the original imported page
-  // and omit the replacement graphics drawn above.
-  final modifiedSourceBytes = await sourceDocument.save();
-  sourceDocument.dispose();
-  final flattenedSourceDocument = PdfDocument(
-    inputBytes: modifiedSourceBytes,
-  );
-  final flattenedSourcePage = flattenedSourceDocument.pages[0];
-
-  document.pages.removeAt(nfccPageIndex);
-  const a4Size = Size(595.28, 841.89);
-  final sourceSize = flattenedSourcePage.size;
-  final scale = (a4Size.width / sourceSize.width)
-      .clamp(0.0, a4Size.height / sourceSize.height)
-      .toDouble();
-  final fittedSize = Size(sourceSize.width * scale, sourceSize.height * scale);
-  final targetPage = document.pages.insert(
-    nfccPageIndex,
-    a4Size,
-    PdfMargins()..all = 0,
-  );
-  targetPage.graphics.drawPdfTemplate(
-    flattenedSourcePage.createTemplate(),
-    Offset(
-      (a4Size.width - fittedSize.width) / 2,
-      (a4Size.height - fittedSize.height) / 2,
+    bounds: Rect.fromLTWH(
+      125,
+      footerTop + 36,
+      280,
+      18,
     ),
-    fittedSize,
   );
-  flattenedSourceDocument.dispose();
+
+  // ============================================================
+  // SAVE + REOPEN NFCC BEFORE IMPORT
+  // ============================================================
+
+  final modifiedSourceBytes =
+      await sourceDocument.save();
+
+  sourceDocument.dispose();
+
+  final flattenedSourceDocument =
+      PdfDocument(
+    inputBytes:
+        modifiedSourceBytes,
+  );
+
+  try {
+    if (flattenedSourceDocument
+        .pages
+        .count ==
+        0) {
+      throw StateError(
+        'Cannot replace NFCC: '
+        'flattened NFCC template contains no pages.',
+      );
+    }
+
+    final flattenedSourcePage =
+        flattenedSourceDocument
+            .pages[0];
+
+    // Replacing one page with one page must preserve total count.
+    final pageCountBefore =
+        document.pages.count;
+
+    document.pages.removeAt(
+      nfccPageIndex,
+    );
+
+    const a4Size = Size(
+      595.28,
+      841.89,
+    );
+
+    final sourceSize =
+        flattenedSourcePage.size;
+
+    final widthScale =
+        a4Size.width /
+            sourceSize.width;
+
+    final heightScale =
+        a4Size.height /
+            sourceSize.height;
+
+    final scale =
+        widthScale < heightScale
+            ? widthScale
+            : heightScale;
+
+    final fittedSize = Size(
+      sourceSize.width * scale,
+      sourceSize.height * scale,
+    );
+
+    final targetPage =
+        document.pages.insert(
+      nfccPageIndex,
+      a4Size,
+      PdfMargins()..all = 0,
+    );
+
+    targetPage.graphics.drawPdfTemplate(
+      flattenedSourcePage
+          .createTemplate(),
+      Offset(
+        (a4Size.width -
+                fittedSize.width) /
+            2,
+        (a4Size.height -
+                fittedSize.height) /
+            2,
+      ),
+      fittedSize,
+    );
+
+    if (document.pages.count !=
+        pageCountBefore) {
+      throw StateError(
+        'NFCC replacement unexpectedly changed total page count. '
+        'before=$pageCountBefore '
+        'after=${document.pages.count}.',
+      );
+    }
+  } finally {
+    flattenedSourceDocument.dispose();
+  }
 }
 
-/// Standard PDF fonts do not contain Unicode checkmark glyphs. Normalize
-/// common pasted checkmarks before any page is drawn so one specification
-/// cannot abort the entire document with "character 9971".
+/// Standard PDF fonts do not contain Unicode checkmark glyphs.
+///
+/// Marker rendering is handled by the shared Unicode marker renderer
+/// in pdf_text_service.dart. Do not convert ✓ to "v" here.
