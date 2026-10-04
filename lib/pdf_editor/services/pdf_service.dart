@@ -1,4 +1,5 @@
 import '../models/item_pricing.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -26,16 +27,32 @@ part 'pdf/pdf_secretary_certificate_service.dart';
 part 'pdf/pdf_schedule_requirements_service.dart';
 part 'pdf/pdf_bid_price_summary_service.dart';
 
-/// Public entry point; feature parts retain the original drawing operations.
+/// Structural location of the inserted AFS block.
+///
+/// IMPORTANT:
+/// [startIndex] is valid only while no page before the AFS block is
+/// inserted, removed, or moved.
+///
+/// Therefore the production generation flow captures this placement only
+/// after all earlier structural changes have completed.
 class _AfsPlacement {
-  const _AfsPlacement({required this.startIndex, required this.pageCount});
+  const _AfsPlacement({
+    required this.startIndex,
+    required this.pageCount,
+  });
+
   final int startIndex;
   final int pageCount;
+
   int get endExclusive => startIndex + pageCount;
+
   bool isValidFor(PdfDocument document) =>
-      startIndex >= 0 && pageCount > 0 && endExclusive <= document.pages.count;
+      startIndex >= 0 &&
+      pageCount > 0 &&
+      endExclusive <= document.pages.count;
 }
 
+/// Public entry point; feature parts retain the original drawing operations.
 class PdfService {
   const PdfService._();
 
@@ -46,35 +63,48 @@ class PdfService {
         Future<void>.delayed(const Duration(milliseconds: 1));
 
     await _ensurePdfUnicodeMarkerFont();
+
     values = values.map(
-      (key, value) => MapEntry(key, _pdfSafeText(value)),
+      (key, value) => MapEntry(
+        key,
+        _pdfSafeText(value),
+      ),
     );
-    // Explicit global modes take precedence over stale per-section preferences.
-    // Calls without a global mode retain the existing section-level API.
+
+    // Explicit global modes take precedence over stale per-section
+    // preferences. Calls without a global mode retain the existing
+    // section-level API.
     if (values.containsKey('documentTemplateMode')) {
       final initao = values['documentTemplateMode'] == 'initao';
-      values['omnibusTemplateType'] = initao ? 'initao_lgu' : 'old';
+
+      values['omnibusTemplateType'] =
+          initao ? 'initao_lgu' : 'old';
+
       values['bidSecuringDeclarationTemplate'] = initao
           ? 'initao_lgu'
           : values['bidSecuringDeclarationTemplate'] == 'without_table'
               ? 'without_table'
               : 'old';
     }
+
     final ByteData templateData = await rootBundle.load(
       'assets/pdf/bidocs_template.pdf',
     );
 
-    final Uint8List templateBytes = templateData.buffer.asUint8List();
+    final Uint8List templateBytes =
+        templateData.buffer.asUint8List();
 
     final PdfDocument document = PdfDocument(
       inputBytes: templateBytes,
     );
 
-    // PDF work on Flutter Web shares the UI thread. Yield between the major
-    // stages so loading indicators can continue receiving animation frames.
+    // PDF work on Flutter Web shares the UI thread.
     await yieldToBrowser();
 
-    // Clean replacement for Page 1.
+    // ============================================================
+    // PAGE 1
+    // ============================================================
+
     if (document.pages.count > 0) {
       _drawPageOne(
         document.pages[0],
@@ -82,7 +112,11 @@ class PdfService {
       );
     }
 
-    // Page 20 contains the ongoing contracts form.
+    // ============================================================
+    // ONGOING CONTRACTS
+    // ============================================================
+
+    // Original Page 20.
     if (document.pages.count > 19) {
       _drawContractStatementPage(
         document.pages[19],
@@ -94,8 +128,7 @@ class PdfService {
       );
     }
 
-    // Page 21 uses the same editable header and signatory fields. Its table
-    // is taller, so the signature block stays below the supporting notes.
+    // Original Page 21.
     if (document.pages.count > 20) {
       _drawContractStatementPage(
         document.pages[20],
@@ -105,30 +138,49 @@ class PdfService {
         businessAddressClearTop: 174,
         businessAddressTop: 176,
       );
-      _drawSlccPrivateRow(document.pages[20], values);
+
+      _drawSlccPrivateRow(
+        document.pages[20],
+        values,
+      );
     }
 
-    // Rebuild the editable Technical Specifications sheets on genuinely blank
-    // pages. Painting white over the bundled rows leaves the old content in
-    // the PDF page stream, and external readers can render that stream above
-    // the edits even though Chrome's in-app preview looks correct.
-    // Page 47 technical specifications header follows the current bid data.
+    // ============================================================
+    // TECHNICAL SPECIFICATIONS
+    // ============================================================
+
+    // Rebuild editable Technical Specifications sheets on blank pages.
+    //
+    // Painting white over bundled rows can leave old PDF stream content
+    // visible in external PDF readers.
     if (document.pages.count > 46) {
-      _drawTechnicalSpecificationsHeader(document.pages[46], values);
+      _drawTechnicalSpecificationsHeader(
+        document.pages[46],
+        values,
+      );
     }
 
     var technicalSpecificationPageCount = 3;
+
     if (document.pages.count > 48) {
       technicalSpecificationPageCount =
-          _drawTechnicalSpecifications(document, values);
+          _drawTechnicalSpecifications(
+        document,
+        values,
+      );
     }
-    await Future<void>.delayed(const Duration(milliseconds: 1));
 
-    // Find the actual Price Schedule section in the source instead of relying
-    // on a fixed page number. Some template revisions have blank/form pages
-    // immediately before it.
-    final priceScheduleStartPage = _findPriceScheduleStartPage(document);
+    await yieldToBrowser();
+
+    // ============================================================
+    // PRICE SCHEDULE
+    // ============================================================
+
+    final priceScheduleStartPage =
+        _findPriceScheduleStartPage(document);
+
     var priceSchedulePageCount = 1;
+
     if (priceScheduleStartPage >= 0) {
       priceSchedulePageCount = _drawPriceSchedule(
         document,
@@ -136,10 +188,18 @@ class PdfService {
         priceScheduleStartPage,
       );
     }
-    await Future<void>.delayed(const Duration(milliseconds: 1));
 
-    final bidPriceSummaryStartPage = _findBidPriceSummaryStartPage(document);
+    await yieldToBrowser();
+
+    // ============================================================
+    // SUMMARY OF BID PRICES
+    // ============================================================
+
+    final bidPriceSummaryStartPage =
+        _findBidPriceSummaryStartPage(document);
+
     var bidPriceSummaryPageCount = 1;
+
     if (bidPriceSummaryStartPage >= 0) {
       bidPriceSummaryPageCount = _drawBidPriceSummary(
         document,
@@ -147,37 +207,55 @@ class PdfService {
         bidPriceSummaryStartPage,
       );
     }
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    await yieldToBrowser();
+
+    // ============================================================
+    // SCHEDULE OF REQUIREMENTS
+    // ============================================================
 
     final scheduleRequirementsStartPage =
         _findScheduleRequirementsStartPage(document);
+
     var scheduleRequirementsPageCount = 1;
+
     if (scheduleRequirementsStartPage >= 0) {
-      scheduleRequirementsPageCount = _drawScheduleRequirements(
+      scheduleRequirementsPageCount =
+          _drawScheduleRequirements(
         document,
         values,
         scheduleRequirementsStartPage,
       );
     }
-    await Future<void>.delayed(const Duration(milliseconds: 1));
 
-    // Other mapped pages, excluding Page 1.
-    final mappedFields = PageMapper.mapValuesToPages(values);
+    await yieldToBrowser();
+
+    // ============================================================
+    // OTHER MAPPED FIELDS
+    // ============================================================
+
+    final mappedFields =
+        PageMapper.mapValuesToPages(values);
 
     for (final pageEntry in mappedFields.entries) {
       final int pageIndex = pageEntry.key;
 
       // Page 1 is already handled above.
-      if (pageIndex == 0) continue;
-
-      if (pageIndex < 0 || pageIndex >= document.pages.count) {
+      if (pageIndex == 0) {
         continue;
       }
 
-      final PdfPage page = document.pages[pageIndex];
+      if (pageIndex < 0 ||
+          pageIndex >= document.pages.count) {
+        continue;
+      }
+
+      final PdfPage page =
+          document.pages[pageIndex];
 
       for (final mappedField in pageEntry.value) {
-        final Rect bounds = mappedField.position.bounds;
+        final Rect bounds =
+            mappedField.position.bounds;
 
         page.graphics.drawRectangle(
           brush: PdfSolidBrush(
@@ -204,187 +282,399 @@ class PdfService {
           font,
           bounds: bounds,
           format: PdfStringFormat(
-            alignment: PdfTextAlignment.left,
-            lineAlignment: PdfVerticalAlignment.top,
-            wordWrap: PdfWordWrapType.word,
+            alignment:
+                PdfTextAlignment.left,
+            lineAlignment:
+                PdfVerticalAlignment.top,
+            wordWrap:
+                PdfWordWrapType.word,
           ),
         );
       }
-      // Large bid documents map dozens of pages. Let Flutter Web paint the
-      // progress overlay and let Chrome process input between each page.
+
+      // Large bid documents map many pages.
       await yieldToBrowser();
     }
 
     await yieldToBrowser();
 
-    // Remove unused continuation templates only after all original page-index
-    // mappings have been applied.
+    // ============================================================
+    // REMOVE UNUSED CONTINUATION TEMPLATE PAGES
+    // ============================================================
+
     if (scheduleRequirementsStartPage >= 0) {
-      for (var pageIndex = (scheduleRequirementsStartPage + 2)
-              .clamp(0, document.pages.count - 1)
-              .toInt();
+      for (var pageIndex =
+              (scheduleRequirementsStartPage + 2)
+                  .clamp(
+                    0,
+                    document.pages.count - 1,
+                  )
+                  .toInt();
           pageIndex >=
-              scheduleRequirementsStartPage + scheduleRequirementsPageCount;
+              scheduleRequirementsStartPage +
+                  scheduleRequirementsPageCount;
           pageIndex--) {
-        document.pages.removeAt(pageIndex);
+        document.pages.removeAt(
+          pageIndex,
+        );
       }
     }
+
     if (bidPriceSummaryStartPage >= 0) {
-      for (var pageIndex = (bidPriceSummaryStartPage + 2)
-              .clamp(0, document.pages.count - 1)
-              .toInt();
-          pageIndex >= bidPriceSummaryStartPage + bidPriceSummaryPageCount;
+      for (var pageIndex =
+              (bidPriceSummaryStartPage + 2)
+                  .clamp(
+                    0,
+                    document.pages.count - 1,
+                  )
+                  .toInt();
+          pageIndex >=
+              bidPriceSummaryStartPage +
+                  bidPriceSummaryPageCount;
           pageIndex--) {
-        document.pages.removeAt(pageIndex);
+        document.pages.removeAt(
+          pageIndex,
+        );
       }
     }
+
     if (priceScheduleStartPage >= 0) {
-      for (var pageIndex = (priceScheduleStartPage + 7)
-              .clamp(0, document.pages.count - 1)
-              .toInt();
-          pageIndex >= priceScheduleStartPage + priceSchedulePageCount;
+      for (var pageIndex =
+              (priceScheduleStartPage + 7)
+                  .clamp(
+                    0,
+                    document.pages.count - 1,
+                  )
+                  .toInt();
+          pageIndex >=
+              priceScheduleStartPage +
+                  priceSchedulePageCount;
           pageIndex--) {
-        document.pages.removeAt(pageIndex);
+        document.pages.removeAt(
+          pageIndex,
+        );
       }
-      // Keep the two Bid Securing Declaration sheets immediately before the
-      // Price Schedule. They are required document pages, not unused
-      // Technical Specification continuations.
+
+      // Keep the two Bid Securing Declaration sheets immediately
+      // before Price Schedule.
     }
-    if (technicalSpecificationPageCount < 3) {
+
+    if (technicalSpecificationPageCount < 3 &&
+        document.pages.count > 48) {
       document.pages.removeAt(48);
     }
-    if (technicalSpecificationPageCount < 2) {
+
+    if (technicalSpecificationPageCount < 2 &&
+        document.pages.count > 47) {
       document.pages.removeAt(47);
     }
+
     await yieldToBrowser();
 
+    // ============================================================
+    // BID SECURING DECLARATION
+    // ============================================================
+
     final useDeclarationWithTable =
-        switch (values['bidSecuringDeclarationTemplate']) {
+        switch (
+          values['bidSecuringDeclarationTemplate']
+        ) {
       'old' => true,
-      'without_table' || 'initao_lgu' => false,
-      _ => values['bidSecuringDeclarationWithTable'] != 'false',
+      'without_table' || 'initao_lgu' =>
+        false,
+      _ =>
+        values['bidSecuringDeclarationWithTable'] !=
+            'false',
     };
+
     if (useDeclarationWithTable) {
-      // Locate the original form by its actual text after optional technical
-      // pages have been removed, since its final page index can change.
-      _drawBidSecuringDeclarationDetails(document, values);
+      // Locate actual form by text because optional Technical Spec
+      // pages can move its final page index.
+      _drawBidSecuringDeclarationDetails(
+        document,
+        values,
+      );
     } else {
-      await _replaceBidSecuringDeclarationWithoutTable(document, values);
+      await _replaceBidSecuringDeclarationWithoutTable(
+        document,
+        values,
+      );
     }
 
     await yieldToBrowser();
 
-    // The scanned official receipt is only a sample attachment in the source
-    // template and is not required in the generated bid documents.
+    // ============================================================
+    // REMOVE SAMPLE OFFICIAL RECEIPT
+    // ============================================================
+
+    // This remains an existing template-specific operation.
     if (document.pages.count > 45) {
       document.pages.removeAt(45);
     }
 
-    // Optional generated pages shift the forms that follow them. Locate the
-    // Omnibus form by its own title instead of relying on a fixed page index.
-    final omnibusPageIndex = _findOmnibusSwornStatementPage(document);
+    await yieldToBrowser();
+
+    // ============================================================
+    // OMNIBUS
+    // ============================================================
+
+    final omnibusPageIndex =
+        _findOmnibusSwornStatementPage(
+      document,
+    );
+
     if (omnibusPageIndex >= 0) {
       _drawOmnibusSwornStatementIdentity(
         document,
         values,
         pageIndex: omnibusPageIndex,
       );
+
       _drawOmnibusSwornStatementLastPage(
         document,
         values,
         pageIndex: omnibusPageIndex + 1,
       );
-      if (values['omnibusTemplateType'] == 'initao_lgu') {
-        drawInitaoOmnibusNumbering(document, omnibusPageIndex);
+
+      if (values['omnibusTemplateType'] ==
+          'initao_lgu') {
+        drawInitaoOmnibusNumbering(
+          document,
+          omnibusPageIndex,
+        );
       }
     }
-    await yieldToBrowser();
-    // Run this after mapped fields and optional-page removals so the old
-    // signature block cannot be drawn back over the cleaned manpower page.
-    _drawManpowerSignature(document, values);
-    await yieldToBrowser();
-    _drawAfterSalesServiceCertificate(document, values);
-    await yieldToBrowser();
-    _drawProductWarrantyCertificate(document, values);
-    await yieldToBrowser();
-    _drawJuratPlaceholders(document, values);
-    await yieldToBrowser();
-    _drawBidForm(document, values);
-    await yieldToBrowser();
-    _drawSecretaryCertificate(document, values);
+
     await yieldToBrowser();
 
-    // Replace the two legacy editable SLCC sheets only after every original
-    // page mapping is complete. This keeps all following section indexes
-    // stable while the document is being prepared.
-    await _replaceSlccSection(document, values);
-    await yieldToBrowser();
-    final afsPlacement = _validateAfsPlacement(
+    // ============================================================
+    // OTHER DYNAMIC SECTIONS
+    // ============================================================
+
+    _drawManpowerSignature(
       document,
-      await _replaceAfsSection(document),
+      values,
     );
+
     await yieldToBrowser();
 
-    // _replaceAfsSection already removes the complete 18-page legacy AFS and
-    // attachment range before inserting the clean AFS template. Do not remove
-    // fixed page indexes here: the replacement can contain fewer pages, which
-    // moves NFCC and Technical Specifications into indexes 43-44 and caused
-    // those required sections to be deleted.
+    _drawAfterSalesServiceCertificate(
+      document,
+      values,
+    );
 
-    // Remove only the legacy SLCC placeholders before resolving NFCC and
-    // Technical Specifications. Doing this after NFCC replacement can make
-    // Syncfusion retain stale shifted page references when SLCC is disabled.
-    if (values['slccTemplateType']?.trim().toLowerCase() == 'none') {
-      _removeSlccSection(document);
+    await yieldToBrowser();
+
+    _drawProductWarrantyCertificate(
+      document,
+      values,
+    );
+
+    await yieldToBrowser();
+
+    _drawJuratPlaceholders(
+      document,
+      values,
+    );
+
+    await yieldToBrowser();
+
+    _drawBidForm(
+      document,
+      values,
+    );
+
+    await yieldToBrowser();
+
+    _drawSecretaryCertificate(
+      document,
+      values,
+    );
+
+    await yieldToBrowser();
+
+    // ============================================================
+    // FINAL STRUCTURAL PHASE
+    //
+    // IMPORTANT:
+    // Everything that can change page indexes BEFORE AFS must finish
+    // BEFORE we capture the AFS placement.
+    // ============================================================
+
+    // Replace the legacy SLCC section.
+    await _replaceSlccSection(
+      document,
+      values,
+    );
+
+    await yieldToBrowser();
+
+    // If the user selected NO SLCC, remove it now.
+    //
+    // This MUST happen before AFS placement is captured because removing
+    // pages before AFS changes all following page indexes.
+    if (values['slccTemplateType']
+            ?.trim()
+            .toLowerCase() ==
+        'none') {
+      _removeSlccSection(
+        document,
+      );
+
       await yieldToBrowser();
     }
 
-    // Resolve and replace NFCC after every optional-page removal. It remains
-    // immediately before Technical Specifications, regardless of whether
-    // SLCC is present, and neither required section is removed for SLCC=None.
-    await _replaceNfccPage(document, values);
-    await yieldToBrowser();
-    await _moveBusinessPermitBeforeTaxClearance(document);
-    await yieldToBrowser();
-    await _replacePhilgepsCertificateSection(document);
+    // ============================================================
+    // NFCC
+    // ============================================================
+
+    // Resolve and replace NFCC AFTER optional SLCC changes.
+    //
+    // NFCC is located structurally using Technical Specifications,
+    // not using a fixed final page number.
+    await _replaceNfccPage(
+      document,
+      values,
+    );
+
     await yieldToBrowser();
 
-    if (values['documentTemplateMode'] == 'initao') {
-      await _insertInitaoDocumentPages(document, values, afsPlacement);
+    // ============================================================
+    // BUSINESS PERMIT / TAX CLEARANCE
+    // ============================================================
+
+    // This operation may change page positions.
+    // Therefore it MUST happen before AFS placement is captured.
+    await _moveBusinessPermitBeforeTaxClearance(
+      document,
+    );
+
+    await yieldToBrowser();
+
+    // ============================================================
+    // PHILGEPS CERTIFICATE
+    // ============================================================
+
+    // This replacement can also affect the page structure before AFS.
+    await _replacePhilgepsCertificateSection(
+      document,
+    );
+
+    await yieldToBrowser();
+
+    // ============================================================
+    // AFS
+    // ============================================================
+
+    // CRITICAL:
+    //
+    // AFS replacement is deliberately LAST among all operations that
+    // can move pages before the AFS block.
+    //
+    // The placement returned here therefore points at the REAL final
+    // AFS location.
+    //
+    // For the current source:
+    //
+    // pageCount = 15
+    //
+    // and those 15 pages must remain one atomic block.
+    final afsPlacement =
+        _validateAfsPlacement(
+      document,
+      await _replaceAfsSection(
+        document,
+      ),
+    );
+
+    await yieldToBrowser();
+
+    // ============================================================
+    // INITAO FINAL REORDERING
+    // ============================================================
+
+    if (values['documentTemplateMode'] ==
+        'initao') {
+      // No page-changing operation may occur between AFS placement
+      // capture and this INITAO reorder.
+      await _insertInitaoDocumentPages(
+        document,
+        values,
+        afsPlacement,
+      );
+
       await yieldToBrowser();
+    } else {
+      // OLD mode does not perform the INITAO rearrangement.
+      //
+      // Revalidate the structural placement immediately before save
+      // so a broken block cannot silently reach the final PDF.
+      _validateAfsPlacement(
+        document,
+        afsPlacement,
+      );
     }
 
-    // Keep Syncfusion's normal incremental output here. Chrome/PDFium resolves
-    // this revision correctly; the Railway compatibility service flattens its
-    // visible overlays into permanent page content for the other readers.
-    final List<int> outputBytes = await document.save();
+    // ============================================================
+    // FINAL SAVE
+    // ============================================================
+
+    // Keep Syncfusion's normal incremental output.
+    final List<int> outputBytes =
+        await document.save();
+
     document.dispose();
-    return Uint8List.fromList(outputBytes);
+
+    return Uint8List.fromList(
+      outputBytes,
+    );
   }
 }
 
+/// Validate the structural AFS placement.
+///
+/// NOTE:
+/// This validates the numeric structural range. INITAO performs additional
+/// exact ordering checks inside _insertInitaoDocumentPages().
 _AfsPlacement _validateAfsPlacement(
   PdfDocument document,
   _AfsPlacement? placement,
 ) {
-  if (placement == null || !placement.isValidFor(document)) {
-    throw StateError('AFS replacement failed or returned invalid placement.');
+  if (placement == null ||
+      !placement.isValidFor(document)) {
+    throw StateError(
+      'AFS replacement failed or returned invalid placement.',
+    );
   }
-  final afsStart = placement.startIndex;
-  final afsEndExclusive = placement.endExclusive;
-  final firstAfsPageMissing = afsStart >= document.pages.count;
-  final secondAfsPageMissing = afsStart + 1 >= document.pages.count;
+
+  final afsStart =
+      placement.startIndex;
+
+  final afsEndExclusive =
+      placement.endExclusive;
+
+  final firstAfsPageMissing =
+      afsStart >= document.pages.count;
+
+  final secondAfsPageMissing =
+      afsStart + 1 >= document.pages.count;
+
   if (placement.pageCount != 15 ||
       firstAfsPageMissing ||
       secondAfsPageMissing ||
-      afsEndExclusive > document.pages.count) {
+      afsEndExclusive >
+          document.pages.count) {
     throw StateError(
-      'AFS integrity failure: expected=15 '
-      'missing first AFS page=${firstAfsPageMissing} '
-      'missing second AFS page=${secondAfsPageMissing} '
-      'start=${afsStart} end=${afsEndExclusive} '
+      'AFS integrity failure: '
+      'expected=15 '
+      'actual=${placement.pageCount} '
+      'missing first AFS page=$firstAfsPageMissing '
+      'missing second AFS page=$secondAfsPageMissing '
+      'start=$afsStart '
+      'end=$afsEndExclusive '
       'documentPages=${document.pages.count}.',
     );
   }
+
   return placement;
 }

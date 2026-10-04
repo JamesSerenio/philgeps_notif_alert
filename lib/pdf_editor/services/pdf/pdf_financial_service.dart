@@ -30,9 +30,37 @@ Future<_AfsPlacement?> _replaceAfsSection(PdfDocument document) async {
   // AFS follows the PhilGEPS certificate and ends immediately before NFCC,
   // which is directly before Technical Specifications. These anchors survive
   // any number of pages inserted by preceding sections.
-  final afsPageIndex = philgepsPageIndex + 1;
-  final nfccPageIndex = technicalSpecificationsPageIndex - 1;
-  final removableAfsPageCount = nfccPageIndex - afsPageIndex;
+if (!(philgepsPageIndex < annexPageIndex &&
+    annexPageIndex < technicalSpecificationsPageIndex)) {
+  throw StateError(
+    'Cannot replace AFS structurally: invalid PhilGEPS/Annex A/Technical Specs order. '
+    'philgeps=$philgepsPageIndex '
+    'annex=$annexPageIndex '
+    'technical=$technicalSpecificationsPageIndex',
+  );
+}
+
+// Annex A / List of Eligibility Documents is NOT part of AFS.
+// AFS starts immediately AFTER Annex A.
+final afsPageIndex = annexPageIndex + 1;
+
+// NFCC is immediately before Technical Specifications.
+final nfccPageIndex = technicalSpecificationsPageIndex - 1;
+
+final removableAfsPageCount = nfccPageIndex - afsPageIndex;
+
+if (removableAfsPageCount <= 0 ||
+    afsPageIndex < 0 ||
+    afsPageIndex >= document.pages.count ||
+    nfccPageIndex >= document.pages.count) {
+  throw StateError(
+    'Cannot replace AFS structurally: invalid AFS boundaries. '
+    'afsStart=$afsPageIndex '
+    'nfcc=$nfccPageIndex '
+    'technical=$technicalSpecificationsPageIndex '
+    'pages=${document.pages.count}',
+  );
+}
   if (removableAfsPageCount < 0 || afsPageIndex > document.pages.count) {
     throw StateError('Cannot replace AFS structurally: invalid boundaries.');
   }
