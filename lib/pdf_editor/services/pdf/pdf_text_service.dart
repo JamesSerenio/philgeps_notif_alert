@@ -104,8 +104,7 @@ String _pdfSpecificationDisplayLine({
   var normalizedMarker =
       _pdfNormalizeSpecificationMarkerEncoding(marker).trim();
 
-  var normalizedText =
-      _pdfNormalizeSpecificationMarkerEncoding(text).trim();
+  var normalizedText = _pdfNormalizeSpecificationMarkerEncoding(text).trim();
 
   // Previously saved fake check marker.
   if (normalizedText.startsWith('v ')) {
@@ -120,8 +119,7 @@ String _pdfSpecificationDisplayLine({
     normalizedMarker = '✓';
   }
 
-  if (normalizedMarker.isEmpty ||
-      normalizedText.startsWith(normalizedMarker)) {
+  if (normalizedMarker.isEmpty || normalizedText.startsWith(normalizedMarker)) {
     return normalizedText;
   }
 
@@ -227,8 +225,7 @@ void _drawSpecificationMarkerGlyph({
       textFont.size + 1,
     );
 
-    final markerWidth =
-        checkFont.measureString('3').width + 4.0;
+    final markerWidth = checkFont.measureString('3').width + 4.0;
 
     graphics.drawString(
       '3',
@@ -256,11 +253,9 @@ void _drawSpecificationMarkerGlyph({
   // OTHER MARKERS
   // • ○ ■ ➢
   // ============================================================
-  final markerFont =
-      _pdfUnicodeMarkerFont(textFont.size);
+  final markerFont = _pdfUnicodeMarkerFont(textFont.size);
 
-  final markerWidth =
-      _pdfSpecificationMarkerWidth(
+  final markerWidth = _pdfSpecificationMarkerWidth(
     textFont,
     actualMarker,
   );
@@ -284,8 +279,7 @@ void _drawSpecificationMarkerGlyph({
 }
 
 String _pdfSafeText(String value) {
-  value =
-      _pdfNormalizeSpecificationMarkerEncoding(value);
+  value = _pdfNormalizeSpecificationMarkerEncoding(value);
 
   return value
       .replaceAll(
@@ -340,8 +334,7 @@ List<String> _pdfSpecificationBlocks(
 String _pdfSpecificationText(
   dynamic value,
 ) {
-  return _pdfSpecificationBlocks(value)
-      .join('\n\n');
+  return _pdfSpecificationBlocks(value).join('\n\n');
 }
 
 dynamic _pdfSafeDecodedValue(
@@ -353,16 +346,14 @@ dynamic _pdfSafeDecodedValue(
 
   if (value is List) {
     return <dynamic>[
-      for (final item in value)
-        _pdfSafeDecodedValue(item),
+      for (final item in value) _pdfSafeDecodedValue(item),
     ];
   }
 
   if (value is Map) {
     return <dynamic, dynamic>{
       for (final entry in value.entries)
-        entry.key:
-            _pdfSafeDecodedValue(entry.value),
+        entry.key: _pdfSafeDecodedValue(entry.value),
     };
   }
 
@@ -415,10 +406,7 @@ String _pdfStandardFontSafeText(
 String _numericPart(
   dynamic value,
 ) {
-  final text = (value ?? '')
-      .toString()
-      .replaceAll(',', '')
-      .trim();
+  final text = (value ?? '').toString().replaceAll(',', '').trim();
 
   final match = RegExp(
     r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)',
@@ -461,17 +449,14 @@ void _drawMarkedSpecificationText(
 }) {
   text = _pdfSafeText(text);
 
-  final entries =
-      <({
-        String? marker,
-        String content,
-        double height,
-      })>[];
+  final entries = <({
+    String? marker,
+    String content,
+    double height,
+  })>[];
 
-  for (final rawSourceLine
-      in text.split(RegExp(r'\r?\n'))) {
-    final parsed =
-        _pdfParseSpecificationDisplayLine(
+  for (final rawSourceLine in text.split(RegExp(r'\r?\n'))) {
+    final parsed = _pdfParseSpecificationDisplayLine(
       rawSourceLine,
     );
 
@@ -481,52 +466,38 @@ void _drawMarkedSpecificationText(
       marker = '✓';
     }
 
-    final content =
-        _pdfStandardFontSafeText(
+    final content = _pdfStandardFontSafeText(
       parsed.text,
     );
 
-    final markerWidth =
-        _pdfSpecificationMarkerWidth(
+    final markerWidth = _pdfSpecificationMarkerWidth(
       font,
       marker,
     );
 
-    final rawContentWidth =
-        bounds.width - markerWidth;
+    final rawContentWidth = bounds.width - markerWidth;
 
-    final contentWidth =
-        rawContentWidth < 1
-            ? 1.0
-            : rawContentWidth;
+    final contentWidth = rawContentWidth < 1 ? 1.0 : rawContentWidth;
 
-    final measured =
-        font.measureString(
+    final measured = font.measureString(
       content.isEmpty ? ' ' : content,
       layoutArea: Size(
         contentWidth,
         bounds.height,
       ),
       format: PdfStringFormat(
-        wordWrap:
-            PdfWordWrapType.word,
+        wordWrap: PdfWordWrapType.word,
       ),
     );
 
-    final minimumHeight =
-        font.size + 2;
+    final minimumHeight = font.size + 2;
 
     final measuredHeight =
-        measured.height > minimumHeight
-            ? measured.height
-            : minimumHeight;
+        measured.height > minimumHeight ? measured.height : minimumHeight;
 
     entries.add(
       (
-        marker:
-            marker.isEmpty
-                ? null
-                : marker,
+        marker: marker.isEmpty ? null : marker,
         content: content,
         height: measuredHeight
             .clamp(
@@ -538,23 +509,20 @@ void _drawMarkedSpecificationText(
     );
   }
 
-  final totalHeight =
-      entries.fold<double>(
+  final totalHeight = entries.fold<double>(
     0,
-    (sum, row) =>
-        sum + row.height,
+    (sum, row) => sum + row.height,
   );
 
   var top = bounds.top;
 
   if (centerVertically) {
-    top +=
-        ((bounds.height - totalHeight) / 2)
-            .clamp(
-              0,
-              bounds.height,
-            )
-            .toDouble();
+    top += ((bounds.height - totalHeight) / 2)
+        .clamp(
+          0,
+          bounds.height,
+        )
+        .toDouble();
   }
 
   for (final entry in entries) {
@@ -563,8 +531,7 @@ void _drawMarkedSpecificationText(
     var textLeft = bounds.left;
 
     if (marker != null) {
-      final markerWidth =
-          _pdfSpecificationMarkerWidth(
+      final markerWidth = _pdfSpecificationMarkerWidth(
         font,
         marker,
       );
@@ -582,8 +549,7 @@ void _drawMarkedSpecificationText(
       textLeft += markerWidth;
     }
 
-    final remainingWidth =
-        bounds.right - textLeft;
+    final remainingWidth = bounds.right - textLeft;
 
     graphics.drawString(
       entry.content,
@@ -592,18 +558,13 @@ void _drawMarkedSpecificationText(
       bounds: Rect.fromLTWH(
         textLeft,
         top,
-        remainingWidth > 1
-            ? remainingWidth
-            : 1,
+        remainingWidth > 1 ? remainingWidth : 1,
         entry.height,
       ),
       format: PdfStringFormat(
-        alignment:
-            PdfTextAlignment.left,
-        lineAlignment:
-            PdfVerticalAlignment.top,
-        wordWrap:
-            PdfWordWrapType.word,
+        alignment: PdfTextAlignment.left,
+        lineAlignment: PdfVerticalAlignment.top,
+        wordWrap: PdfWordWrapType.word,
       ),
     );
 
@@ -622,15 +583,13 @@ double _measureMarkedSpecificationTextHeight(
 
   var totalHeight = 0.0;
 
-  for (final rawLine
-      in text
-          .replaceAll(
-            '\u2029',
-            '\n',
-          )
-          .split('\n')) {
-    final parsed =
-        _pdfParseSpecificationDisplayLine(
+  for (final rawLine in text
+      .replaceAll(
+        '\u2029',
+        '\n',
+      )
+      .split('\n')) {
+    final parsed = _pdfParseSpecificationDisplayLine(
       rawLine,
     );
 
@@ -640,44 +599,34 @@ double _measureMarkedSpecificationTextHeight(
       marker = '✓';
     }
 
-    final content =
-        _pdfStandardFontSafeText(
+    final content = _pdfStandardFontSafeText(
       parsed.text.trim(),
     );
 
-    final rawContentWidth =
-        width -
-            _pdfSpecificationMarkerWidth(
-              font,
-              marker,
-            );
+    final rawContentWidth = width -
+        _pdfSpecificationMarkerWidth(
+          font,
+          marker,
+        );
 
-    final contentWidth =
-        rawContentWidth < 1
-            ? 1.0
-            : rawContentWidth;
+    final contentWidth = rawContentWidth < 1 ? 1.0 : rawContentWidth;
 
-    final measured =
-        font.measureString(
+    final measured = font.measureString(
       content.isEmpty ? ' ' : content,
       layoutArea: Size(
         contentWidth,
         10000,
       ),
       format: PdfStringFormat(
-        wordWrap:
-            PdfWordWrapType.word,
+        wordWrap: PdfWordWrapType.word,
       ),
     );
 
-    final minimumLineHeight =
-        font.size + 2;
+    final minimumLineHeight = font.size + 2;
 
-    totalHeight +=
-        measured.height >
-                minimumLineHeight
-            ? measured.height
-            : minimumLineHeight;
+    totalHeight += measured.height > minimumLineHeight
+        ? measured.height
+        : minimumLineHeight;
   }
 
   return totalHeight;
@@ -703,16 +652,13 @@ List<List<String>> _chunkMarkedSpecificationLines(
   double maximumHeight,
 ) {
   sourceLines = <String>[
-    for (final line in sourceLines)
-      _pdfSafeText(line),
+    for (final line in sourceLines) _pdfSafeText(line),
   ];
 
   final visualLines = <String>[];
 
-  for (final rawSourceLine
-      in sourceLines) {
-    final parsed =
-        _pdfParseSpecificationDisplayLine(
+  for (final rawSourceLine in sourceLines) {
+    final parsed = _pdfParseSpecificationDisplayLine(
       rawSourceLine,
     );
 
@@ -722,42 +668,35 @@ List<List<String>> _chunkMarkedSpecificationLines(
       marker = '✓';
     }
 
-    final content =
-        _pdfStandardFontSafeText(
+    final content = _pdfStandardFontSafeText(
       parsed.text.trim(),
     );
 
-    final markerWidth =
-        _pdfSpecificationMarkerWidth(
+    final markerWidth = _pdfSpecificationMarkerWidth(
       font,
       marker,
     );
 
-    final contentWidth =
-        (width - markerWidth)
-            .clamp(
-              1.0,
-              double.infinity,
-            )
-            .toDouble();
+    final contentWidth = (width - markerWidth)
+        .clamp(
+          1.0,
+          double.infinity,
+        )
+        .toDouble();
 
     final wrapped = <String>[];
 
     var currentLine = '';
 
-    for (final word
-        in content.split(
+    for (final word in content.split(
       RegExp(r'\s+'),
     )) {
       if (word.isEmpty) {
         continue;
       }
 
-      final candidate =
-          _pdfStandardFontSafeText(
-        currentLine.isEmpty
-            ? word
-            : '$currentLine $word',
+      final candidate = _pdfStandardFontSafeText(
+        currentLine.isEmpty ? word : '$currentLine $word',
       );
 
       if (currentLine.isNotEmpty &&
@@ -791,9 +730,7 @@ List<List<String>> _chunkMarkedSpecificationLines(
     // Later _drawMarkedSpecificationText() will parse it and draw the
     // marker separately.
     if (marker.isNotEmpty) {
-      wrapped[0] =
-          '$marker ${wrapped[0]}'
-              .trimRight();
+      wrapped[0] = '$marker ${wrapped[0]}'.trimRight();
     }
 
     visualLines.addAll(
@@ -801,35 +738,28 @@ List<List<String>> _chunkMarkedSpecificationLines(
     );
   }
 
-  final chunks =
-      <List<String>>[];
+  final chunks = <List<String>>[];
 
-  var current =
-      <String>[];
+  var current = <String>[];
 
   for (final line in visualLines) {
-    final candidate =
-        <String>[
+    final candidate = <String>[
       ...current,
       line,
     ];
 
-    final candidateHeight =
-        _measureMarkedSpecificationTextHeight(
+    final candidateHeight = _measureMarkedSpecificationTextHeight(
       candidate.join('\n'),
       font,
       width,
     );
 
-    if (current.isNotEmpty &&
-        candidateHeight >
-            maximumHeight) {
+    if (current.isNotEmpty && candidateHeight > maximumHeight) {
       chunks.add(
         current,
       );
 
-      current =
-          <String>[line];
+      current = <String>[line];
     } else {
       current = candidate;
     }

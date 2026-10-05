@@ -56,6 +56,57 @@ void _replacePagesWithBlankSize(
   }
 }
 
+/// Removes only the unused tail of a renderer-owned template allocation.
+///
+/// The caller supplies the section start captured immediately before that
+/// renderer runs, the number of template pages exclusively allocated to it,
+/// and the exact number of pages the renderer consumed.  This deliberately
+/// does not inspect text or visual emptiness: scanned supporting documents
+/// may have no extractable text and must never be removed by this helper.
+int _removeUnusedSectionTemplatePages(
+  PdfDocument document, {
+  required String sectionName,
+  required int startPageIndex,
+  required int allocatedPages,
+  required int usedPages,
+}) {
+  final safeUsedPages = usedPages.clamp(1, allocatedPages).toInt();
+  final firstUnusedIndex = startPageIndex + safeUsedPages;
+  final endExclusive = startPageIndex + allocatedPages;
+  final pageCountBefore = document.pages.count;
+  final removedIndexes = <int>[];
+
+  if (startPageIndex < 0 ||
+      allocatedPages <= 0 ||
+      firstUnusedIndex >= endExclusive) {
+    print(
+      'PDF CLEANUP $sectionName: start=$startPageIndex '
+      'allocated=$allocatedPages used=$usedPages removed=[] '
+      'before=$pageCountBefore after=${document.pages.count}',
+    );
+    return 0;
+  }
+
+  // Removing downward keeps the unremoved section pages and every later
+  // anchor stable until this section cleanup is complete.
+  for (var pageIndex = endExclusive - 1;
+      pageIndex >= firstUnusedIndex;
+      pageIndex--) {
+    if (pageIndex < document.pages.count) {
+      document.pages.removeAt(pageIndex);
+      removedIndexes.add(pageIndex);
+    }
+  }
+
+  print(
+    'PDF CLEANUP $sectionName: start=$startPageIndex '
+    'allocated=$allocatedPages used=$usedPages '
+    'removed=${removedIndexes.reversed.toList()} '
+    'before=$pageCountBefore after=${document.pages.count}',
+  );
+  return removedIndexes.length;
+}
+
 int _findPageContaining(
   PdfDocument document,
   List<String> phrases,

@@ -19,9 +19,7 @@ String _financialNormalizedPageText(
 String _financialCompactText(
   String text,
 ) {
-  return text
-      .replaceAll(RegExp(r'\s+'), '')
-      .toUpperCase();
+  return text.replaceAll(RegExp(r'\s+'), '').toUpperCase();
 }
 
 bool _financialIsContentsPage(
@@ -44,9 +42,7 @@ bool _financialIsContentsPage(
 int _findRealTechnicalSpecificationsPage(
   PdfDocument document,
 ) {
-  for (var pageIndex = 0;
-      pageIndex < document.pages.count;
-      pageIndex++) {
+  for (var pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
     final text = _financialNormalizedPageText(
       document,
       pageIndex,
@@ -70,9 +66,7 @@ int _findRealTechnicalSpecificationsPage(
       'SPECIFICATION/S',
     );
 
-    if (hasTitle &&
-        (hasCompliance ||
-            hasSpecificationHeader)) {
+    if (hasTitle && (hasCompliance || hasSpecificationHeader)) {
       return pageIndex;
     }
   }
@@ -88,9 +82,7 @@ int _findRealNfccPage(
   PdfDocument document,
 ) {
   // First try the actual NFCC heading.
-  for (var pageIndex = 0;
-      pageIndex < document.pages.count;
-      pageIndex++) {
+  for (var pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
     final text = _financialNormalizedPageText(
       document,
       pageIndex,
@@ -124,8 +116,7 @@ int _findRealNfccPage(
   // NFCC = Technical Specifications - 2
   // ============================================================
 
-  final technicalIndex =
-      _findRealTechnicalSpecificationsPage(
+  final technicalIndex = _findRealTechnicalSpecificationsPage(
     document,
   );
 
@@ -163,11 +154,9 @@ Future<void> _removeTwoLegacyFinancialPagesBeforeAfs(
   const afsPageCount = 15;
   const unwantedPageCount = 2;
 
-  final afsStartIndex =
-      nfccPageIndex - afsPageCount;
+  final afsStartIndex = nfccPageIndex - afsPageCount;
 
-  final unwantedStartIndex =
-      afsStartIndex - unwantedPageCount;
+  final unwantedStartIndex = afsStartIndex - unwantedPageCount;
 
   if (afsStartIndex <= 0) {
     throw StateError(
@@ -180,8 +169,7 @@ Future<void> _removeTwoLegacyFinancialPagesBeforeAfs(
   }
 
   if (unwantedStartIndex <= 0 ||
-      unwantedStartIndex + 1 >=
-          document.pages.count) {
+      unwantedStartIndex + 1 >= document.pages.count) {
     throw StateError(
       'Cannot remove legacy financial pages: '
       'invalid two-page range. '
@@ -273,12 +261,8 @@ Future<void> _removeTwoLegacyFinancialPagesBeforeAfs(
   // into this same position.
   // ============================================================
 
-  for (var removed = 0;
-      removed < unwantedPageCount;
-      removed++) {
-    if (unwantedStartIndex <= 0 ||
-        unwantedStartIndex >=
-            document.pages.count) {
+  for (var removed = 0; removed < unwantedPageCount; removed++) {
+    if (unwantedStartIndex <= 0 || unwantedStartIndex >= document.pages.count) {
       throw StateError(
         'Legacy financial cleanup exceeded bounds. '
         'removed=$removed '
@@ -294,6 +278,70 @@ Future<void> _removeTwoLegacyFinancialPagesBeforeAfs(
     await Future<void>.delayed(
       const Duration(milliseconds: 1),
     );
+  }
+}
+
+/// Removes only legacy financial front matter after the replacement AFS block
+/// has been inserted and the PhilGEPS certificate has been refreshed.
+///
+/// This is intentionally structural.  Cover sheets are commonly scanned and
+/// may have no useful text layer, so text extraction is never used to decide
+/// whether a page in this narrow, known range is removable.
+Future<_AfsPlacement> _removeLegacyAfsFrontMatterAfterPhilgeps(
+  PdfDocument document,
+  _AfsPlacement placement,
+) async {
+  final philgepsStart = _findPageContaining(
+    document,
+    const <String>['CERTIFICATE OF PHILGEPS REGISTRATION'],
+  );
+  if (philgepsStart < 0) {
+    throw StateError('Cannot clean AFS front matter: PhilGEPS was not found.');
+  }
+
+  final certificateData = await rootBundle.load(
+    'assets/pdf/certificate_template.pdf',
+  );
+  final certificate = PdfDocument(
+    inputBytes: certificateData.buffer.asUint8List(),
+  );
+  try {
+    final philgepsEndExclusive = philgepsStart + certificate.pages.count;
+    if (certificate.pages.count == 0 ||
+        philgepsEndExclusive > placement.startIndex) {
+      throw StateError(
+        'Cannot clean AFS front matter: invalid PhilGEPS/AFS boundary. '
+        'philgepsStart=$philgepsStart '
+        'philgepsEnd=$philgepsEndExclusive '
+        'afsStart=${placement.startIndex}.',
+      );
+    }
+
+    final removedCount = placement.startIndex - philgepsEndExclusive;
+    final before = document.pages.count;
+    for (var removed = 0; removed < removedCount; removed++) {
+      document.pages.removeAt(philgepsEndExclusive);
+    }
+
+    final updated = _AfsPlacement(
+      startIndex: philgepsEndExclusive,
+      pageCount: placement.pageCount,
+    );
+    if (!updated.isValidFor(document) || updated.pageCount != 15) {
+      throw StateError(
+        'AFS front-matter cleanup invalidated the replacement AFS block. '
+        'start=${updated.startIndex} pages=${updated.pageCount} '
+        'documentPages=${document.pages.count}.',
+      );
+    }
+    print(
+      'PDF AFS FRONT-MATTER CLEANUP: '
+      'philgepsEnd=$philgepsEndExclusive '
+      'removed=$removedCount before=$before after=${document.pages.count}',
+    );
+    return updated;
+  } finally {
+    certificate.dispose();
   }
 }
 
@@ -330,14 +378,12 @@ Future<_AfsPlacement?> _replaceAfsSection(
   // FIND NFCC BEFORE TWO-PAGE CLEANUP
   // ============================================================
 
-  final originalNfccPageIndex =
-      _findRealNfccPage(
+  final originalNfccPageIndex = _findRealNfccPage(
     document,
   );
 
   if (originalNfccPageIndex <= 0 ||
-      originalNfccPageIndex >=
-          document.pages.count) {
+      originalNfccPageIndex >= document.pages.count) {
     throw StateError(
       'Cannot replace AFS: real NFCC page not found. '
       'nfcc=$originalNfccPageIndex '
@@ -345,40 +391,11 @@ Future<_AfsPlacement?> _replaceAfsSection(
     );
   }
 
-  // ============================================================
-  // DELETE ONLY THE TWO EXTRA LEGACY PAGES
-  // ============================================================
-
-  await _removeTwoLegacyFinancialPagesBeforeAfs(
-    document,
-    originalNfccPageIndex,
-  );
-
-  // ============================================================
-  // REDISCOVER NFCC
-  // ============================================================
-  //
-  // The two pages were before NFCC, so every following index
-  // shifted two places earlier.
-  //
-  // Never continue using originalNfccPageIndex.
-  // ============================================================
-
-  final nfccPageIndex =
-      _findRealNfccPage(
-    document,
-  );
-
-  if (nfccPageIndex <= 0 ||
-      nfccPageIndex >=
-          document.pages.count) {
-    throw StateError(
-      'Cannot replace AFS: NFCC disappeared after '
-      'two-page legacy cleanup. '
-      'nfcc=$nfccPageIndex '
-      'documentPages=${document.pages.count}.',
-    );
-  }
+  // Keep every page before the replacement range until PhilGEPS has been
+  // refreshed. The exact scanned front-matter range is then removed from the
+  // structural boundary between that refreshed certificate and this inserted
+  // AFS block; no guessed pre-AFS count is used.
+  final nfccPageIndex = originalNfccPageIndex;
 
   // ============================================================
   // LOAD NEW AFS
@@ -393,8 +410,7 @@ Future<_AfsPlacement?> _replaceAfsSection(
   );
 
   try {
-    final sourceAfsPageCount =
-        sourceDocument.pages.count;
+    final sourceAfsPageCount = sourceDocument.pages.count;
 
     if (sourceAfsPageCount != 15) {
       throw StateError(
@@ -410,15 +426,11 @@ Future<_AfsPlacement?> _replaceAfsSection(
 
     const oldAfsPageCount = 15;
 
-    final afsPageIndex =
-        nfccPageIndex - oldAfsPageCount;
+    final afsPageIndex = nfccPageIndex - oldAfsPageCount;
 
-    final afsEndExclusive =
-        afsPageIndex + oldAfsPageCount;
+    final afsEndExclusive = afsPageIndex + oldAfsPageCount;
 
-    if (afsPageIndex <= 0 ||
-        afsPageIndex >=
-            document.pages.count) {
+    if (afsPageIndex <= 0 || afsPageIndex >= document.pages.count) {
       throw StateError(
         'Cannot replace AFS: unsafe AFS start. '
         'afsStart=$afsPageIndex '
@@ -427,8 +439,7 @@ Future<_AfsPlacement?> _replaceAfsSection(
       );
     }
 
-    if (afsEndExclusive !=
-        nfccPageIndex) {
+    if (afsEndExclusive != nfccPageIndex) {
       throw StateError(
         'Cannot replace AFS: invalid AFS/NFCC boundary. '
         'afsStart=$afsPageIndex '
@@ -449,8 +460,7 @@ Future<_AfsPlacement?> _replaceAfsSection(
         pageIndex,
       );
 
-      final compact =
-          _financialCompactText(text);
+      final compact = _financialCompactText(text);
 
       if (_financialIsContentsPage(text)) {
         throw StateError(
@@ -502,19 +512,14 @@ Future<_AfsPlacement?> _replaceAfsSection(
       }
     }
 
-    final pageCountBeforeAfsReplacement =
-        document.pages.count;
+    final pageCountBeforeAfsReplacement = document.pages.count;
 
     // ============================================================
     // REMOVE EXACTLY 15 OLD AFS PAGES
     // ============================================================
 
-    for (var removed = 0;
-        removed < oldAfsPageCount;
-        removed++) {
-      if (afsPageIndex <= 0 ||
-          afsPageIndex >=
-              document.pages.count) {
+    for (var removed = 0; removed < oldAfsPageCount; removed++) {
+      if (afsPageIndex <= 0 || afsPageIndex >= document.pages.count) {
         throw StateError(
           'AFS removal exceeded safe bounds. '
           'removed=$removed '
@@ -535,11 +540,9 @@ Future<_AfsPlacement?> _replaceAfsSection(
     }
 
     final expectedAfterAfsRemoval =
-        pageCountBeforeAfsReplacement -
-            oldAfsPageCount;
+        pageCountBeforeAfsReplacement - oldAfsPageCount;
 
-    if (document.pages.count !=
-        expectedAfterAfsRemoval) {
+    if (document.pages.count != expectedAfterAfsRemoval) {
       throw StateError(
         'AFS removal page-count mismatch. '
         'before=$pageCountBeforeAfsReplacement '
@@ -557,35 +560,25 @@ Future<_AfsPlacement?> _replaceAfsSection(
       841.89,
     );
 
-    for (var sourceIndex = 0;
-        sourceIndex < sourceAfsPageCount;
-        sourceIndex++) {
-      final sourcePage =
-          sourceDocument.pages[sourceIndex];
+    for (var sourceIndex = 0; sourceIndex < sourceAfsPageCount; sourceIndex++) {
+      final sourcePage = sourceDocument.pages[sourceIndex];
 
       final sourceSize = sourcePage.size;
 
-      final widthScale =
-          a4Size.width / sourceSize.width;
+      final widthScale = a4Size.width / sourceSize.width;
 
-      final heightScale =
-          a4Size.height / sourceSize.height;
+      final heightScale = a4Size.height / sourceSize.height;
 
-      final scale =
-          widthScale < heightScale
-              ? widthScale
-              : heightScale;
+      final scale = widthScale < heightScale ? widthScale : heightScale;
 
       final fittedSize = Size(
         sourceSize.width * scale,
         sourceSize.height * scale,
       );
 
-      final insertIndex =
-          afsPageIndex + sourceIndex;
+      final insertIndex = afsPageIndex + sourceIndex;
 
-      if (insertIndex <= 0 ||
-          insertIndex > document.pages.count) {
+      if (insertIndex <= 0 || insertIndex > document.pages.count) {
         throw StateError(
           'AFS insertion index invalid. '
           'sourcePage=${sourceIndex + 1} '
@@ -594,8 +587,7 @@ Future<_AfsPlacement?> _replaceAfsSection(
         );
       }
 
-      final targetPage =
-          document.pages.insert(
+      final targetPage = document.pages.insert(
         insertIndex,
         a4Size,
         PdfMargins()..all = 0,
@@ -604,12 +596,8 @@ Future<_AfsPlacement?> _replaceAfsSection(
       targetPage.graphics.drawPdfTemplate(
         sourcePage.createTemplate(),
         Offset(
-          (a4Size.width -
-                  fittedSize.width) /
-              2,
-          (a4Size.height -
-                  fittedSize.height) /
-              2,
+          (a4Size.width - fittedSize.width) / 2,
+          (a4Size.height - fittedSize.height) / 2,
         ),
         fittedSize,
       );
@@ -625,8 +613,7 @@ Future<_AfsPlacement?> _replaceAfsSection(
     // AFS = 15 REMOVED / 15 INSERTED
     // ============================================================
 
-    if (document.pages.count !=
-        pageCountBeforeAfsReplacement) {
+    if (document.pages.count != pageCountBeforeAfsReplacement) {
       throw StateError(
         'AFS replacement changed page count unexpectedly. '
         'before=$pageCountBeforeAfsReplacement '
@@ -676,18 +663,14 @@ Future<_AfsPlacement?> _replaceAfsSection(
     //
     // ============================================================
 
-    final currentNfccPageIndex =
-        placement.endExclusive;
+    final currentNfccPageIndex = placement.endExclusive;
 
-    final receiptPageIndex =
-        currentNfccPageIndex + 1;
+    final receiptPageIndex = currentNfccPageIndex + 1;
 
-    final technicalPageIndex =
-        currentNfccPageIndex + 2;
+    final technicalPageIndex = currentNfccPageIndex + 2;
 
     if (currentNfccPageIndex < 0 ||
-        currentNfccPageIndex >=
-            document.pages.count) {
+        currentNfccPageIndex >= document.pages.count) {
       throw StateError(
         'Receipt cleanup failed: '
         'NFCC index is invalid. '
@@ -696,9 +679,7 @@ Future<_AfsPlacement?> _replaceAfsSection(
       );
     }
 
-    if (receiptPageIndex < 0 ||
-        receiptPageIndex >=
-            document.pages.count) {
+    if (receiptPageIndex < 0 || receiptPageIndex >= document.pages.count) {
       throw StateError(
         'Receipt cleanup failed: '
         'receipt index is invalid. '
@@ -707,9 +688,7 @@ Future<_AfsPlacement?> _replaceAfsSection(
       );
     }
 
-    if (technicalPageIndex < 0 ||
-        technicalPageIndex >=
-            document.pages.count) {
+    if (technicalPageIndex < 0 || technicalPageIndex >= document.pages.count) {
       throw StateError(
         'Receipt cleanup failed: '
         'Technical Specifications index is invalid. '
@@ -722,19 +701,16 @@ Future<_AfsPlacement?> _replaceAfsSection(
     // CONFIRM TECHNICAL SPECS IS AFTER RECEIPT
     // ============================================================
 
-    final technicalText =
-        _financialNormalizedPageText(
+    final technicalText = _financialNormalizedPageText(
       document,
       technicalPageIndex,
     );
 
-    final technicalCompact =
-        _financialCompactText(
+    final technicalCompact = _financialCompactText(
       technicalText,
     );
 
-    final realTechnicalPage =
-        technicalCompact.contains(
+    final realTechnicalPage = technicalCompact.contains(
           'TECHNICALSPECIFICATIONS',
         ) &&
         (technicalCompact.contains(
@@ -817,14 +793,11 @@ Future<void> _replaceNfccPage(
   // FIND REAL NFCC
   // ============================================================
 
-  final nfccPageIndex =
-      _findRealNfccPage(
+  final nfccPageIndex = _findRealNfccPage(
     document,
   );
 
-  if (nfccPageIndex <= 0 ||
-      nfccPageIndex >=
-          document.pages.count) {
+  if (nfccPageIndex <= 0 || nfccPageIndex >= document.pages.count) {
     throw StateError(
       'Cannot replace NFCC: real NFCC page not found. '
       'nfcc=$nfccPageIndex '
@@ -832,8 +805,7 @@ Future<void> _replaceNfccPage(
     );
   }
 
-  final targetText =
-      _financialNormalizedPageText(
+  final targetText = _financialNormalizedPageText(
     document,
     nfccPageIndex,
   );
@@ -868,11 +840,9 @@ Future<void> _replaceNfccPage(
     );
   }
 
-  final sourcePage =
-      sourceDocument.pages[0];
+  final sourcePage = sourceDocument.pages[0];
 
-  final graphics =
-      sourcePage.graphics;
+  final graphics = sourcePage.graphics;
 
   final white = PdfSolidBrush(
     PdfColor(
@@ -907,14 +877,12 @@ Future<void> _replaceNfccPage(
     style: PdfFontStyle.italic,
   );
 
-  final headerLabelFont =
-      PdfStandardFont(
+  final headerLabelFont = PdfStandardFont(
     PdfFontFamily.timesRoman,
     11,
   );
 
-  final headerValueFont =
-      PdfStandardFont(
+  final headerValueFont = PdfStandardFont(
     PdfFontFamily.timesRoman,
     11,
     style: PdfFontStyle.bold,
@@ -928,28 +896,17 @@ Future<void> _replaceNfccPage(
     ),
   );
 
-  final procuringEntity =
-      (values['procuringEntity'] ?? '')
-          .trim();
+  final procuringEntity = (values['procuringEntity'] ?? '').trim();
 
-  final referenceNumber =
-      (values['referenceNumber'] ?? '')
-          .trim();
+  final referenceNumber = (values['referenceNumber'] ?? '').trim();
 
-  final projectTitle =
-      (values['projectTitle'] ?? '')
-          .trim();
+  final projectTitle = (values['projectTitle'] ?? '').trim();
 
-  final submittedBy =
-      (values['submittedBy'] ?? '')
-          .trim();
+  final submittedBy = (values['submittedBy'] ?? '').trim();
 
-  final date =
-      (values['date'] ?? '')
-          .trim();
+  final date = (values['date'] ?? '').trim();
 
-  const address =
-      _permanentBusinessAddress;
+  const address = _permanentBusinessAddress;
 
   // ============================================================
   // CLEAR HEADER
@@ -1032,9 +989,7 @@ Future<void> _replaceNfccPage(
 
   drawHeader(
     'CONTRACTOR',
-    (values['bidderName'] ?? '')
-        .trim()
-        .toUpperCase(),
+    (values['bidderName'] ?? '').trim().toUpperCase(),
     123,
   );
 
@@ -1049,8 +1004,7 @@ Future<void> _replaceNfccPage(
   // SIGNATORY
   // ============================================================
 
-  final footerTop =
-      sourcePage.size.height - 235;
+  final footerTop = sourcePage.size.height - 235;
 
   graphics.drawRectangle(
     brush: white,
@@ -1086,12 +1040,11 @@ Future<void> _replaceNfccPage(
     ),
   );
 
-  final submittedWidth =
-      bold
-          .measureString(
-            submittedBy.toUpperCase(),
-          )
-          .width;
+  final submittedWidth = bold
+      .measureString(
+        submittedBy.toUpperCase(),
+      )
+      .width;
 
   graphics.drawLine(
     PdfPen(
@@ -1164,32 +1117,25 @@ Future<void> _replaceNfccPage(
   // SAVE + REOPEN NFCC
   // ============================================================
 
-  final modifiedSourceBytes =
-      await sourceDocument.save();
+  final modifiedSourceBytes = await sourceDocument.save();
 
   sourceDocument.dispose();
 
-  final flattenedSourceDocument =
-      PdfDocument(
+  final flattenedSourceDocument = PdfDocument(
     inputBytes: modifiedSourceBytes,
   );
 
   try {
-    if (flattenedSourceDocument
-            .pages.count ==
-        0) {
+    if (flattenedSourceDocument.pages.count == 0) {
       throw StateError(
         'Cannot replace NFCC: '
         'flattened NFCC template contains no pages.',
       );
     }
 
-    final flattenedSourcePage =
-        flattenedSourceDocument
-            .pages[0];
+    final flattenedSourcePage = flattenedSourceDocument.pages[0];
 
-    final pageCountBefore =
-        document.pages.count;
+    final pageCountBefore = document.pages.count;
 
     // ============================================================
     // ONE NFCC PAGE OUT / ONE NFCC PAGE IN
@@ -1204,27 +1150,20 @@ Future<void> _replaceNfccPage(
       841.89,
     );
 
-    final sourceSize =
-        flattenedSourcePage.size;
+    final sourceSize = flattenedSourcePage.size;
 
-    final widthScale =
-        a4Size.width / sourceSize.width;
+    final widthScale = a4Size.width / sourceSize.width;
 
-    final heightScale =
-        a4Size.height / sourceSize.height;
+    final heightScale = a4Size.height / sourceSize.height;
 
-    final scale =
-        widthScale < heightScale
-            ? widthScale
-            : heightScale;
+    final scale = widthScale < heightScale ? widthScale : heightScale;
 
     final fittedSize = Size(
       sourceSize.width * scale,
       sourceSize.height * scale,
     );
 
-    final targetPage =
-        document.pages.insert(
+    final targetPage = document.pages.insert(
       nfccPageIndex,
       a4Size,
       PdfMargins()..all = 0,
@@ -1233,18 +1172,13 @@ Future<void> _replaceNfccPage(
     targetPage.graphics.drawPdfTemplate(
       flattenedSourcePage.createTemplate(),
       Offset(
-        (a4Size.width -
-                fittedSize.width) /
-            2,
-        (a4Size.height -
-                fittedSize.height) /
-            2,
+        (a4Size.width - fittedSize.width) / 2,
+        (a4Size.height - fittedSize.height) / 2,
       ),
       fittedSize,
     );
 
-    if (document.pages.count !=
-        pageCountBefore) {
+    if (document.pages.count != pageCountBefore) {
       throw StateError(
         'NFCC replacement unexpectedly changed '
         'total page count. '

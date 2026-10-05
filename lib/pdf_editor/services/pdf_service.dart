@@ -47,9 +47,27 @@ class _AfsPlacement {
   int get endExclusive => startIndex + pageCount;
 
   bool isValidFor(PdfDocument document) =>
-      startIndex >= 0 &&
-      pageCount > 0 &&
-      endExclusive <= document.pages.count;
+      startIndex >= 0 && pageCount > 0 && endExclusive <= document.pages.count;
+}
+
+int _findRealPdfSectionPage(
+  PdfDocument document,
+  String normalizedTitle,
+) {
+  final extractor = PdfTextExtractor(document);
+  for (var pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
+    final normalized = extractor
+        .extractText(startPageIndex: pageIndex, endPageIndex: pageIndex)
+        .replaceAll('\u0000', '')
+        .replaceAll(RegExp(r'\s+'), '')
+        .toUpperCase();
+    if (normalized.contains('CHECKLISTOFELIGIBILITYREQUIREMENTSFORGOODS') ||
+        normalized.contains('TABLEOFCONTENTS')) {
+      continue;
+    }
+    if (normalized.contains(normalizedTitle)) return pageIndex;
+  }
+  return -1;
 }
 
 /// Public entry point; feature parts retain the original drawing operations.
@@ -74,8 +92,7 @@ class PdfService {
     if (values.containsKey('documentTemplateMode')) {
       final initao = values['documentTemplateMode'] == 'initao';
 
-      values['omnibusTemplateType'] =
-          initao ? 'initao_lgu' : 'old';
+      values['omnibusTemplateType'] = initao ? 'initao_lgu' : 'old';
 
       values['bidSecuringDeclarationTemplate'] = initao
           ? 'initao_lgu'
@@ -88,8 +105,7 @@ class PdfService {
       'assets/pdf/bidocs_template.pdf',
     );
 
-    final Uint8List templateBytes =
-        templateData.buffer.asUint8List();
+    final Uint8List templateBytes = templateData.buffer.asUint8List();
 
     final PdfDocument document = PdfDocument(
       inputBytes: templateBytes,
@@ -143,22 +159,30 @@ class PdfService {
     // TECHNICAL SPECIFICATIONS
     // ============================================================
 
-    if (document.pages.count > 46) {
+    // This is the dedicated three-page Technical Specifications allocation in
+    // the master. It is not a final PDF page number: no page has been removed
+    // before the renderer or its section-owned cleanup runs.
+    const technicalSpecificationsStartPage = 46;
+
+    if (document.pages.count > technicalSpecificationsStartPage) {
       _drawTechnicalSpecificationsHeader(
-        document.pages[46],
+        document.pages[technicalSpecificationsStartPage],
         values,
       );
     }
 
     var technicalSpecificationPageCount = 3;
 
-    if (document.pages.count > 48) {
-      technicalSpecificationPageCount =
-          _drawTechnicalSpecifications(
+    if (document.pages.count > technicalSpecificationsStartPage + 2) {
+      technicalSpecificationPageCount = _drawTechnicalSpecifications(
         document,
         values,
       );
     }
+    print(
+      'PDF PAGE COUNT after Technical Specs render: '
+      '${document.pages.count}',
+    );
 
     await yieldToBrowser();
 
@@ -166,8 +190,7 @@ class PdfService {
     // PRICE SCHEDULE
     // ============================================================
 
-    final priceScheduleStartPage =
-        _findPriceScheduleStartPage(document);
+    final priceScheduleStartPage = _findPriceScheduleStartPage(document);
 
     var priceSchedulePageCount = 1;
 
@@ -178,6 +201,10 @@ class PdfService {
         priceScheduleStartPage,
       );
     }
+    print(
+      'PDF PAGE COUNT after Price Schedule render: '
+      '${document.pages.count}',
+    );
 
     await yieldToBrowser();
 
@@ -185,8 +212,7 @@ class PdfService {
     // SUMMARY OF BID PRICES
     // ============================================================
 
-    final bidPriceSummaryStartPage =
-        _findBidPriceSummaryStartPage(document);
+    final bidPriceSummaryStartPage = _findBidPriceSummaryStartPage(document);
 
     var bidPriceSummaryPageCount = 1;
 
@@ -197,6 +223,9 @@ class PdfService {
         bidPriceSummaryStartPage,
       );
     }
+    print(
+      'PDF PAGE COUNT after Summary render: ${document.pages.count}',
+    );
 
     await yieldToBrowser();
 
@@ -210,13 +239,16 @@ class PdfService {
     var scheduleRequirementsPageCount = 1;
 
     if (scheduleRequirementsStartPage >= 0) {
-      scheduleRequirementsPageCount =
-          _drawScheduleRequirements(
+      scheduleRequirementsPageCount = _drawScheduleRequirements(
         document,
         values,
         scheduleRequirementsStartPage,
       );
     }
+    print(
+      'PDF PAGE COUNT after Schedule Requirements render: '
+      '${document.pages.count}',
+    );
 
     await yieldToBrowser();
 
@@ -224,8 +256,7 @@ class PdfService {
     // OTHER MAPPED FIELDS
     // ============================================================
 
-    final mappedFields =
-        PageMapper.mapValuesToPages(values);
+    final mappedFields = PageMapper.mapValuesToPages(values);
 
     for (final pageEntry in mappedFields.entries) {
       final int pageIndex = pageEntry.key;
@@ -234,17 +265,14 @@ class PdfService {
         continue;
       }
 
-      if (pageIndex < 0 ||
-          pageIndex >= document.pages.count) {
+      if (pageIndex < 0 || pageIndex >= document.pages.count) {
         continue;
       }
 
-      final PdfPage page =
-          document.pages[pageIndex];
+      final PdfPage page = document.pages[pageIndex];
 
       for (final mappedField in pageEntry.value) {
-        final Rect bounds =
-            mappedField.position.bounds;
+        final Rect bounds = mappedField.position.bounds;
 
         page.graphics.drawRectangle(
           brush: PdfSolidBrush(
@@ -284,40 +312,49 @@ class PdfService {
     await yieldToBrowser();
 
     // ============================================================
-    // KEEP ORIGINAL CONTINUATION TEMPLATE PAGES
+    // REMOVE UNUSED DYNAMIC CONTINUATION TEMPLATES
     // ============================================================
     //
-    // IMPORTANT:
+    // Each renderer owns only its bundled continuation allocation.  Remove
+    // the unused tail in reverse document order, so an earlier section never
+    // relies on a page index shifted by cleanup of a later section.
     //
-    // Do NOT delete unused continuation/template pages here.
-    //
-    // The old code removed:
-    //
-    // - Schedule Requirements continuation pages
-    // - Summary continuation pages
-    // - Price Schedule continuation pages
-    // - Technical Specification continuation pages
-    //
-    // Those removals changed the total page count and shifted every
-    // following fixed-index source page.
-    //
-    // This is what caused:
-    //
-    // 86 -> 83 pages
-    //
-    // and also caused later SLCC / NFCC / AFS logic to hit the
-    // wrong document pages.
-    //
-    // Keep the original template structure intact until all final
-    // structural replacements are finished.
+    // Do not use extracted text here. These are known renderer-owned template
+    // slots, while scanned/supporting pages remain untouched.
     // ============================================================
 
-    // Keep these variables because their draw functions may use them
-    // for internal layout decisions, but DO NOT remove source pages.
-    final _ = technicalSpecificationPageCount;
-    final __ = priceSchedulePageCount;
-    final ___ = bidPriceSummaryPageCount;
-    final ____ = scheduleRequirementsPageCount;
+    _removeUnusedSectionTemplatePages(
+      document,
+      sectionName: 'Schedule of Requirements',
+      startPageIndex: scheduleRequirementsStartPage,
+      allocatedPages: 3,
+      usedPages: scheduleRequirementsPageCount,
+    );
+    _removeUnusedSectionTemplatePages(
+      document,
+      sectionName: 'Summary of Bid Prices',
+      startPageIndex: bidPriceSummaryStartPage,
+      allocatedPages: 3,
+      usedPages: bidPriceSummaryPageCount,
+    );
+    _removeUnusedSectionTemplatePages(
+      document,
+      sectionName: 'Price Schedule for Goods',
+      startPageIndex: priceScheduleStartPage,
+      allocatedPages: 8,
+      usedPages: priceSchedulePageCount,
+    );
+    _removeUnusedSectionTemplatePages(
+      document,
+      sectionName: 'Technical Specifications',
+      startPageIndex: technicalSpecificationsStartPage,
+      allocatedPages: 3,
+      usedPages: technicalSpecificationPageCount,
+    );
+    print(
+      'PDF PAGE COUNT after dynamic continuation cleanup: '
+      '${document.pages.count}',
+    );
 
     await yieldToBrowser();
 
@@ -326,15 +363,10 @@ class PdfService {
     // ============================================================
 
     final useDeclarationWithTable =
-        switch (
-          values['bidSecuringDeclarationTemplate']
-        ) {
+        switch (values['bidSecuringDeclarationTemplate']) {
       'old' => true,
-      'without_table' || 'initao_lgu' =>
-        false,
-      _ =>
-        values['bidSecuringDeclarationWithTable'] !=
-            'false',
+      'without_table' || 'initao_lgu' => false,
+      _ => values['bidSecuringDeclarationWithTable'] != 'false',
     };
 
     if (useDeclarationWithTable) {
@@ -360,8 +392,7 @@ class PdfService {
     // OMNIBUS
     // ============================================================
 
-    final omnibusPageIndex =
-        _findOmnibusSwornStatementPage(
+    final omnibusPageIndex = _findOmnibusSwornStatementPage(
       document,
     );
 
@@ -378,8 +409,7 @@ class PdfService {
         pageIndex: omnibusPageIndex + 1,
       );
 
-      if (values['omnibusTemplateType'] ==
-          'initao_lgu') {
+      if (values['omnibusTemplateType'] == 'initao_lgu') {
         drawInitaoOmnibusNumbering(
           document,
           omnibusPageIndex,
@@ -450,10 +480,7 @@ class PdfService {
 
     await yieldToBrowser();
 
-    if (values['slccTemplateType']
-            ?.trim()
-            .toLowerCase() ==
-        'none') {
+    if (values['slccTemplateType']?.trim().toLowerCase() == 'none') {
       _removeSlccSection(
         document,
       );
@@ -486,8 +513,7 @@ class PdfService {
     // AFS
     // ============================================================
 
-    final afsPlacement =
-        _validateAfsPlacement(
+    var afsPlacement = _validateAfsPlacement(
       document,
       await _replaceAfsSection(
         document,
@@ -500,8 +526,7 @@ class PdfService {
     // PHILGEPS CERTIFICATE
     // ============================================================
 
-    final pageCountBeforePhilgepsReplacement =
-        document.pages.count;
+    final pageCountBeforePhilgepsReplacement = document.pages.count;
 
     await _replacePhilgepsCertificateSection(
       document,
@@ -509,8 +534,7 @@ class PdfService {
 
     await yieldToBrowser();
 
-    final pageCountAfterPhilgepsReplacement =
-        document.pages.count;
+    final pageCountAfterPhilgepsReplacement = document.pages.count;
 
     if (pageCountAfterPhilgepsReplacement !=
         pageCountBeforePhilgepsReplacement) {
@@ -523,6 +547,11 @@ class PdfService {
         'afsEnd=${afsPlacement.endExclusive}.',
       );
     }
+
+    afsPlacement = await _removeLegacyAfsFrontMatterAfterPhilgeps(
+      document,
+      afsPlacement,
+    );
 
     _validateAfsPlacement(
       document,
@@ -541,8 +570,7 @@ class PdfService {
     // INITAO FINAL REORDERING
     // ============================================================
 
-    if (values['documentTemplateMode'] ==
-        'initao') {
+    if (values['documentTemplateMode'] == 'initao') {
       await _insertInitaoDocumentPages(
         document,
         values,
@@ -561,8 +589,7 @@ class PdfService {
     // FINAL SAVE
     // ============================================================
 
-    final List<int> outputBytes =
-        await document.save();
+    final List<int> outputBytes = await document.save();
 
     document.dispose();
 
@@ -590,9 +617,7 @@ void _validateStatementOfOngoingPresent(
 
   final ongoingPages = <int>[];
 
-  for (var pageIndex = 0;
-      pageIndex < document.pages.count;
-      pageIndex++) {
+  for (var pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
     final text = extractor
         .extractText(
           startPageIndex: pageIndex,
@@ -626,8 +651,7 @@ void _validateStatementOfOngoingPresent(
   }
 
   for (final pageIndex in ongoingPages) {
-    if (pageIndex < 0 ||
-        pageIndex >= document.pages.count) {
+    if (pageIndex < 0 || pageIndex >= document.pages.count) {
       throw StateError(
         'Statement of Ongoing Contracts integrity failure: '
         'invalid page index=$pageIndex '
@@ -642,30 +666,24 @@ _AfsPlacement _validateAfsPlacement(
   PdfDocument document,
   _AfsPlacement? placement,
 ) {
-  if (placement == null ||
-      !placement.isValidFor(document)) {
+  if (placement == null || !placement.isValidFor(document)) {
     throw StateError(
       'AFS replacement failed or returned invalid placement.',
     );
   }
 
-  final afsStart =
-      placement.startIndex;
+  final afsStart = placement.startIndex;
 
-  final afsEndExclusive =
-      placement.endExclusive;
+  final afsEndExclusive = placement.endExclusive;
 
-  final firstAfsPageMissing =
-      afsStart >= document.pages.count;
+  final firstAfsPageMissing = afsStart >= document.pages.count;
 
-  final secondAfsPageMissing =
-      afsStart + 1 >= document.pages.count;
+  final secondAfsPageMissing = afsStart + 1 >= document.pages.count;
 
   if (placement.pageCount != 15 ||
       firstAfsPageMissing ||
       secondAfsPageMissing ||
-      afsEndExclusive >
-          document.pages.count) {
+      afsEndExclusive > document.pages.count) {
     throw StateError(
       'AFS integrity failure: '
       'expected=15 '
