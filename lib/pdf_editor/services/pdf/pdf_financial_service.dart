@@ -291,57 +291,337 @@ Future<_AfsPlacement> _removeLegacyAfsFrontMatterAfterPhilgeps(
   PdfDocument document,
   _AfsPlacement placement,
 ) async {
-  final philgepsStart = _findPageContaining(
-    document,
-    const <String>['CERTIFICATE OF PHILGEPS REGISTRATION'],
-  );
-  if (philgepsStart < 0) {
-    throw StateError('Cannot clean AFS front matter: PhilGEPS was not found.');
+  if (document.pages.count == 0) {
+    return placement;
   }
+
+  if (!placement.isValidFor(document)) {
+    throw StateError(
+      'Cannot clean AFS front matter: '
+      'invalid AFS placement. '
+      'start=${placement.startIndex} '
+      'pages=${placement.pageCount} '
+      'documentPages=${document.pages.count}.',
+    );
+  }
+
+  if (placement.pageCount != 15) {
+    throw StateError(
+      'Cannot clean AFS front matter: '
+      'expected 15 AFS pages, '
+      'got ${placement.pageCount}.',
+    );
+  }
+
+  // ============================================================
+  // TRY TO LOCATE PHILGEPS
+  // ============================================================
+  //
+  // PhilGEPS may be scanned/image-based.
+  //
+  // Therefore failure to extract the PhilGEPS title must NOT
+  // stop PDF generation.
+  // ============================================================
+
+  var philgepsStart = _findPageContaining(
+    document,
+    const <String>[
+      'CERTIFICATE OF PHILGEPS REGISTRATION',
+    ],
+  );
+
+  if (philgepsStart < 0) {
+    philgepsStart = _findPageContaining(
+      document,
+      const <String>[
+        'PHILGEPS',
+      ],
+    );
+  }
+
+  if (philgepsStart < 0) {
+    philgepsStart = _findPageContaining(
+      document,
+      const <String>[
+        'PHILIPPINE GOVERNMENT ELECTRONIC PROCUREMENT SYSTEM',
+      ],
+    );
+  }
+
+  // ============================================================
+  // LOAD CERTIFICATE TEMPLATE ONLY TO KNOW PAGE COUNT
+  // ============================================================
 
   final certificateData = await rootBundle.load(
     'assets/pdf/certificate_template.pdf',
   );
-  final certificate = PdfDocument(
+
+  final certificateDocument = PdfDocument(
     inputBytes: certificateData.buffer.asUint8List(),
   );
+
   try {
-    final philgepsEndExclusive = philgepsStart + certificate.pages.count;
-    if (certificate.pages.count == 0 ||
-        philgepsEndExclusive > placement.startIndex) {
-      throw StateError(
-        'Cannot clean AFS front matter: invalid PhilGEPS/AFS boundary. '
+    final philgepsPageCount =
+        certificateDocument.pages.count;
+
+    if (philgepsPageCount <= 0) {
+      return placement;
+    }
+
+    // ============================================================
+    // CASE 1:
+    // PHILGEPS TEXT WAS FOUND
+    // ============================================================
+
+    if (philgepsStart >= 0) {
+      final philgepsEndExclusive =
+          philgepsStart + philgepsPageCount;
+
+      if (philgepsEndExclusive >
+          placement.startIndex) {
+        // The detected PhilGEPS location is not safe.
+        // Do NOT throw and do NOT delete anything.
+        return placement;
+      }
+
+      final removableCount =
+          placement.startIndex -
+              philgepsEndExclusive;
+
+      if (removableCount <= 0) {
+        return placement;
+      }
+
+      // ============================================================
+      // SAFETY LIMIT
+      // ============================================================
+      //
+      // We only expect a small number of legacy financial front
+      // matter pages between PhilGEPS and the new AFS.
+      //
+      // Never wipe a large document range.
+      // ============================================================
+
+      if (removableCount > 6) {
+        return placement;
+      }
+
+      final before =
+          document.pages.count;
+
+      for (var removed = 0;
+          removed < removableCount;
+          removed++) {
+        if (philgepsEndExclusive < 0 ||
+            philgepsEndExclusive >=
+                document.pages.count) {
+          break;
+        }
+
+        document.pages.removeAt(
+          philgepsEndExclusive,
+        );
+
+        await Future<void>.delayed(
+          const Duration(milliseconds: 1),
+        );
+      }
+
+      final updatedPlacement =
+          _AfsPlacement(
+        startIndex:
+            placement.startIndex -
+                removableCount,
+        pageCount:
+            placement.pageCount,
+      );
+
+      if (!updatedPlacement
+          .isValidFor(document)) {
+        throw StateError(
+          'AFS placement became invalid after '
+          'front-matter cleanup. '
+          'start=${updatedPlacement.startIndex} '
+          'pages=${updatedPlacement.pageCount} '
+          'documentPages=${document.pages.count}.',
+        );
+      }
+
+      print(
+        'PDF AFS FRONT-MATTER CLEANUP: '
+        'mode=PhilGEPS anchor '
         'philgepsStart=$philgepsStart '
-        'philgepsEnd=$philgepsEndExclusive '
-        'afsStart=${placement.startIndex}.',
+        'philgepsPages=$philgepsPageCount '
+        'removed=$removableCount '
+        'before=$before '
+        'after=${document.pages.count}',
+      );
+
+      return updatedPlacement;
+    }
+
+    // ============================================================
+    // CASE 2:
+    // PHILGEPS CANNOT BE TEXT-EXTRACTED
+    // ============================================================
+    //
+    // Do NOT throw.
+    //
+    // The certificate may be scanned.
+    //
+    // We use only a narrow structural window immediately before
+    // the inserted AFS block.
+    // ============================================================
+
+    final afsStart =
+        placement.startIndex;
+
+    if (afsStart <= 0) {
+      return placement;
+    }
+
+    // Inspect only a small number of pages directly before AFS.
+    // Do not touch the rest of the document.
+    const maxFrontMatterPages = 3;
+
+    final candidateStart =
+        afsStart - maxFrontMatterPages;
+
+    final safeStart =
+        candidateStart < 1
+            ? 1
+            : candidateStart;
+
+    final pagesToRemove = <int>[];
+
+    for (var pageIndex = safeStart;
+        pageIndex < afsStart;
+        pageIndex++) {
+      final text =
+          _financialNormalizedPageText(
+        document,
+        pageIndex,
+      );
+
+      final compact =
+          _financialCompactText(text);
+
+      // Never remove known protected sections.
+      final protected =
+          compact.contains(
+            'STATEMENTOFALLITSONGOING',
+          ) ||
+          compact.contains(
+            'STATEMENTOFBIDDER',
+          ) ||
+          compact.contains(
+            'NETFINANCIALCONTRACTINGCAPACITY',
+          ) ||
+          compact.contains(
+            'TECHNICALSPECIFICATIONS',
+          );
+
+      if (protected) {
+        continue;
+      }
+
+      // Text-based financial front matter.
+      final recognizableFrontMatter =
+          compact.contains(
+            'COVERSHEET',
+          ) ||
+          compact.contains(
+            'AUDITEDFINANCIALSTATEMENTS',
+          ) ||
+          compact.contains(
+            'AMENDEDAUDITEDFINANCIALSTATEMENTS',
+          ) ||
+          compact.contains(
+            'INDEPENDENTAUDITORSREPORT',
+          );
+
+      if (recognizableFrontMatter) {
+        pagesToRemove.add(
+          pageIndex,
+        );
+      }
+    }
+
+    if (pagesToRemove.isEmpty) {
+      // Important:
+      // Do NOT fail generation just because scanned cover sheets
+      // cannot be detected through text extraction.
+      print(
+        'PDF AFS FRONT-MATTER CLEANUP: '
+        'PhilGEPS not text-searchable; '
+        'no safe text-detectable front matter removed.',
+      );
+
+      return placement;
+    }
+
+    pagesToRemove.sort(
+      (a, b) => b.compareTo(a),
+    );
+
+    var removedCount = 0;
+
+    for (final pageIndex in pagesToRemove) {
+      if (pageIndex <= 0 ||
+          pageIndex >=
+              document.pages.count) {
+        continue;
+      }
+
+      if (pageIndex >=
+              placement.startIndex &&
+          pageIndex <
+              placement.endExclusive) {
+        continue;
+      }
+
+      document.pages.removeAt(
+        pageIndex,
+      );
+
+      removedCount++;
+
+      await Future<void>.delayed(
+        const Duration(milliseconds: 1),
       );
     }
 
-    final removedCount = placement.startIndex - philgepsEndExclusive;
-    final before = document.pages.count;
-    for (var removed = 0; removed < removedCount; removed++) {
-      document.pages.removeAt(philgepsEndExclusive);
-    }
-
-    final updated = _AfsPlacement(
-      startIndex: philgepsEndExclusive,
-      pageCount: placement.pageCount,
+    final updatedPlacement =
+        _AfsPlacement(
+      startIndex:
+          placement.startIndex -
+              removedCount,
+      pageCount:
+          placement.pageCount,
     );
-    if (!updated.isValidFor(document) || updated.pageCount != 15) {
+
+    if (!updatedPlacement
+        .isValidFor(document)) {
       throw StateError(
-        'AFS front-matter cleanup invalidated the replacement AFS block. '
-        'start=${updated.startIndex} pages=${updated.pageCount} '
+        'AFS placement invalid after fallback '
+        'front-matter cleanup. '
+        'start=${updatedPlacement.startIndex} '
+        'pages=${updatedPlacement.pageCount} '
         'documentPages=${document.pages.count}.',
       );
     }
+
     print(
       'PDF AFS FRONT-MATTER CLEANUP: '
-      'philgepsEnd=$philgepsEndExclusive '
-      'removed=$removedCount before=$before after=${document.pages.count}',
+      'mode=fallback '
+      'removed=$removedCount '
+      'afsStartBefore=${placement.startIndex} '
+      'afsStartAfter=${updatedPlacement.startIndex}',
     );
-    return updated;
+
+    return updatedPlacement;
   } finally {
-    certificate.dispose();
+    certificateDocument.dispose();
   }
 }
 
