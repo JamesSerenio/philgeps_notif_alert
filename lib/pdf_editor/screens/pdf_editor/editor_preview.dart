@@ -1,5 +1,13 @@
 part of '../pdf_editor_screen.dart';
 
+@JS('flattenFinalBidPdf')
+external JSPromise<JSUint8Array> _finalizePdfAsImages(
+  JSUint8Array editedPdfBytes,
+);
+
+@JS('finalBidPdfNormalizerReady')
+external JSPromise<JSAny?> get _finalBidPdfNormalizerReady;
+
 extension _EditorPreview on _PdfEditorScreenState {
   Future<void> generatePdf() async {
     await documentTemplateLoaded;
@@ -74,12 +82,34 @@ extension _EditorPreview on _PdfEditorScreenState {
         },
       );
 
-      final bytes = rawBytes;
       if (!mounted) return;
       if (generatedRevision != contentRevision) {
         _updateState(() {
           errorMessage =
               'The form changed while the PDF was being generated. Click Generate PDF again to download the latest data.';
+        });
+        return;
+      }
+
+      debugPrint(
+        'PDF RAW bytes=${rawBytes.length} '
+        'signature=${_pdfByteSignature(rawBytes)}',
+      );
+
+      // The existing generator is complete at this point. Finalization uses
+      // only these already-edited bytes and cannot load or edit templates.
+    // TEMPORARY:
+    // Use the already-correct edited PDF directly.
+    final Uint8List finalBytes = rawBytes;
+      debugPrint(
+        'PDF FINAL bytes=${finalBytes.length} '
+        'signature=${_pdfByteSignature(finalBytes)}',
+      );
+      if (!mounted) return;
+      if (generatedRevision != contentRevision) {
+        _updateState(() {
+          errorMessage =
+              'The form changed while the PDF was being finalized. Click Generate PDF again to download the latest data.';
         });
         return;
       }
@@ -93,7 +123,7 @@ extension _EditorPreview on _PdfEditorScreenState {
       // Keep the original browser PDF viewer on desktop/laptop, where its
       // built-in download and print toolbar already works well.
       final previousBlobUrl = previewBlobUrl;
-      final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
+      final blob = html.Blob(<dynamic>[finalBytes], 'application/pdf');
       final blobUrl = html.Url.createObjectUrlFromBlob(blob);
       final viewType = 'generated-pdf-${DateTime.now().microsecondsSinceEpoch}';
       ui_web.platformViewRegistry.registerViewFactory(
@@ -107,7 +137,7 @@ extension _EditorPreview on _PdfEditorScreenState {
       );
 
       _updateState(() {
-        generatedPdf = bytes;
+        generatedPdf = finalBytes;
         generatedPdfFileName = fileName;
         previewBlobUrl = blobUrl;
         previewViewType = viewType;
@@ -180,6 +210,13 @@ extension _EditorPreview on _PdfEditorScreenState {
       stamp,
     ].join('-');
     return '${identity.isEmpty ? 'bid-documents-$stamp' : identity}.pdf';
+  }
+
+  String _pdfByteSignature(Uint8List bytes) {
+    final visibleBytes = bytes.take(8);
+    return visibleBytes
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join(' ');
   }
 
   void _invalidateGeneratedPdf() {

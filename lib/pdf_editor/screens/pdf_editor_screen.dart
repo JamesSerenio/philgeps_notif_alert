@@ -2,6 +2,7 @@ import '../models/item_pricing.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:js_interop';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/foundation.dart';
