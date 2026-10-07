@@ -1,12 +1,5 @@
+
 part of '../pdf_editor_screen.dart';
-
-@JS('flattenFinalBidPdf')
-external JSPromise<JSUint8Array> _finalizePdfAsImages(
-  JSUint8Array editedPdfBytes,
-);
-
-@JS('finalBidPdfNormalizerReady')
-external JSPromise<JSAny?> get _finalBidPdfNormalizerReady;
 
 extension _EditorPreview on _PdfEditorScreenState {
   Future<void> generatePdf() async {
@@ -100,7 +93,8 @@ extension _EditorPreview on _PdfEditorScreenState {
       // only these already-edited bytes and cannot load or edit templates.
     // TEMPORARY:
     // Use the already-correct edited PDF directly.
-    final Uint8List finalBytes = rawBytes;
+    final Uint8List finalBytes =
+    await PdfImageFinalizerService.finalizeAsImages(rawBytes);
       debugPrint(
         'PDF FINAL bytes=${finalBytes.length} '
         'signature=${_pdfByteSignature(finalBytes)}',

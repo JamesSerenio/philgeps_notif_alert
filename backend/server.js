@@ -154,30 +154,29 @@ app.post(
       // Execute the repaired current revision and rasterize every page. This
       // discards the template's old object graph instead of copying or
       // appending any of its page /Contents streams.
-      const pagePattern = path.join(jobDirectory, "page-%04d.png");
+      const pagePrefix = path.join(jobDirectory, "page");
+
       await execFileAsync(
-        "gs",
+        "pdftoppm",
         [
-          "-q",
-          "-dNOPAUSE",
-          "-dBATCH",
-          "-dSAFER",
-          "-dShowAnnots=true",
-          "-sDEVICE=png16m",
-          "-r144",
-          "-dTextAlphaBits=4",
-          "-dGraphicsAlphaBits=4",
-          `-sOutputFile=${pagePattern}`,
+          "-png",
+          "-r",
+          "300",
           inputPath,
+          pagePrefix,
         ],
         { maxBuffer: 10 * 1024 * 1024 },
       );
 
-      const renderedPages = (await readdir(jobDirectory))
-        .filter((name) => /^page-\d{4}\.png$/.test(name))
-        .sort();
+    const renderedPages = (await readdir(jobDirectory))
+      .filter((name) => /^page-\d+\.png$/.test(name))
+      .sort((a, b) => {
+        const aNum = parseInt(a.match(/\d+/)?.[0] ?? "0", 10);
+        const bNum = parseInt(b.match(/\d+/)?.[0] ?? "0", 10);
+        return aNum - bNum;
+      });
       if (renderedPages.length === 0) {
-        throw new Error("Ghostscript did not render any PDF pages.");
+        throw new Error("Poppler did not render any PDF pages.");
       }
 
       const output = await PDFDocument.create();
@@ -217,18 +216,6 @@ app.post(
       if (parsedOutput.getPageCount() === 0) {
         throw new Error("The compatible PDF contains no pages.");
       }
-      await execFileAsync(
-        "gs",
-        [
-          "-q",
-          "-dNOPAUSE",
-          "-dBATCH",
-          "-dSAFER",
-          "-sDEVICE=nullpage",
-          outputPath,
-        ],
-        { maxBuffer: 10 * 1024 * 1024 },
-      );
       const { stdout: extractedText } = await execFileAsync(
         "pdftotext",
         [outputPath, "-"],
@@ -255,16 +242,13 @@ app.post(
       if (popplerRender.length === 0) {
         throw new Error("Poppler could not render the rewritten PDF.");
       }
-      const forbiddenText = "sumilao";
-      const objectBytes = Buffer.from(compatibleBytes)
-        .toString("latin1")
-        .toLowerCase();
-      if (
-        objectBytes.includes(forbiddenText) ||
-        extractedText.toLowerCase().includes(forbiddenText)
-      ) {
-        throw new Error("Obsolete Sumilao content remains in the output PDF.");
-      }
+        // Final PDF must be image-only.
+        // pdftotext should therefore find no selectable PDF text.
+        if (extractedText.trim().length > 0) {
+          throw new Error(
+            "Image-only PDF verification failed: selectable text still remains."
+          );
+        }
 
       res.set({
         "Content-Type": "application/pdf",
@@ -317,22 +301,30 @@ const SEARCH_URL =
   `${BASE_URL}SplashOpportunitiesSearchUI.aspx` +
   "?menuIndex=3&ClickFrom=OpenOpp&Result=3";
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error(
-    "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY."
-  );
-}
+const hasSupabase =
+    Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 
-if (!FIREBASE_SERVICE_ACCOUNT) {
-  throw new Error(
-    "Missing FIREBASE_SERVICE_ACCOUNT."
-  );
-}
+  const hasFirebase =
+    Boolean(FIREBASE_SERVICE_ACCOUNT);
 
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY
-);
+  const supabase = hasSupabase
+    ? createClient(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY
+      )
+    : null;
+
+  if (!hasSupabase) {
+    console.warn(
+      'SUPABASE disabled for local PDF-finalizer testing.'
+    );
+  }
+
+  if (!hasFirebase) {
+    console.warn(
+      'FIREBASE disabled for local PDF-finalizer testing.'
+    );
+  }
 
 /*
 |--------------------------------------------------------------------------
@@ -357,14 +349,13 @@ const CHECKER_FORCE_STOP_MS = 18 * 60 * 1000;
 |--------------------------------------------------------------------------
 */
 
-if (!admin.apps.length) {
+if (hasFirebase && !admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(
       JSON.parse(FIREBASE_SERVICE_ACCOUNT)
     ),
   });
 }
-
 /*
 |--------------------------------------------------------------------------
 | HELPERS

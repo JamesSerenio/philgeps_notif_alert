@@ -15,6 +15,7 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../services/pdf_service.dart';
 import '../../utils/supabase_client.dart';
+import '../services/pdf/pdf_image_finalizer_service.dart';
 
 part 'pdf_editor/editor_persistence.dart';
 part 'pdf_editor/specification_editing.dart';
