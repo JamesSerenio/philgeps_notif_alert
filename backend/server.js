@@ -1171,66 +1171,59 @@ async function savePostAndNotify(post) {
 |--------------------------------------------------------------------------
 */
 
-async function scrapePhilgeps(
-  existingPostIds,
-  runId
-) {
+
+async function scrapePhilgeps(existingPostIds, runId) {
   const allPosts = [];
+
   let browser = null;
+  let context = null;
 
   try {
-    browser =
-      await chromium.launch({
-        headless: true,
-
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-gpu",
-        ],
-      });
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+      ],
+    });
 
     if (runId !== currentRunId) {
-      await browser
-        .close()
-        .catch(() => {});
-
       return [];
     }
 
     activeBrowser = browser;
 
-    const page =
-      await browser.newPage();
+    // FIX: Create an explicit browser context.
+    context = await browser.newContext({
+      viewport: {
+        width: 1366,
+        height: 900,
+      },
+    });
 
-    page.setDefaultNavigationTimeout(
-      60000
-    );
+    // All scraper pages now share this context.
+    const page = await context.newPage();
 
-    page.setDefaultTimeout(
-      30000
-    );
+    page.setDefaultNavigationTimeout(60000);
+    page.setDefaultTimeout(30000);
 
     for (const lgu of WATCH_LGUS) {
-      if (
-        runId !== currentRunId
-      ) {
+      if (runId !== currentRunId) {
         console.log(
           `Checker run ${runId} cancelled before ${lgu}.`
         );
-
         break;
       }
 
       try {
-        const posts =
-          await searchPhilgepsByKeyword(
-            page,
-            lgu,
-            existingPostIds,
-            runId
-          );
+        const posts = await searchPhilgepsByKeyword(
+          page,
+          lgu,
+          existingPostIds,
+          runId
+        );
 
         console.log(
           `${lgu}: found ${posts.length} new matching post(s)`
@@ -1245,32 +1238,23 @@ async function scrapePhilgeps(
       }
     }
   } finally {
-    if (browser) {
-      await browser
-        .close()
-        .catch(() => {});
-
-      console.log(
-        "Chromium browser closed."
-      );
+    if (context) {
+      await context.close().catch(() => {});
     }
 
-    if (
-      activeBrowser === browser
-    ) {
-      activeBrowser = null;
+    if (browser) {
+      await browser.close().catch(() => {});
     }
   }
 
-  const uniquePosts =
-    Array.from(
-      new Map(
-        allPosts.map((post) => [
-          post.id,
-          post,
-        ])
-      ).values()
-    );
+  const uniquePosts = [
+    ...new Map(
+      allPosts.map((post) => [
+        post.id,
+        post,
+      ])
+    ).values(),
+  ];
 
   console.log(
     `Total new matching posts: ${uniquePosts.length}`
@@ -1278,6 +1262,7 @@ async function scrapePhilgeps(
 
   return uniquePosts;
 }
+
 
 /*
 |--------------------------------------------------------------------------
@@ -1291,21 +1276,18 @@ async function deleteOldNotificationLogs() {
   );
 }
 
+
 async function deleteExpiredPosts() {
-  const now =
-    new Date().toISOString();
+  // Do not delete PhilGEPS posts that may still
+  // be referenced by the bidding document editor
+  // or notification history.
 
-  const { error } = await supabase
-    .from("philgeps_posts")
-    .delete()
-    .lt("closing_date", now);
+  // Expired posts are instead filtered from
+  // active API results.
 
-  if (error) {
-    console.error(
-      "Delete expired posts failed:",
-      error.message
-    );
-  }
+  console.log(
+    "Expired-post deletion skipped to preserve linked editor and notification records."
+  );
 }
 
 /*
@@ -1643,27 +1625,29 @@ async function runChecker({
 |--------------------------------------------------------------------------
 */
 
+
 async function getStoredPosts() {
+  if (!supabase) {
+    return [];
+  }
+
   const uniqueLgus = [
     ...new Set(
-      WATCH_LGUS.map(
-        canonicalLgu
-      )
+      WATCH_LGUS.map(canonicalLgu)
     ),
   ];
 
-  const { data, error } =
-    await supabase
-      .from("philgeps_posts")
-      .select("*")
-      .in("lgu", uniqueLgus)
-      .order(
-        "closing_date",
-        {
-          ascending: true,
-        }
-      )
-      .limit(5000);
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("philgeps_posts")
+    .select("*")
+    .in("lgu", uniqueLgus)
+    .gte("closing_date", now)
+    .order("closing_date", {
+      ascending: true,
+    })
+    .limit(5000);
 
   if (error) {
     throw error;
@@ -1671,6 +1655,7 @@ async function getStoredPosts() {
 
   return data || [];
 }
+
 
 /*
 |--------------------------------------------------------------------------
@@ -1833,6 +1818,7 @@ app.post(
     }
 
     let browser;
+    let context;
     try {
       const url =
         "https://notices.philgeps.gov.ph/GEPSNONPILOT/Tender/" +
@@ -1846,7 +1832,14 @@ app.post(
           "--disable-gpu",
         ],
       });
-      const page = await browser.newPage();
+      context = await browser.newContext({
+        viewport: {
+          width: 1366,
+          height: 900,
+        },
+      });
+
+      const page = await context.newPage();
       const details = await getBidDetails(page, url);
       const deliveryPeriod = cleanText(details.deliveryPeriod || "");
       if (!deliveryPeriod) {
