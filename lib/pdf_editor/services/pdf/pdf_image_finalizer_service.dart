@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 class PdfImageFinalizerService {
   const PdfImageFinalizerService._();
 
-static const String _endpoint =
-    'http://localhost:3000/render-compatible-pdf';
+  static const String _endpoint =
+      'https://philgepsnotifalert-production.up.railway.app/render-compatible-pdf';
 
   static Future<Uint8List> finalizeAsImages(
     Uint8List editedPdfBytes,
