@@ -7,7 +7,22 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  Timer? _refreshTimer;
+  RealtimeChannel? _postsChannel;
+  Future<void>? _postsLoad;
+  int _decisionVersion = 0;
+
+  void _refreshPosts() {
+    if (mounted && WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused) {
+      unawaited(loadPostsFromSupabase());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshPosts();
+  }
   void _updateState(VoidCallback update) => setState(update);
 
   final _filterChanges = ValueNotifier<int>(0);
@@ -23,7 +38,7 @@ class _HomePageState extends State<HomePage> {
   DateTime? _parseDate(String value) {
     return _parsedDates.putIfAbsent(
       value,
-      () => DateTime.tryParse(value),
+      () => parsePhilgepsDate(value),
     );
   }
 
@@ -43,6 +58,10 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    final channel = _postsChannel;
+    if (channel != null) unawaited(SupabaseConfig.client.removeChannel(channel));
     _filterChanges.dispose();
     keywordController.dispose();
 
@@ -148,6 +167,7 @@ class _HomePageState extends State<HomePage> {
           post.id;
     });
 
+    _decisionVersion++;
     try {
       await SupabaseConfig.client.rpc(
         'set_bid_doc_state',
@@ -168,6 +188,7 @@ class _HomePageState extends State<HomePage> {
         );
 
         if (index != -1) {
+          _decisionVersion++;
           posts[index] =
               posts[index].copyWith(
             isBiddingDoc:
@@ -329,6 +350,7 @@ class _HomePageState extends State<HomePage> {
           post.id;
     });
 
+    _decisionVersion++;
     try {
       await SupabaseConfig.client.rpc(
         'mark_bid_docs_done',
@@ -348,6 +370,7 @@ class _HomePageState extends State<HomePage> {
         );
 
         if (index != -1) {
+          _decisionVersion++;
           posts[index] =
               posts[index].copyWith(
             isBiddingDoc:
@@ -422,6 +445,7 @@ class _HomePageState extends State<HomePage> {
           post.id;
     });
 
+    _decisionVersion++;
     try {
       await SupabaseConfig.client.rpc(
         'undo_bid_docs_done',
@@ -441,6 +465,7 @@ class _HomePageState extends State<HomePage> {
         );
 
         if (index != -1) {
+          _decisionVersion++;
           posts[index] =
               posts[index].copyWith(
             isDone:
@@ -532,8 +557,7 @@ class _HomePageState extends State<HomePage> {
   int get newCount {
     return posts.where(
       (post) =>
-          post.status ==
-          'new',
+          isNewPost(post),
     ).length;
   }
 
@@ -579,8 +603,7 @@ class _HomePageState extends State<HomePage> {
         'new') {
       basePosts = posts.where(
         (post) {
-          return post.status ==
-              'new';
+          return isNewPost(post);
         },
       ).toList();
     }
@@ -641,6 +664,15 @@ ${post.abc}
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) { setState(() {}); _filterChanges.value++; }
+      _refreshPosts();
+    });
+    _postsChannel = SupabaseConfig.client.channel('dashboard-posts')
+      .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
+        table: 'philgeps_posts', callback: (_) => _refreshPosts())
+      .subscribe();
 
     Future.microtask(
       () {
@@ -710,12 +742,12 @@ ${post.abc}
               )
               .select()
               .order(
-                'closing_date',
-                ascending: true,
+                'created_at',
+                ascending: false,
               )
               .order(
                 'id',
-                ascending: true,
+                ascending: false,
               )
               .range(
                 from,
@@ -749,8 +781,16 @@ ${post.abc}
     return allRows;
   }
 
-  Future<void>
-      loadPostsFromSupabase() async {
+  Future<void> loadPostsFromSupabase() {
+    final active = _postsLoad;
+    if (active != null) return active;
+    final request = _loadPostsFromSupabase();
+    _postsLoad = request;
+    return request.whenComplete(() { _postsLoad = null; });
+  }
+
+  Future<void> _loadPostsFromSupabase() async {
+    final decisionVersion = _decisionVersion;
     try {
       final List<
               Map<String, dynamic>>
@@ -774,7 +814,14 @@ ${post.abc}
       }
 
       setState(() {
-        posts = items;
+        // Keep decisions changed locally while this request was in flight.
+        posts = decisionVersion == _decisionVersion ? items : items.map((item) {
+          final matches = posts.where((p) => p.id == item.id);
+          final previous = matches.isEmpty ? null : matches.first;
+          return previous == null ? item : item.copyWith(
+            isBiddingDoc: previous.isBiddingDoc, isDone: previous.isDone,
+            doneAt: previous.doneAt, clearDoneAt: previous.doneAt == null);
+        }).toList();
 
         sortByDeadline();
 
@@ -870,32 +917,10 @@ ${post.abc}
                     ?.toInt() ??
                 0;
 
-        final List<dynamic>
-            items =
-            data['items']
-                    is List
-                ? data['items']
-                    as List<
-                        dynamic>
-                : [];
-
-        final loadedPosts =
-            items
-                .whereType<
-                    Map<
-                        String,
-                        dynamic>>()
-                .map(
-                  ProjectPost
-                      .fromJson,
-                )
-                .toList();
-
+        // Checker results are filtered. Reload the complete dashboard source.
+        await loadPostsFromSupabase();
+        if (!mounted) return;
         setState(() {
-          posts = loadedPosts;
-
-          sortByDeadline();
-
           if (busy) {
             statusMessage =
                 'Checker is still running. Showing $totalStored stored post(s).';
@@ -903,14 +928,18 @@ ${post.abc}
               0) {
             statusMessage =
                 'Check completed. $checked new post(s) processed. '
-                '${posts.length} total active post(s).';
+                '${posts.length} total stored post(s).';
           } else {
             statusMessage =
                 'Check completed. No new post found. '
-                '${posts.length} active post(s) stored.';
+                '${posts.length} post(s) stored.';
           }
         });
 
+        final backendHost = data['supabaseHost']?.toString();
+        if (backendHost != null && backendHost != Uri.parse(SupabaseConfig.supabaseUrl).host) {
+          setState(() { statusMessage = 'Configuration mismatch: Railway uses $backendHost; dashboard uses ${Uri.parse(SupabaseConfig.supabaseUrl).host}.'; });
+        }
         _filterChanges.value++;
       } else {
         String errorMessage =
@@ -974,79 +1003,18 @@ ${post.abc}
   // ---------------------------------------------------------
 
   void sortByDeadline() {
-    posts.sort(
-      (a, b) {
-        final aIsNew =
-            a.status == 'new';
-
-        final bIsNew =
-            b.status == 'new';
-
-        if (aIsNew &&
-            !bIsNew) {
-          return -1;
-        }
-
-        if (!aIsNew &&
-            bIsNew) {
-          return 1;
-        }
-
-        final aPosted =
-            _parseDate(
-          a.postingDate,
-        );
-
-        final bPosted =
-            _parseDate(
-          b.postingDate,
-        );
-
-        if (aPosted == null &&
-            bPosted == null) {
-          return 0;
-        }
-
-        if (aPosted == null) {
-          return 1;
-        }
-
-        if (bPosted == null) {
-          return -1;
-        }
-
-        return bPosted
-            .compareTo(
-          aPosted,
-        );
-      },
-    );
+    posts.sort((a, b) {
+      final aDate = a.discoveredAt;
+      final bDate = b.discoveredAt;
+      if (aDate == null && bDate == null) return b.id.compareTo(a.id);
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      final order = bDate.compareTo(aDate);
+      return order == 0 ? b.id.compareTo(a.id) : order;
+    });
   }
 
-  bool isNewPost(
-    ProjectPost post,
-  ) {
-    final posted =
-        _parseDate(
-      post.postingDate,
-    );
-
-    if (posted == null) {
-      return false;
-    }
-
-    final postedPH =
-        posted.toLocal();
-
-    final ageHours =
-        DateTime.now()
-            .difference(
-              postedPH,
-            )
-            .inHours;
-
-    return ageHours < 24;
-  }
+  bool isNewPost(ProjectPost post) => discoveredWithin24Hours(post.discoveredAt);
 
   // ---------------------------------------------------------
   // DEADLINE HELPERS

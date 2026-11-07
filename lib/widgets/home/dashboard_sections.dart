@@ -475,6 +475,7 @@ extension _DashboardSections on _HomePageState {
         'Reference No.: ${post.referenceNumber.isEmpty ? '\u2014' : post.referenceNumber}',
         'ABC: \u20b1${abcFormatter.format(post.abc)}',
         'Posted: ${formatDate(post.postingDate)}',
+        if (post.discoveredAt != null) 'First discovered: ${formatDate(post.discoveredAt!.toIso8601String())}',
         'Closing: ${formatDate(post.closingDate)}',
       ].join('\n');
 
@@ -712,10 +713,10 @@ extension _DashboardSections on _HomePageState {
                     runSpacing: 6,
                     children: [
                       _StatusBadge(
-                        post.status == 'new'
+                        isNewPost(post)
                             ? 'NEW'
                             : 'OLD',
-                        color: post.status == 'new'
+                        color: isNewPost(post)
                             ? _DashboardColors.goldText
                             : _DashboardColors.muted,
                       ),
@@ -909,6 +910,8 @@ extension _DashboardSections on _HomePageState {
                         post.postingDate,
                       ),
                     ),
+                    if (post.discoveredAt != null)
+                      _OpportunityDatum('First discovered', formatDate(post.discoveredAt!.toIso8601String())),
                     _OpportunityDatum(
                       'Closing',
                       formatDate(

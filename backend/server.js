@@ -498,7 +498,7 @@ function isPostedRecently(postingDate) {
     (Date.now() - posted.getTime()) /
     (1000 * 60 * 60);
 
-  return ageHours >= 0 && ageHours <= 24;
+  return ageHours >= 0 && ageHours < 24;
 }
 
 function extractRefId(url = "") {
@@ -548,35 +548,13 @@ function parseBudgetAmount(value = "") {
 */
 
 async function getExistingPostIds() {
-  const { data, error } = await supabase
-    .from("philgeps_posts")
-    .select("id,delivery_period")
-    .limit(5000);
-
-  if (error) {
-    console.error(
-      "Existing post IDs fetch failed:",
-      error.message
-    );
-
-    return new Set();
-  }
-
-  return new Set(
-    (data || [])
-      // Existing rows created before delivery_period was added must be
-      // revisited once so their PhilGEPS detail value can be backfilled.
-      .filter((item) =>
-        cleanText(
-          item.delivery_period || ""
-        ).length > 0
-      )
-      .map((item) =>
-        String(item.id || "").trim()
-      )
-      .filter(Boolean)
-  );
+  const rows = await getStoredPosts();
+  const ids = new Set(rows.filter(item => cleanText(item.delivery_period || "").length > 0)
+    .map(item => String(item.id)));
+  ids.allIds = new Set(rows.map(item => String(item.id)));
+  return ids;
 }
+
 
 /*
 |--------------------------------------------------------------------------
@@ -813,7 +791,7 @@ async function searchPhilgepsByKeyword(page, keyword, existingPostIds, runId) {
       await page.waitForTimeout(800);
     }
   } finally { await detailPage.close().catch(() => {}); }
-  console.log(`${keyword}: ${scanned} source rows scanned, ${posts.length} new matching post(s)`);
+  console.log(`${keyword}: ${scanned} source rows scanned, ${posts.length} matching candidate(s)`);
   return posts;
 }
 /*
@@ -1065,7 +1043,11 @@ async function sendNotification(
 |--------------------------------------------------------------------------
 */
 
-async function savePostAndNotify(post) {
+async function savePostAndNotify(post, sendAlerts = true) {
+  const { data: existing, error: readError } = await supabase
+    .from("philgeps_posts").select("created_at").eq("id", post.id).maybeSingle();
+  if (readError) throw readError;
+  const discoveredAt = existing ? existing.created_at : new Date().toISOString();
   const row = {
     id: post.id,
     lgu: post.lgu,
@@ -1077,9 +1059,7 @@ async function savePostAndNotify(post) {
     url: post.url,
 
     status:
-      isPostedRecently(
-        post.postingDate
-      )
+      isPostedRecently(discoveredAt)
         ? "new"
         : "old",
 
@@ -1104,11 +1084,10 @@ async function savePostAndNotify(post) {
       post.budgetType || "ABC",
   };
 
-  const { error } = await supabase
+  // Do not send created_at or user decisions: keep their original DB values.
+  const { data: saved, error } = await supabase
     .from("philgeps_posts")
-    .upsert(row, {
-      onConflict: "id",
-    });
+    .upsert(row, { onConflict: "id" }).select("created_at").single();
 
   if (error) {
     console.error(
@@ -1116,7 +1095,7 @@ async function savePostAndNotify(post) {
       error.message
     );
 
-    return;
+    throw error;
   }
 
   console.log(
@@ -1124,9 +1103,7 @@ async function savePostAndNotify(post) {
   );
 
   if (
-    !isPostedRecently(
-      post.postingDate
-    )
+    !sendAlerts || !isPostedRecently(saved.created_at)
   ) {
     return;
   }
@@ -1226,7 +1203,7 @@ async function scrapePhilgeps(existingPostIds, runId) {
         );
 
         console.log(
-          `${lgu}: found ${posts.length} new matching post(s)`
+          `${lgu}: found ${posts.length} matching candidate(s)`
         );
 
         allPosts.push(...posts);
@@ -1257,7 +1234,7 @@ async function scrapePhilgeps(existingPostIds, runId) {
   ];
 
   console.log(
-    `Total new matching posts: ${uniquePosts.length}`
+    `Total matching candidates (including existing detail refreshes): ${uniquePosts.length}`
   );
 
   return uniquePosts;
@@ -1520,70 +1497,10 @@ async function runChecker({
         return null;
       }
 
-      if (sendAlerts) {
-        await savePostAndNotify(
-          post
-        );
-      } else {
-        const row = {
-          id: post.id,
-          lgu: post.lgu,
-          title: post.title,
-
-          posting_date:
-            post.postingDate,
-
-          closing_date:
-            post.closingDate,
-
-          url: post.url,
-
-          status:
-            isPostedRecently(
-              post.postingDate
-            )
-              ? "new"
-              : "old",
-
-          reference_number:
-            post.referenceNumber,
-
-          procuring_entity:
-            post.procuringEntity,
-
-          area_of_delivery:
-            post.areaOfDelivery,
-
-          delivery_period:
-            post.deliveryPeriod,
-
-          classification:
-            post.classification,
-
-          abc: post.abc || 0,
-
-          budget_type:
-            post.budgetType ||
-            "ABC",
-        };
-
-        const { error } =
-          await supabase
-            .from(
-              "philgeps_posts"
-            )
-            .upsert(row, {
-              onConflict: "id",
-            });
-
-        if (error) {
-          console.error(
-            `Post upsert failed ${post.id}:`,
-            error.message
-          );
-        }
-      }
+      await savePostAndNotify(post, sendAlerts);
     }
+    posts.newCount = posts.filter(post => !existingPostIds.allIds.has(String(post.id))).length;
+    console.log(`Stored ${posts.newCount} new reference(s); ${posts.length - posts.newCount} existing reference(s) refreshed.`);
 
     if (
       sendAlerts &&
@@ -1627,33 +1544,18 @@ async function runChecker({
 
 
 async function getStoredPosts() {
-  if (!supabase) {
-    return [];
+  if (!supabase) return [];
+  const rows = [];
+  const pageSize = 500;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase.from("philgeps_posts").select("*")
+      .order("created_at", { ascending: false }).order("id", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
   }
-
-  const uniqueLgus = [
-    ...new Set(
-      WATCH_LGUS.map(canonicalLgu)
-    ),
-  ];
-
-  const now = new Date().toISOString();
-
-  const { data, error } = await supabase
-    .from("philgeps_posts")
-    .select("*")
-    .in("lgu", uniqueLgus)
-    .gte("closing_date", now)
-    .order("closing_date", {
-      ascending: true,
-    })
-    .limit(5000);
-
-  if (error) {
-    throw error;
-  }
-
-  return data || [];
+  return rows;
 }
 
 
@@ -1667,6 +1569,8 @@ app.get("/", (req, res) => {
   res.json({
     message:
       "PhilGEPS Notif & Alert backend running",
+
+    supabaseHost: SUPABASE_URL ? new URL(SUPABASE_URL).hostname : null,
 
     checkerRunning:
       isRunning,
@@ -1702,12 +1606,13 @@ app.all(
         await getStoredPosts();
 
       return res.json({
+        supabaseHost: SUPABASE_URL ? new URL(SUPABASE_URL).hostname : null,
         busy: checkerBusy,
 
         checked:
           checkerBusy
             ? 0
-            : posts.length,
+            : posts.newCount ?? 0,
 
         totalStored:
           items.length,
@@ -2080,7 +1985,7 @@ cron.schedule(
       }
 
       console.log(
-        `PhilGEPS checked. ${posts.length} new post(s) processed.`
+        `PhilGEPS checked. ${posts.newCount ?? 0} new reference(s) stored; ${posts.length - (posts.newCount ?? 0)} existing reference(s) refreshed.`
       );
     } catch (error) {
       console.error(

@@ -13,6 +13,7 @@ class ProjectPost {
   final String budgetType;
   final String closingDate;
   final String postingDate;
+  final DateTime? discoveredAt;
   final String url;
 
   final bool isBiddingDoc;
@@ -41,6 +42,7 @@ class ProjectPost {
     required this.status,
 
     // Hindi required para compatible sa existing code
+    this.discoveredAt,
     this.isDone = false,
     this.doneAt,
   });
@@ -142,6 +144,8 @@ class ProjectPost {
         json['done_at'],
       ),
 
+      discoveredAt: parsePhilgepsDate((json['first_seen_at'] ?? json['created_at'])?.toString()),
+
       status:
           json['status']?.toString() ?? 'old',
     );
@@ -168,6 +172,7 @@ class ProjectPost {
     String? status,
   }) {
     return ProjectPost(
+      discoveredAt: discoveredAt,
       id: id ?? this.id,
 
       lgu: lgu ?? this.lgu,
