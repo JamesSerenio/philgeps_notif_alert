@@ -901,7 +901,7 @@ ${post.abc}
       await loadPostsFromSupabase();
       if (!mounted) return;
       if (!_lastPostsLoadSucceeded) {
-        throw Exception('Scrape completed, but the dashboard could not refresh. Retry the update.');
+        throw Exception('Scrape completed, but the dashboard could not refresh: $statusMessage');
       }
       final run = result['run'] as Map<String, dynamic>;
       final newCount = (run['newCount'] as num?)?.toInt() ?? 0;
