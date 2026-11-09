@@ -1,0 +1,8 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node cron-worker.js"
+cronSchedule = "0 10,22 * * *"
+restartPolicyType = "NEVER"

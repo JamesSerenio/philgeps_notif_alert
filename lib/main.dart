@@ -16,13 +16,14 @@ import 'firebase_options.dart';
 import 'styles/app_styles.dart';
 import 'utils/supabase_client.dart';
 import 'utils/post_dates.dart';
-import 'pdf_editor/screens/pdf_editor_screen.dart';
+import 'services/scrape_api.dart';
 
 part 'services/notification_service.dart';
 part 'models/project_post.dart';
 part 'screens/home_page.dart';
 part 'widgets/home/dashboard_sections.dart';
 part 'widgets/home/dashboard_components.dart';
+part 'widgets/home/scraper_sign_in.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {

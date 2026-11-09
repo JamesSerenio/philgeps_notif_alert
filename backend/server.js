@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { chromium } from "playwright";
-import cron from "node-cron";
+import { createScrapeControl, manualAuthorization, scheduledSlot, secretMatches } from './scrape-control.js';
 import admin from "firebase-admin";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
@@ -310,7 +310,12 @@ const hasSupabase =
   const supabase = hasSupabase
     ? createClient(
         SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE_KEY
+        SUPABASE_SERVICE_ROLE_KEY,
+        { global: { fetch: (url, options = {}) => fetch(url, {
+          ...options, signal: AbortSignal.any([
+            AbortSignal.timeout(30000), ...(options.signal ? [options.signal] : []),
+          ]),
+        }) } }
       )
     : null;
 
@@ -337,8 +342,6 @@ let checkerStartedAt = 0;
 let activeBrowser = null;
 let currentRunId = 0;
 
-// Kapag 20 minutes nang naka-lock, ire-reset.
-const CHECKER_STALE_MS = 20 * 60 * 1000;
 
 // Kapag 18 minutes na ang Chromium, sapilitang isasara.
 const CHECKER_FORCE_STOP_MS = 18 * 60 * 1000;
@@ -1151,6 +1154,8 @@ async function savePostAndNotify(post, sendAlerts = true) {
 
 async function scrapePhilgeps(existingPostIds, runId) {
   const allPosts = [];
+  const checkedLgus = [];
+  const failedLgus = [];
 
   let browser = null;
   let context = null;
@@ -1195,6 +1200,7 @@ async function scrapePhilgeps(existingPostIds, runId) {
       }
 
       try {
+        checkedLgus.push(lgu);
         const posts = await searchPhilgepsByKeyword(
           page,
           lgu,
@@ -1208,6 +1214,7 @@ async function scrapePhilgeps(existingPostIds, runId) {
 
         allPosts.push(...posts);
       } catch (error) {
+        failedLgus.push(lgu);
         console.error(
           `${lgu} scrape failed:`,
           error.message
@@ -1237,6 +1244,8 @@ async function scrapePhilgeps(existingPostIds, runId) {
     `Total matching candidates (including existing detail refreshes): ${uniquePosts.length}`
   );
 
+  uniquePosts.checkedLgus = checkedLgus;
+  uniquePosts.failedLgus = failedLgus;
   return uniquePosts;
 }
 
@@ -1273,7 +1282,7 @@ async function deleteExpiredPosts() {
 |--------------------------------------------------------------------------
 */
 
-async function sendDeadlineReminders() {
+async function sendDeadlineReminders(assertLease = async () => {}) {
   const now = new Date();
 
   const next30Hours =
@@ -1306,6 +1315,7 @@ async function sendDeadlineReminders() {
   }
 
   for (const item of data || []) {
+    await assertLease();
     const {
       data: existingLog,
       error: existingLogError,
@@ -1374,34 +1384,6 @@ async function sendDeadlineReminders() {
 |--------------------------------------------------------------------------
 */
 
-async function stopStaleChecker() {
-  const elapsed =
-    Date.now() -
-    checkerStartedAt;
-
-  console.warn(
-    `Stale checker detected after ${Math.ceil(
-      elapsed / 60000
-    )} minute(s). Restarting.`
-  );
-
-  // I-cancel ang lumang run.
-  currentRunId += 1;
-
-  const browserToClose =
-    activeBrowser;
-
-  activeBrowser = null;
-
-  if (browserToClose) {
-    await browserToClose
-      .close()
-      .catch(() => {});
-  }
-
-  isRunning = false;
-  checkerStartedAt = 0;
-}
 
 /*
 |--------------------------------------------------------------------------
@@ -1411,26 +1393,10 @@ async function stopStaleChecker() {
 
 async function runChecker({
   sendAlerts = true,
+  assertLease = async () => {},
 } = {}) {
   if (isRunning) {
-    const elapsed =
-      Date.now() -
-      checkerStartedAt;
-
-    if (
-      elapsed <
-      CHECKER_STALE_MS
-    ) {
-      console.log(
-        `Checker already running for ${Math.ceil(
-          elapsed / 60000
-        )} minute(s). Skipping this run.`
-      );
-
-      return null;
-    }
-
-    await stopStaleChecker();
+    return null;
   }
 
   const runId =
@@ -1440,12 +1406,14 @@ async function runChecker({
   checkerStartedAt =
     Date.now();
 
+  let timedOut = false;
   const forceStopTimer =
     setTimeout(async () => {
       if (
         isRunning &&
         currentRunId === runId
       ) {
+        timedOut = true;
         console.error(
           `Checker run ${runId} exceeded 18 minutes. Closing Chromium.`
         );
@@ -1463,6 +1431,9 @@ async function runChecker({
       }
     }, CHECKER_FORCE_STOP_MS);
 
+  let resultPosts = [];
+  let storedNew = 0;
+  let storedRefreshed = 0;
   try {
     await deleteOldNotificationLogs();
     await deleteExpiredPosts();
@@ -1479,6 +1450,9 @@ async function runChecker({
         existingPostIds,
         runId
       );
+    resultPosts = posts;
+
+    if (timedOut) throw new Error('Scraper exceeded its 18 minute execution limit.');
 
     if (
       runId !== currentRunId
@@ -1491,6 +1465,8 @@ async function runChecker({
     }
 
     for (const post of posts) {
+      if (timedOut) throw new Error('Scraper exceeded its execution limit.');
+      await assertLease();
       if (
         runId !== currentRunId
       ) {
@@ -1498,6 +1474,9 @@ async function runChecker({
       }
 
       await savePostAndNotify(post, sendAlerts);
+      if (existingPostIds.allIds.has(String(post.id))) storedRefreshed++;
+      else storedNew++;
+      if (timedOut) throw new Error('Scraper exceeded its execution limit.');
     }
     posts.newCount = posts.filter(post => !existingPostIds.allIds.has(String(post.id))).length;
     console.log(`Stored ${posts.newCount} new reference(s); ${posts.length - posts.newCount} existing reference(s) refreshed.`);
@@ -1506,11 +1485,18 @@ async function runChecker({
       sendAlerts &&
       runId === currentRunId
     ) {
-      await sendDeadlineReminders();
+      await sendDeadlineReminders(async () => {
+        if (timedOut) throw new Error('Scraper exceeded its execution limit.');
+        await assertLease();
+      });
     }
+
+    if (timedOut) throw new Error('Scraper exceeded its execution limit.');
 
     return posts;
   } catch (error) {
+    error.scrapeStats = { newCount: storedNew, refreshedCount: storedRefreshed,
+      checkedLgus: resultPosts.checkedLgus || [], failedLgus: resultPosts.failedLgus || [] };
     console.error(
       `Checker run ${runId} failed:`,
       error.message
@@ -1590,55 +1576,50 @@ app.get("/", (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.all(
-  "/check",
-  async (req, res) => {
-    try {
-      const posts =
-        await runChecker({
-          sendAlerts: true,
-        });
-
-      const checkerBusy =
-        posts === null;
-
-      const items =
-        await getStoredPosts();
-
-      return res.json({
-        supabaseHost: SUPABASE_URL ? new URL(SUPABASE_URL).hostname : null,
-        busy: checkerBusy,
-
-        checked:
-          checkerBusy
-            ? 0
-            : posts.newCount ?? 0,
-
-        totalStored:
-          items.length,
-
-        message:
-          checkerBusy
-            ? "Checker is still running. Existing Supabase posts returned."
-            : "PhilGEPS check completed.",
-
-        items,
-      });
-    } catch (error) {
-      console.error(
-        "/check error:",
-        error.message
-      );
-
-      return res
-        .status(500)
-        .json({
-          error:
-            error.message,
-        });
-    }
+const scrapeControl = createScrapeControl({ supabase, run: (assertLease) => runChecker({ sendAlerts: true, assertLease }) });
+const authorizeManual = manualAuthorization(supabase, process.env.MANUAL_SCRAPER_EMAILS || '');
+const authorizeCron = (req, res, next) => {
+  const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+  if (!secretMatches(token, process.env.SCRAPER_CRON_SECRET)) {
+    return res.status(401).json({ error: 'Unauthorized scheduled trigger.' });
   }
-);
+  next();
+};
+async function scrapeStatus(req, res) {
+  try {
+    const state = await scrapeControl.snapshot();
+    return res.json({ run: state.run, lastSuccessAt: state.last_success_at });
+  } catch (error) {
+    console.error('Scrape status failed:', error.message);
+    return res.status(503).json({ error: 'Scrape status unavailable.' });
+  }
+}
+async function requestScrape(req, res, trigger) {
+  try {
+    if (!supabase) throw new Error('Supabase not configured');
+    const slot = trigger === 'AUTOMATIC' ? scheduledSlot() : null;
+    if (trigger === 'AUTOMATIC' && !slot) {
+      return res.json({ accepted: false, reason: 'outside_schedule' });
+    }
+    const result = await scrapeControl.start(trigger, slot);
+    if (result.reason === 'rate_limited') res.set('Retry-After', '120');
+    return res.status(result.reason === 'rate_limited' ? 429 : result.accepted ? 202 : 200).json(result);
+  } catch (error) {
+    console.error('Scrape request failed:', error.message);
+    return res.status(503).json({ error: 'Unable to start scrape. Check server configuration.' });
+  }
+}
+app.post('/check', authorizeManual, (req, res) => requestScrape(req, res, 'MANUAL'));
+app.get('/check/status', authorizeManual, scrapeStatus);
+app.post('/internal/check', authorizeCron, (req, res) => requestScrape(req, res, 'AUTOMATIC'));
+app.get('/internal/check', authorizeCron, scrapeStatus);
+// Safe metadata lets the public dashboard display automatic completion times.
+app.get('/check/last-success', async (req, res) => {
+  try {
+    const state = await scrapeControl.snapshot();
+    res.json({ lastSuccessAt: state.last_success_at });
+  } catch { res.status(503).json({ error: 'Scrape history unavailable.' }); }
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -1712,6 +1693,7 @@ app.post(
 
 app.post(
   "/refresh-delivery-period",
+  authorizeManual,
   async (req, res) => {
     const referenceNumber = cleanText(
       req.body?.referenceNumber || ""
@@ -1966,35 +1948,7 @@ app.all(
 |--------------------------------------------------------------------------
 */
 
-cron.schedule(
-  "*/30 * * * *",
-  async () => {
-    try {
-      const posts =
-        await runChecker({
-          sendAlerts: true,
-        });
-
-      /*
-       * Kapag null, busy pa ang checker.
-       * Huwag mag-print ng fake na
-       * "PhilGEPS checked".
-       */
-      if (posts === null) {
-        return;
-      }
-
-      console.log(
-        `PhilGEPS checked. ${posts.newCount ?? 0} new reference(s) stored; ${posts.length - (posts.newCount ?? 0)} existing reference(s) refreshed.`
-      );
-    } catch (error) {
-      console.error(
-        "Scheduled PhilGEPS check failed:",
-        error.message
-      );
-    }
-  }
-);
+// Automatic triggers belong exclusively to the Railway cron worker.
 
 /*
 |--------------------------------------------------------------------------

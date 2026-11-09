@@ -26,7 +26,7 @@ extension _DashboardSections on _HomePageState {
                 size: 18,
               ),
         label: Text(
-          isLoading ? 'Checking…' : 'Check Updates',
+          checkButtonLabel,
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: _DashboardColors.gold,
@@ -74,7 +74,7 @@ extension _DashboardSections on _HomePageState {
       ],
     );
 
-    final live = Row(
+    final liveIndicator = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
@@ -95,6 +95,14 @@ extension _DashboardSections on _HomePageState {
             letterSpacing: 1,
           ),
         ),
+      ],
+    );
+
+    final live = Column(
+      crossAxisAlignment: isWide ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [liveIndicator, const SizedBox(height: 6),
+        Text(lastScrapeLabel, style: const TextStyle(fontSize: 10, color: Color(0xFFD5E7DE))),
       ],
     );
 
@@ -157,8 +165,9 @@ extension _DashboardSections on _HomePageState {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    live,
-                    _checkButton(),
+                    Flexible(child: live),
+                    const SizedBox(width: 12),
+                    Flexible(child: _checkButton()),
                   ],
                 ),
               ],
@@ -488,47 +497,6 @@ extension _DashboardSections on _HomePageState {
       alignment: WrapAlignment.end,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (post.isBiddingDoc || post.isDone)
-          IconButton(
-            tooltip: 'Open Bid Docs PDF Editor',
-            icon: const Icon(
-              Icons.picture_as_pdf_outlined,
-              size: 19,
-            ),
-            style: IconButton.styleFrom(
-              foregroundColor: _DashboardColors.goldText,
-              backgroundColor: const Color(0xFFFFF8DF),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PdfEditorScreen(
-                    province: post.areaOfDelivery.trim().isNotEmpty
-                        ? post.areaOfDelivery.trim()
-                        : 'Bukidnon',
-                    municipality: toTitleCase(
-                      post.lgu.trim(),
-                    ),
-                    projectTitle: post.title.trim(),
-                    referenceNumber: post.referenceNumber.trim(),
-                    procuringEntity: post.procuringEntity.trim(),
-                    deliveryPeriod: post.deliveryPeriod.trim(),
-                    date: DateFormat(
-                      'MMMM d, yyyy',
-                    ).format(
-                      DateTime.now(),
-                    ),
-                    bidderName: 'MIKATA PRIME CORPORATION',
-                  ),
-                ),
-              );
-            },
-          ),
-
         _CopyProjectButton(
           details: _formatProjectDetails(post),
         ),

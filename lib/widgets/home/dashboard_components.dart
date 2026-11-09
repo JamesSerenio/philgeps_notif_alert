@@ -1,6 +1,6 @@
 part of '../../main.dart';
 
-// Dashboard-only tokens: PDF editor styling and document templates are unchanged.
+// Shared visual tokens for the monitoring dashboard.
 class _DashboardColors {
   static const green = Color(0xFF0B4F3A);
   static const secondary = Color(0xFF176B50);

@@ -52,7 +52,7 @@ Deploy both the Flutter build and Railway backend for these local changes to aff
 - Flutter native date tests: three passed, including all eight verified first-discovery timestamps.
 - Flutter Chrome model tests: three passed.
 - Flutter Chrome dashboard integration: passed, including 1,001 initial records, a newly discovered 1,002nd record, automatic periodic refetch, ordering, NEW filtering, expired deadlines, saved Bidding Documents, and concurrent-fetch coalescing. The WebSocket is intentionally unavailable at the mock hostname, exercising the polling fallback.
-- Flutter analyze: no errors; 18 pre-existing warnings/info remain, including the missing flutter_lints include and PDF editor diagnostics.
+- Flutter analyze: no errors; 18 pre-existing warnings/info remain, including the missing flutter_lints include and diagnostics from the since-removed bid-document editor (historical result).
 - node --check backend/server.js and git diff --check passed.
 
 On this Windows Flutter SDK, the browser test server returned 404 for /canvaskit/chromium/canvaskit.js and .wasm despite those files existing in the SDK. Chrome tests passed after a temporary browser route served the same unchanged SDK assets and reloaded the test iframe. No Flutter SDK or production app code was changed for that workaround.

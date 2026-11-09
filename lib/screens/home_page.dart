@@ -11,6 +11,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _refreshTimer;
   RealtimeChannel? _postsChannel;
   Future<void>? _postsLoad;
+  bool _lastPostsLoadSucceeded = false;
   int _decisionVersion = 0;
 
   void _refreshPosts() {
@@ -95,6 +96,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<ProjectPost> posts = [];
 
   bool isLoading = false;
+  String checkButtonLabel = 'Check Updates';
+  DateTime? lastSuccessfulScrape;
+
+  String get lastScrapeLabel => lastSuccessfulScrape == null
+      ? 'Last successful check: unavailable'
+      : 'Last successful check: ${DateFormat('MMM dd, yyyy - hh:mm a').format(lastSuccessfulScrape!.toUtc().add(const Duration(hours: 8)))} PHT';
+
+  Future<void> loadLastSuccessfulScrape() async {
+    try {
+      final response = await http.get(Uri.parse('$backendUrl/check/last-success'))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final time = DateTime.tryParse(data['lastSuccessAt']?.toString() ?? '');
+      if (mounted) setState(() => lastSuccessfulScrape = time);
+    } catch (_) { /* A metadata failure must not interrupt the dashboard. */ }
+  }
 
   String statusMessage =
       'Monitoring PhilGEPS notifications...';
@@ -530,8 +548,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // API
   // ---------------------------------------------------------
 
-  final String apiUrl =
-      'https://philgepsnotifalert-production.up.railway.app/check';
+  static const backendUrl = String.fromEnvironment('SCRAPER_BACKEND_URL',
+      defaultValue: 'https://philgepsnotifalert-production.up.railway.app');
 
   double get maxWidth =>
       1240;
@@ -668,6 +686,7 @@ ${post.abc}
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted) { setState(() {}); _filterChanges.value++; }
       _refreshPosts();
+      unawaited(loadLastSuccessfulScrape());
     });
     _postsChannel = SupabaseConfig.client.channel('dashboard-posts')
       .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
@@ -678,6 +697,7 @@ ${post.abc}
       () {
         loadSavedData();
         loadPostsFromSupabase();
+        loadLastSuccessfulScrape();
       },
     );
   }
@@ -827,10 +847,12 @@ ${post.abc}
 
         statusMessage =
             'Loaded all ${posts.length} post(s) from Supabase.';
+        _lastPostsLoadSucceeded = true;
       });
 
       _filterChanges.value++;
     } catch (e) {
+      _lastPostsLoadSucceeded = false;
       if (!mounted) {
         return;
       }
@@ -847,154 +869,61 @@ ${post.abc}
   // ---------------------------------------------------------
 
   Future<void> checkPhilgeps() async {
-    if (isLoading) {
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
-
-      statusMessage =
-          'Checking PhilGEPS through Railway...';
-    });
-
+    if (isLoading) return;
+    setState(() { isLoading = true; checkButtonLabel = 'Checking PhilGEPS...'; });
+    ScrapeApi? api;
     try {
-      final response =
-          await http
-              .post(
-                Uri.parse(
-                  apiUrl,
-                ),
-                headers: {
-                  'Content-Type':
-                      'application/json',
-                },
-                body:
-                    jsonEncode(
-                  {
-                    'lgus':
-                        lguList,
-                    'keywords':
-                        keywordController
-                            .text
-                            .trim(),
-                  },
-                ),
-              )
-              .timeout(
-                const Duration(
-                  minutes: 22,
-                ),
-              );
-
-      if (!mounted) {
-        return;
-      }
-
-      if (response.statusCode ==
-          200) {
-        final Map<String, dynamic>
-            data =
-            jsonDecode(
-                  response.body,
-                )
-                as Map<
-                    String,
-                    dynamic>;
-
-        final bool busy =
-            data['busy'] == true;
-
-        final int checked =
-            (data['checked']
-                        as num?)
-                    ?.toInt() ??
-                0;
-
-        final int totalStored =
-            (data['totalStored']
-                        as num?)
-                    ?.toInt() ??
-                0;
-
-        // Checker results are filtered. Reload the complete dashboard source.
-        await loadPostsFromSupabase();
+      if (SupabaseConfig.client.auth.currentSession == null) {
+        final signedIn = await showDialog<bool>(context: context,
+            barrierDismissible: false, builder: (_) => const _ScraperSignIn());
         if (!mounted) return;
-        setState(() {
-          if (busy) {
-            statusMessage =
-                'Checker is still running. Showing $totalStored stored post(s).';
-          } else if (checked >
-              0) {
-            statusMessage =
-                'Check completed. $checked new post(s) processed. '
-                '${posts.length} total stored post(s).';
-          } else {
-            statusMessage =
-                'Check completed. No new post found. '
-                '${posts.length} post(s) stored.';
-          }
-        });
-
-        final backendHost = data['supabaseHost']?.toString();
-        if (backendHost != null && backendHost != Uri.parse(SupabaseConfig.supabaseUrl).host) {
-          setState(() { statusMessage = 'Configuration mismatch: Railway uses $backendHost; dashboard uses ${Uri.parse(SupabaseConfig.supabaseUrl).host}.'; });
+        if (signedIn != true) {
+          setState(() => checkButtonLabel = 'Check Updates');
+          return;
         }
-        _filterChanges.value++;
-      } else {
-        String errorMessage =
-            'Railway error: ${response.statusCode}';
-
-        try {
-          final data =
-              jsonDecode(
-            response.body,
-          );
-
-          if (data
-                  is Map<
-                      String,
-                      dynamic> &&
-              data['error']
-                      ?.toString()
-                      .isNotEmpty ==
-                  true) {
-            errorMessage =
-                data['error']
-                    .toString();
-          }
-        } catch (_) {}
-
-        setState(() {
-          statusMessage =
-              errorMessage;
-        });
       }
-    } on TimeoutException {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        statusMessage =
-            'The checker is taking longer than expected. '
-            'It may still be running in Railway.';
+      if (!mounted) return;
+      setState(() => statusMessage = 'Checking all monitored LGUs through Railway...');
+      api = ScrapeApi(baseUrl: backendUrl, accessToken: () async {
+        var session = SupabaseConfig.client.auth.currentSession;
+        if (session != null && session.isExpired) {
+          session = (await SupabaseConfig.client.auth.refreshSession()).session;
+        }
+        if (session == null) throw Exception('Sign in again to check updates.');
+        return session.accessToken;
       });
-    } catch (e) {
-      if (!mounted) {
-        return;
+      final result = await api.check();
+      if (!mounted) return;
+      // Fetch a fresh complete dataset only after confirmed backend completion.
+      // Wait for any older in-flight request before issuing this final refresh.
+      final pending = _postsLoad;
+      if (pending != null) await pending;
+      await loadPostsFromSupabase();
+      if (!mounted) return;
+      if (!_lastPostsLoadSucceeded) {
+        throw Exception('Scrape completed, but the dashboard could not refresh. Retry the update.');
       }
-
+      final run = result['run'] as Map<String, dynamic>;
+      final newCount = (run['newCount'] as num?)?.toInt() ?? 0;
       setState(() {
-        statusMessage =
-            'Cannot connect to Railway backend: $e';
+        checkButtonLabel = newCount == 0 ? 'No new opportunities found' : 'Updated successfully';
+        lastSuccessfulScrape = DateTime.tryParse(result['lastSuccessAt']?.toString() ?? '');
+        statusMessage = newCount == 0
+            ? 'Check completed. No new opportunities found.'
+            : 'Check completed. $newCount new opportunities found.';
       });
-    } finally {
+      _filterChanges.value++;
+    } catch (error) {
       if (mounted) {
         setState(() {
-          isLoading = false;
+          checkButtonLabel = 'Update failed \u2014 Retry';
+          statusMessage = 'Update failed: $error';
         });
+        _filterChanges.value++;
       }
+    } finally {
+      api?.close();
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
