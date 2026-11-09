@@ -4,7 +4,7 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "node cron-worker.js"
-cronSchedule = "0 10,22 * * *"
+cronSchedule = "0 22 * * *"
 restartPolicyType = "NEVER"
 # Reference for legacy config-as-code services. For a new service, apply the
 # matching dashboard settings in docs/scraper_schedule.md.

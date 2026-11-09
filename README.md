@@ -1,6 +1,6 @@
 # philgeps_notif_alert
 
-For the twice-daily Railway scraper, secure manual checks, and required production settings, see [Scraper deployment guide](docs/scraper_schedule.md).
+For the daily 6 AM Philippine-time Railway scraper, secure manual checks, and required production settings, see [Scraper deployment guide](docs/scraper_schedule.md).
 
 A new Flutter project.
 

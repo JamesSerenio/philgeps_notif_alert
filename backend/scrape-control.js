@@ -1,11 +1,11 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 
-export const AUTOMATIC_CRON = '0 10,22 * * *';
+export const AUTOMATIC_CRON = '0 22 * * *';
 export const MANUAL_COOLDOWN_SECONDS = 120;
 
 export function scheduledSlot(now = new Date()) {
   const hour = now.getUTCHours();
-  if (![10, 22].includes(hour) || now.getUTCMinutes() > 10) return null;
+  if (hour !== 22 || now.getUTCMinutes() > 10) return null;
   return `${now.toISOString().slice(0, 10)}T${hour}:00:00Z`;
 }
 

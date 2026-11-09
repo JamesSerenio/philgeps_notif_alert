@@ -18,7 +18,7 @@ These steps have not been applied to your Railway or Supabase accounts.
    | Setting | Value |
    | --- | --- |
    | Start command | `node cron-worker.js` |
-   | Cron schedule (UTC) | `0 10,22 * * *` |
+   | Cron schedule (UTC) | `0 22 * * *` |
    | Restart policy | Never |
    | Replicas | 1 |
    | HTTP health check | None |
@@ -26,7 +26,7 @@ These steps have not been applied to your Railway or Supabase accounts.
    Set `SCRAPER_BACKEND_URL` to the continuously running backend's HTTPS URL and `SCRAPER_CRON_SECRET` to the same server-only secret. Do not give the worker the Supabase service-role key or Firebase credential; it uses the HTTP service's scraper. The worker waits for completion, exits 0 on success/intentional skip, and exits 1 on failure/timeout. Remove any old Railway schedules or external schedulers that call `/check`.
 6. Deploy the HTTP service and updated Flutter app after applying the migration and variables. The default Flutter backend URL remains the existing production Railway URL. Override it when necessary using `flutter build web --dart-define=SCRAPER_BACKEND_URL=https://your-backend.example` (without a trailing slash). No privileged key or cron secret belongs in Flutter.
 
-Railway schedules use UTC and require the cron process to exit: [Railway cron documentation](https://docs.railway.com/cron-jobs). At 10:00 UTC it is 6 PM Philippine Time; at 22:00 UTC it is 6 AM Philippine Time the following day. The worker's trigger endpoint accepts only these hours, with a ten-minute launch allowance for Railway startup delays, and deduplicates each time slot in the database. A deployment at other hours exits without scraping.
+Railway schedules use UTC and require the cron process to exit: [Railway cron documentation](https://docs.railway.com/cron-jobs). The sole automatic run is at 22:00 UTC, which is 6 AM Philippine Time the following day. The worker's trigger endpoint accepts only this hour, with a ten-minute launch allowance for Railway startup delays, and deduplicates the daily time slot in the database. A deployment at other hours exits without scraping. Replace the previous `0 10,22 * * *` setting on the existing cron service with `0 22 * * *`; do not create a second cron service. The old 6 PM automatic run is disabled in both the cron configuration and backend guard. Manual `/check` requests have no time-of-day restriction.
 
 `backend/railway-cron.toml` records the matching legacy config-as-code settings. For new services, use the dashboard settings above: Railway's [config-as-code documentation](https://docs.railway.com/config-as-code) says new services cannot opt into TOML config-as-code. Do not apply the cron settings to the continuously running HTTP service.
 
@@ -57,10 +57,23 @@ Every run logs structured `SCRAPE_START` and `SCRAPE_FINISH` events with MANUAL/
 
 ## Validation
 
-Results will be recorded after the final checks. No production scrape, remote migration, notification send, or Railway deployment was performed. Database concurrency and cooldown behavior require the supplied SQL migration; local coordinator tests mock its atomic claim boundary.
+- Backend: 16 tests passed, including the sole daily 6 AM schedule, authentication, duplicate-run coordination, failure states, notification deduplication, browser/context cleanup on success and failure, and worker exit codes.
+- Flutter: 12 tests passed, including mocked dashboard completion/refresh, repeated clicks, failure states, PHT display, and narrow mobile layout.
+- flutter analyze: no errors; two existing diagnostics remain (missing flutter_lints include and deprecated anonKey). Exit code 1 due to those diagnostics.
+- flutter build web: passed in the preceding implementation, including the Wasm dry run; not rerun for this backend schedule-only update. No Flutter implementation changed in this update.
+- Node syntax checks and git diff --check: passed.
+- The existing browser-only tests are excluded by the standard VM test command; dashboard interaction coverage here runs through the new mocked VM widget test.
+
+ No production scrape, remote migration, notification send, or Railway deployment was performed. Database concurrency and cooldown behavior require the supplied SQL migration; local coordinator tests mock its atomic claim boundary.
 
 ## Files for this change
 
-Modified: `backend/server.js`, `backend/package.json`, `backend/package-lock.json`, `lib/main.dart`, `lib/screens/home_page.dart`, `lib/widgets/home/dashboard_sections.dart`, `README.md`.
+Modified: `backend/post-discovery.test.mjs`, `backend/server.js`, `backend/package.json`, `backend/package-lock.json`, `lib/main.dart`, `lib/screens/home_page.dart`, `lib/widgets/home/dashboard_sections.dart`, `README.md`.
 
 Added: `backend/scrape-control.js`, `backend/cron-worker.js`, `backend/railway-cron.toml`, `backend/scrape-control.test.mjs`, `supabase/scrape_control.sql`, `lib/services/scrape_api.dart`, `lib/widgets/home/scraper_sign_in.dart`, `test/scrape_api_test.dart`, `test/dashboard_scrape_test.dart`, and this guide. This is separate from the preceding PDF Editor removal.
+
+## Once-daily schedule update
+
+This follow-up changes only `backend/scrape-control.js`, `backend/railway-cron.toml`, `backend/scrape-control.test.mjs`, the schedule comment in `backend/server.js`, `README.md`, and this guide. No files or dependencies were added. Manual authorization, rate limits, shared locking, scraping filters, browser cleanup, notifications, Flutter behavior, and Supabase data are unchanged.
+
+Deploy the updated HTTP backend and cron worker, then change the existing Railway cron service schedule to `0 22 * * *`. Keep its start command `node cron-worker.js`, restart policy Never, and a single cron service/replica. Keep the HTTP service online without a cron schedule. If the preceding deployment is already configured, no additional SQL migration, authentication change, or Flutter deployment is needed. If not, complete the initial setup above. Live Railway settings were not changed here.

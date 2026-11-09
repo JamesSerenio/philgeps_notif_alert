@@ -1602,7 +1602,10 @@ async function requestScrape(req, res, trigger) {
       return res.json({ accepted: false, reason: 'outside_schedule' });
     }
     const result = await scrapeControl.start(trigger, slot);
-    if (result.reason === 'rate_limited') res.set('Retry-After', '120');
+    if (result.reason === 'rate_limited') {
+      res.set('Retry-After', '120');
+      result.error = 'Please wait two minutes between manual scraping requests.';
+    }
     return res.status(result.reason === 'rate_limited' ? 429 : result.accepted ? 202 : 200).json(result);
   } catch (error) {
     console.error('Scrape request failed:', error.message);
@@ -1944,7 +1947,7 @@ app.all(
 
 /*
 |--------------------------------------------------------------------------
-| RAILWAY CRON WORKER — TWICE DAILY
+| RAILWAY CRON WORKER — ONCE DAILY AT 6 AM PHT
 |--------------------------------------------------------------------------
 */
 

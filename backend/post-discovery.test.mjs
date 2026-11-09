@@ -58,3 +58,16 @@ test('24-hour notification boundary excludes expired, future and invalid discove
   assert.equal(recent('2026-11-09T05:48:00+08:00'),false);
   assert.equal(recent(null),false);
 });
+
+test('rescanning a recent reference with an existing notification log does not alert again', async () => {
+  let alerts = 0;
+  const supabase = { from(table) { return {
+    select() { return this; }, eq() { return this; }, upsert() { return this; },
+    maybeSingle: async () => ({ data: table === 'philgeps_posts'
+      ? { created_at: '2026-11-10T10:00:00Z' } : { id: 'already-sent' }, error: null }),
+    single: async () => ({ data: { created_at: '2026-11-10T10:00:00Z' }, error: null }),
+  }; } };
+  await load('savePostAndNotify', { supabase, isPostedRecently: () => true,
+    sendNotification: async () => { alerts++; } })({ id: 'existing', referenceNumber: 'existing' });
+  assert.equal(alerts, 0);
+});

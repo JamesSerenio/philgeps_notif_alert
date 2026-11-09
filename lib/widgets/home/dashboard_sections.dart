@@ -86,7 +86,7 @@ extension _DashboardSections on _HomePageState {
           ),
         ),
         const SizedBox(width: 7),
-        const Text(
+        const Flexible(child: Text(
           'LIVE MONITOR',
           style: TextStyle(
             color: Color(0xFFD5E7DE),
@@ -94,7 +94,7 @@ extension _DashboardSections on _HomePageState {
             fontWeight: FontWeight.w600,
             letterSpacing: 1,
           ),
-        ),
+        )),
       ],
     );
 
@@ -328,14 +328,14 @@ extension _DashboardSections on _HomePageState {
                   color: _DashboardColors.green,
                 ),
                 SizedBox(width: 8),
-                Text(
+                Expanded(child: Text(
                   'Search Opportunities',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: _DashboardColors.ink,
                   ),
-                ),
+                )),
               ],
             ),
             const SizedBox(height: 4),

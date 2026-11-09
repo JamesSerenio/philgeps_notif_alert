@@ -4,21 +4,23 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import vm from 'node:vm';
 import { AUTOMATIC_CRON, scheduledSlot, secretMatches, manualAuthorization, createScrapeControl } from './scrape-control.js';
 
-test('only the two UTC hours map to 6 AM/PM Philippine time', () => {
-  assert.equal(AUTOMATIC_CRON, '0 10,22 * * *');
+test('only 22 UTC schedules the daily 6 AM Philippine-time scrape', () => {
+  assert.equal(AUTOMATIC_CRON, '0 22 * * *');
   for (let hour = 0; hour < 24; hour++) {
     const date = new Date(`2026-11-10T${String(hour).padStart(2, '0')}:00:00Z`);
-    assert.equal(scheduledSlot(date) !== null, [10, 22].includes(hour));
+    assert.equal(scheduledSlot(date) !== null, hour === 22);
     if (scheduledSlot(date)) assert.match(new Intl.DateTimeFormat('en', {
       timeZone: 'Asia/Manila', hour: 'numeric', hour12: true,
-    }).format(date), /^6 (AM|PM)$/);
+    }).format(date), /^6 AM$/);
   }
-  assert.equal(scheduledSlot(new Date('2026-11-10T10:11:00Z')), null);
+  assert.equal(scheduledSlot(new Date('2026-11-10T22:10:00Z')), '2026-11-10T22:00:00Z');
+  assert.equal(scheduledSlot(new Date('2026-11-10T22:11:00Z')), null);
   const source = readFileSync(new URL('./server.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /cron\.schedule|setInterval\(/);
-  assert.match(readFileSync(new URL('./railway-cron.toml', import.meta.url), 'utf8'), /cronSchedule = "0 10,22 \* \* \*"/);
+  assert.match(readFileSync(new URL('./railway-cron.toml', import.meta.url), 'utf8'), /cronSchedule = "0 22 \* \* \*"/);
 });
 
 test('cron authorization fails closed including missing configuration', () => {
@@ -72,6 +74,7 @@ async function settled(db) {
 }
 
 test('manual and automatic requests share one run across coordinators and log accurate totals', async () => {
+  assert.equal(scheduledSlot(new Date('2026-11-10T12:00:00Z')), null);
   const db = store(), logs = [];
   let release, calls = 0;
   const pending = new Promise(resolve => { release = resolve; });
@@ -79,7 +82,7 @@ test('manual and automatic requests share one run across coordinators and log ac
   const a = createScrapeControl({ supabase: db, run, log: s => logs.push(JSON.parse(s)) });
   const b = createScrapeControl({ supabase: db, run, log() {} });
   const started = await a.start('MANUAL');
-  const duplicate = await b.start('AUTOMATIC', '2026-11-10T10:00:00Z');
+  const duplicate = await b.start('AUTOMATIC', '2026-11-10T22:00:00Z');
   assert.equal(duplicate.accepted, false);
   assert.equal(duplicate.run.id, started.run.id);
   assert.equal(calls, 1);
@@ -94,6 +97,38 @@ test('manual and automatic requests share one run across coordinators and log ac
   assert.equal(logs[0].trigger, 'MANUAL');
   assert.ok(logs[1].durationMs >= 0);
   assert.ok(logs[1].finishedAt);
+});
+
+test('Playwright browser and context close on success and scraping errors', async () => {
+  const source = readFileSync(new URL('./server.js', import.meta.url), 'utf8');
+  const start = source.indexOf('async function scrapePhilgeps(');
+  const end = source.indexOf('\n/*', start);
+  for (const mode of ['success', 'lgu-failure', 'page-failure']) {
+    const closed = [];
+    const context = {
+      newPage: async () => {
+        if (mode === 'page-failure') throw new Error('Page creation failed');
+        return { setDefaultNavigationTimeout() {}, setDefaultTimeout() {} };
+      },
+      close: async () => { closed.push('context'); },
+    };
+    const scrape = vm.runInNewContext(source.slice(start, end) + '\nscrapePhilgeps', {
+      currentRunId: 1, activeBrowser: null, WATCH_LGUS: ['sumilao'],
+      console: { log() {}, error() {} },
+      chromium: { launch: async () => ({ newContext: async () => context,
+        close: async () => { closed.push('browser'); } }) },
+      searchPhilgepsByKeyword: async () => {
+        if (mode === 'lgu-failure') throw new Error('PhilGEPS unavailable');
+        return [];
+      },
+    });
+    if (mode === 'page-failure') await assert.rejects(scrape(new Set(), 1), /Page creation failed/);
+    else {
+      const posts = await scrape(new Set(), 1);
+      assert.equal(posts.failedLgus.length, mode === 'lgu-failure' ? 1 : 0);
+    }
+    assert.deepEqual(closed, ['context', 'browser']);
+  }
 });
 
 test('partial LGU failure and thrown failure never update last-success time', async () => {
