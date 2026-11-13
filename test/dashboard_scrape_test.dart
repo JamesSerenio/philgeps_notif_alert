@@ -10,11 +10,11 @@ import 'package:philgeps_notif_alert/main.dart';
 
 void main() {
   testWidgets(
-      'manual check waits for completion, refreshes posts, blocks duplicate clicks, and reports failure',
+      'signed-out check waits for completion, refreshes both sources, blocks duplicate clicks, and reports failure',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     var starts = 0, reads = 0, discovered = false, fail = false;
-    var newCount = 1;
+    var newCount = 2;
     Completer<http.Response>? completion;
     final now = DateTime.now().toUtc();
     final row = <String, dynamic>{
@@ -57,17 +57,28 @@ void main() {
       }
       if (path.endsWith('/philgeps_posts')) {
         reads++;
-        return json(discovered ? [row] : []);
+        return json(discovered
+            ? [
+                row,
+                {
+                  ...row,
+                  'id': '-130491',
+                  'source': 'modern',
+                  'title': 'Modern solar streetlights'
+                }
+              ]
+            : []);
       }
       if (path.endsWith('/check/last-success'))
         return json({'lastSuccessAt': '2026-11-10T10:00:00Z'});
       if (path.endsWith('/check') && request.method == 'POST') {
         starts++;
-        expect(request.headers['Authorization'], startsWith('Bearer '));
+        expect(request.headers['Authorization'], isNull);
         if (fail) return json({'error': 'Scraper unavailable'}, 503);
         return json({
           'run': {'id': 'run', 'status': 'running'},
-          'accepted': true
+          'accepted': starts == 1,
+          if (starts > 1) 'reason': 'running',
         }, 202);
       }
       if (path.endsWith('/check/status')) return completion!.future;
@@ -87,8 +98,7 @@ void main() {
               autoRefreshToken: false, detectSessionInUri: false),
           httpClient: mockClient());
       try {
-        await Supabase.instance.client.auth
-            .signInWithPassword(email: 'owner@example.com', password: 'test');
+        expect(Supabase.instance.client.auth.currentSession, isNull);
         tester.view.physicalSize = const Size(1400, 1200);
         tester.view.devicePixelRatio = 1;
         await tester.pumpWidget(const MaterialApp(home: HomePage()));
@@ -98,15 +108,18 @@ void main() {
         final dynamic state = tester.state(find.byType(HomePage));
         final before = reads;
         completion = Completer<http.Response>();
-        late Future<void> pending;
+        await tester
+            .tap(find.widgetWithText(ElevatedButton, 'Check Updates').first);
+        await tester.pump();
+        await tester.tap(find.byType(ElevatedButton).first);
         await tester.runAsync(() async {
-          pending = state.checkPhilgeps() as Future<void>;
           await Future<void>.delayed(const Duration(milliseconds: 20));
           await state.checkPhilgeps();
         });
         await tester.pump();
         expect(starts, 1);
-        expect(find.text('Checking PhilGEPS...'), findsOneWidget);
+        expect(find.text('Checking PhilGEPS\u2026'), findsOneWidget);
+        expect(find.text('Sign in to check PhilGEPS'), findsNothing);
         expect(state.isLoading, isTrue);
         expect(
             tester
@@ -120,13 +133,20 @@ void main() {
           'run': {'id': 'run', 'status': 'completed', 'newCount': newCount},
           'lastSuccessAt': '2026-11-10T10:00:00Z'
         }));
-        await tester.runAsync(() async => pending);
+        await tester.runAsync(() async {
+          for (var i = 0; i < 100 && state.isLoading == true; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+        });
+        expect(state.isLoading, isFalse);
         await tester.pumpAndSettle();
         expect(find.text('Updated successfully'), findsOneWidget,
             reason: state.statusMessage as String);
-        expect(state.posts.length, 1);
-        expect(state.biddingDocsCount, 1);
-        expect(state.newCount, 1);
+        expect(state.posts.length, 2);
+        expect(state.biddingDocsCount, 2);
+        expect(state.newCount, 2);
+        expect((state.posts as List).any((post) => post.source == 'modern'),
+            isTrue);
         expect(reads, greaterThan(before));
         expect(state.lastScrapeLabel, contains('06:00 PM'));
         expect(state.lastScrapeLabel, endsWith('PHT'));
@@ -139,12 +159,26 @@ void main() {
         await tester.runAsync(() async => state.checkPhilgeps());
         await tester.pumpAndSettle();
         expect(find.text('No new opportunities found'), findsOneWidget);
+        completion = Completer<http.Response>()
+          ..complete(json({
+            'run': {
+              'id': 'run',
+              'status': 'failed',
+              'sourceErrors': {'modern': 'Portal unavailable'},
+              'error': 'Source check failed'
+            }
+          }));
+        await tester.runAsync(() async => state.checkPhilgeps());
+        await tester.pumpAndSettle();
+        expect(state.statusMessage,
+            contains('Modern PhilGEPS: Portal unavailable'));
+        expect(state.posts.length, 2);
         fail = true;
         await tester.runAsync(() async => state.checkPhilgeps());
         await tester.pumpAndSettle();
         expect(find.text('Update failed \u2014 Retry'), findsOneWidget);
         expect(state.isLoading, isFalse);
-        expect(state.posts.length, 1,
+        expect(state.posts.length, 2,
             reason: 'A failed scrape must preserve displayed records.');
         tester.view.physicalSize = const Size(360, 800);
         await tester.pumpAndSettle();
@@ -152,13 +186,14 @@ void main() {
             reason: 'The timestamp and button states must fit mobile.');
         await tester.pumpWidget(const SizedBox.shrink());
       } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
         await tester.runAsync(() async {
           await Future<void>.delayed(const Duration(milliseconds: 100));
           await Supabase.instance.client.realtime.disconnect();
+          await Supabase.instance.dispose();
         });
-        await Supabase.instance.dispose();
         await tester.pump(const Duration(seconds: 2));
       }
     }, mockClient);

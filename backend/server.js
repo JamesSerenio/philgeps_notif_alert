@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import { chromium } from "playwright";
 import { scrapeModern } from './modern-philgeps.js';
-import { createScrapeControl, manualAuthorization, scheduledSlot, secretMatches } from './scrape-control.js';
+import { createScrapeControl, manualAuthorization, publicRefreshLimit, scheduledSlot, secretMatches } from './scrape-control.js';
 import admin from "firebase-admin";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
@@ -1602,6 +1602,7 @@ app.get("/", (req, res) => {
 
 const scrapeControl = createScrapeControl({ supabase, run: (assertLease) => runChecker({ sendAlerts: true, assertLease }) });
 const authorizeManual = manualAuthorization(supabase, process.env.MANUAL_SCRAPER_EMAILS || '');
+const limitPublicRefresh = publicRefreshLimit();
 const authorizeCron = (req, res, next) => {
   const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
   if (!secretMatches(token, process.env.SCRAPER_CRON_SECRET)) {
@@ -1636,8 +1637,8 @@ async function requestScrape(req, res, trigger) {
     return res.status(503).json({ error: 'Unable to start scrape. Check server configuration.' });
   }
 }
-app.post('/check', authorizeManual, (req, res) => requestScrape(req, res, 'MANUAL'));
-app.get('/check/status', authorizeManual, scrapeStatus);
+app.post('/check', limitPublicRefresh, (req, res) => requestScrape(req, res, 'MANUAL'));
+app.get('/check/status', limitPublicRefresh, scrapeStatus);
 app.post('/internal/check', authorizeCron, (req, res) => requestScrape(req, res, 'AUTOMATIC'));
 app.get('/internal/check', authorizeCron, scrapeStatus);
 // Safe metadata lets the public dashboard display automatic completion times.

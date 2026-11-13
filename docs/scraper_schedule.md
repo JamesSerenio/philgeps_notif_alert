@@ -9,10 +9,10 @@ These steps have not been applied to your Railway or Supabase accounts.
 1. Run `supabase/scrape_control.sql` once in the existing Supabase project's SQL editor. It adds one protected control table and service-role-only RPCs. It does not delete, recreate, or update posts, notification logs, device tokens, decisions, or document records.
 2. Keep the HTTP service's existing root directory (`backend`), Dockerfile/build settings, `npm start`, Supabase credentials and Firebase service account. Do not put a Railway cron schedule on this HTTP service. Keep it continuously available (disable sleeping/serverless behavior for this service), and use one replica as the normal deployment configuration.
 3. Set HTTP-service variables:
-   - `MANUAL_SCRAPER_EMAILS`: comma-separated approved email addresses (empty means nobody may start manual runs).
+   - `MANUAL_SCRAPER_EMAILS`: retained only for the protected single-reference delivery-detail refresh. It is not used by public Check Updates.
    - `SCRAPER_CRON_SECRET`: a strong random secret, shared only with the cron worker.
    - Keep `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `FIREBASE_SERVICE_ACCOUNT` on the HTTP server.
-4. In Supabase Authentication, create/invite the approved email accounts and enable email authentication. Configure the Magic Link email template to include the numeric `{{ .Token }}` code so the dashboard can verify the code on web and mobile. Automatic account creation is disabled in the dashboard sign-in request. The server requires a confirmed, non-anonymous user whose email is on the allowlist.
+4. Public Check Updates does not require a Supabase account, email, OTP, or browser session. Existing authentication and allowlists still apply to protected delivery-detail actions. No service-role key or cron secret is sent from Flutter.
 5. Create **one separate Railway cron service** from the same repository, with root directory `backend`, using the existing Dockerfile. In that service's dashboard settings apply:
 
    | Setting | Value |
@@ -34,8 +34,8 @@ Supabase email code behavior is documented in [passwordless email authentication
 
 ## Endpoint behavior
 
-- `POST /check`: requires a Supabase user access token in `Authorization: Bearer ...`. The server verifies it with Supabase Auth and checks the email allowlist. Returns 202 with a run ID on acceptance; 200 with the existing run if already active; 429 with `Retry-After: 120` for the shared manual cooldown; 401/403 for unauthorized callers. GET `/check` no longer starts scraping.
-- `GET /check/status`: same user authorization; returns current run status, counters, errors and `lastSuccessAt`. It never starts a scrape.
+- `POST /check`: public fixed-job refresh, without user authentication. Returns 202 with a run ID on acceptance; 200 with the existing run if already active; 429 with `Retry-After: 120` for the shared manual cooldown. An additional bounded request limiter returns 429 with `Retry-After: 60`. GET `/check` does not start scraping.
+- `GET /check/status`: public, uncached run status, counters, source errors and `lastSuccessAt`, subject to the request limiter. It never starts a scrape.
 - `POST /internal/check`: requires the server-only cron secret; requests the same scraper and notifications with trigger `AUTOMATIC`. Outside-schedule and duplicate-slot invocations are skipped.
 - `GET /internal/check`: same cron authorization, for worker status polling.
 - `GET /check/last-success`: public read-only timestamp metadata. It cannot start work or access posts/tokens.
@@ -47,7 +47,7 @@ The browser execution limit remains 18 minutes. A 30-minute database lease allow
 
 ## Dashboard behavior and data
 
-The yellow button shows `Check Updates`, `Checking PhilGEPS...`, `Updated successfully`, `No new opportunities found`, or `Update failed — Retry`. It is disabled during sign-in/request/scraping. If necessary, the approved user enters an email verification code first. A valid session is reused and refreshed when expired.
+The yellow button shows `Check Updates`, `Checking PhilGEPS…`, `Updated successfully`, `No new opportunities found`, or `Update failed — Retry`. It is disabled during the request and scraping. It never opens an email/OTP prompt or requests an access token. Signed-out callers start or join the shared public-notice refresh for both portals. Source errors remain visible after the dashboard reloads partial results.
 
 The dashboard polls completion every five seconds for up to 25 minutes, with a timeout on individual requests. Acceptance and busy responses never show success. After backend completion, the app waits for any old post fetch and performs a fresh Supabase reload. A refresh failure is reported rather than silently displaying success. The last successful scrape is read on startup and every minute and rendered explicitly in UTC+8/PHT, independent of the device's timezone.
 

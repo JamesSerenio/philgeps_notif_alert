@@ -5,7 +5,8 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import vm from 'node:vm';
-import { AUTOMATIC_CRON, scheduledSlot, secretMatches, manualAuthorization, createScrapeControl } from './scrape-control.js';
+import express from 'express';
+import { AUTOMATIC_CRON, scheduledSlot, secretMatches, manualAuthorization, publicRefreshLimit, createScrapeControl } from './scrape-control.js';
 
 test('only 22 UTC schedules the daily 6 AM Philippine-time scrape', () => {
   assert.equal(AUTOMATIC_CRON, '0 22 * * *');
@@ -37,7 +38,7 @@ async function authorize(user, token = 'session', error = null) {
   }, () => { passed = true; });
   return { status, body, passed };
 }
-test('manual scraping needs a verified, allowlisted Supabase user', async () => {
+test('protected delivery refresh still needs a verified, allowlisted Supabase user', async () => {
   const user = { email: 'owner@example.com', email_confirmed_at: '2026-01-01' };
   assert.equal((await authorize(user)).passed, true);
   assert.equal((await authorize(user, null)).status, 401);
@@ -45,6 +46,19 @@ test('manual scraping needs a verified, allowlisted Supabase user', async () => 
   assert.equal((await authorize({ ...user, is_anonymous: true })).status, 403);
   assert.equal((await authorize({ ...user, email: 'other@example.com' })).status, 403);
   assert.equal((await authorize({ ...user, email_confirmed_at: null })).status, 403);
+});
+
+test('public notice refresh accepts signed-out callers and bounds request traffic', () => {
+  let now = 0, calls = 0, code, retry;
+  const limit = publicRefreshLimit({ limit: 2, now: () => now });
+  const response = { set(k,v) { if (k === 'Retry-After') retry = v; }, status(v) { code = v; return this; }, json() {} };
+  for (let i=0;i<3;i++) limit({headers:{}},response,()=>calls++);
+  assert.equal(calls,2);
+  assert.equal(code,429);
+  assert.equal(retry,'60');
+  now=60000;
+  limit({headers:{}},response,()=>calls++);
+  assert.equal(calls,3);
 });
 
 // Mock the atomic database claim while testing the real coordinator's lifecycle.
@@ -72,6 +86,52 @@ async function settled(db) {
   for (let i = 0; i < 100 && !db.finishes; i++) await new Promise(resolve => setImmediate(resolve));
   assert.equal(db.finishes, 1);
 }
+
+test('real HTTP routes allow signed-out refresh and polling, join one job, and keep cron private', async () => {
+  const db = store(), app = express(), logs = [];
+  let calls = 0, release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const source = readFileSync(new URL('./server.js', import.meta.url), 'utf8');
+  const start = source.indexOf('const scrapeControl =');
+  const end = source.indexOf('\n/*', start);
+  vm.runInNewContext(source.slice(start, end), {
+    app, supabase: db, publicRefreshLimit, manualAuthorization, scheduledSlot, secretMatches,
+    process: { env: { SCRAPER_CRON_SECRET: 'test-secret' } }, console,
+    createScrapeControl: options => createScrapeControl({ ...options, log: line => logs.push(JSON.parse(line)) }),
+    runChecker: async () => { calls++; return pending; },
+  });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    assert.equal((await fetch(`${base}/check/status`)).status, 200);
+    const initial = await fetch(`${base}/check`, { method: 'POST' });
+    assert.equal(initial.status, 202);
+    const started = await initial.json();
+    const repeated = await Promise.all(Array.from({length:5}, async () => {
+      const response = await fetch(`${base}/check`, { method: 'POST' });
+      assert.equal(response.status, 200);
+      return response.json();
+    }));
+    assert.ok(repeated.every(item => item.run.id === started.run.id && item.reason === 'running'));
+    assert.equal(calls, 1);
+    assert.equal((await fetch(`${base}/internal/check`, { method:'POST' })).status, 401);
+    assert.equal((await fetch(`${base}/internal/check`)).status, 401);
+    release(Object.assign([{id:'123'},{id:'-130491'}], {newCount:1,checkedLgus:['existing','modern'],failedLgus:[]}));
+    await settled(db);
+    const result = await (await fetch(`${base}/check/status`)).json();
+    assert.equal(result.run.id, started.run.id);
+    assert.equal(result.run.status, 'completed');
+    assert.equal(result.run.newCount, 1);
+    assert.equal(logs.filter(item => item.event === 'SCRAPE_START').length, 1);
+    assert.equal(logs.filter(item => item.event === 'SCRAPE_FINISH').length, 1);
+    assert.equal(logs[0].trigger, 'MANUAL');
+  } finally {
+    release(Object.assign([], {newCount:0,checkedLgus:[],failedLgus:[]}));
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
 
 test('manual and automatic requests share one run across coordinators and log accurate totals', async () => {
   assert.equal(scheduledSlot(new Date('2026-11-10T12:00:00Z')), null);
