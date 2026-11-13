@@ -15,7 +15,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _decisionVersion = 0;
 
   void _refreshPosts() {
-    if (mounted && WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused) {
+    if (mounted &&
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused) {
       unawaited(loadPostsFromSupabase());
     }
   }
@@ -24,6 +25,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _refreshPosts();
   }
+
   void _updateState(VoidCallback update) => setState(update);
 
   final _filterChanges = ValueNotifier<int>(0);
@@ -62,15 +64,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     final channel = _postsChannel;
-    if (channel != null) unawaited(SupabaseConfig.client.removeChannel(channel));
+    if (channel != null)
+      unawaited(SupabaseConfig.client.removeChannel(channel));
     _filterChanges.dispose();
     keywordController.dispose();
 
     super.dispose();
   }
 
-  final TextEditingController keywordController =
-      TextEditingController();
+  final TextEditingController keywordController = TextEditingController();
 
   final List<String> lguList = [
     'alubijid',
@@ -105,19 +107,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> loadLastSuccessfulScrape() async {
     try {
-      final response = await http.get(Uri.parse('$backendUrl/check/last-success'))
+      final response = await http
+          .get(Uri.parse('$backendUrl/check/last-success'))
           .timeout(const Duration(seconds: 15));
       if (response.statusCode != 200) return;
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final time = DateTime.tryParse(data['lastSuccessAt']?.toString() ?? '');
-      if (mounted) setState(() => lastSuccessfulScrape = time);
-    } catch (_) { /* A metadata failure must not interrupt the dashboard. */ }
+      if (mounted)
+        setState(() {
+          lastSuccessfulScrape = time;
+          sourceRefresh = (data['sources'] as List? ?? [])
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        });
+    } catch (_) {/* A metadata failure must not interrupt the dashboard. */}
   }
 
-  String statusMessage =
-      'Monitoring PhilGEPS notifications...';
+  String statusMessage = 'Monitoring PhilGEPS notifications...';
 
   String selectedStatFilter = 'all';
+  String selectedSource = 'all';
+  DateTime? publicationFrom, publicationTo, closingFrom, closingTo;
+  List<Map<String, dynamic>> sourceRefresh = [];
 
   Set<String> biddingDocsIds = {};
 
@@ -132,8 +144,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> saveBiddingDocs() async {
-    final prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
     await prefs.setStringList(
       'bidding_docs_ids',
@@ -146,24 +157,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // ---------------------------------------------------------
 
   int get biddingDocsCount {
-    return posts.where(
-      (post) =>
-          post.isBiddingDoc &&
-          !post.isDone,
-    ).length;
+    return posts
+        .where(
+          (post) => post.isBiddingDoc && !post.isDone,
+        )
+        .length;
   }
 
   int get doneCount {
-    return posts.where(
-      (post) => post.isDone,
-    ).length;
+    return posts
+        .where(
+          (post) => post.isDone,
+        )
+        .length;
   }
 
   bool isInBiddingDocs(
     ProjectPost post,
   ) {
-    return post.isBiddingDoc &&
-        !post.isDone;
+    return post.isBiddingDoc && !post.isDone;
   }
 
   // ---------------------------------------------------------
@@ -177,12 +189,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    final newValue =
-        !post.isBiddingDoc;
+    final newValue = !post.isBiddingDoc;
 
     setState(() {
-      _processingPostId =
-          post.id;
+      _processingPostId = post.id;
     });
 
     _decisionVersion++;
@@ -201,35 +211,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       setState(() {
         final index = posts.indexWhere(
-          (item) =>
-              item.id == post.id,
+          (item) => item.id == post.id,
         );
 
         if (index != -1) {
           _decisionVersion++;
-          posts[index] =
-              posts[index].copyWith(
-            isBiddingDoc:
-                newValue,
+          posts[index] = posts[index].copyWith(
+            isBiddingDoc: newValue,
 
             // If it is thumbed-up again,
             // remove it from Done.
-            isDone:
-                newValue
-                    ? false
-                    : posts[index].isDone,
+            isDone: newValue ? false : posts[index].isDone,
 
-            clearDoneAt:
-                newValue,
+            clearDoneAt: newValue,
           );
         }
 
         _processingPostId = null;
 
-        statusMessage =
-            newValue
-                ? 'Added to Bidding Documents.'
-                : 'Removed from Bidding Documents.';
+        statusMessage = newValue
+            ? 'Added to Bidding Documents.'
+            : 'Removed from Bidding Documents.';
       });
 
       _filterChanges.value++;
@@ -239,11 +241,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
 
       setState(() {
-        _processingPostId =
-            null;
+        _processingPostId = null;
 
-        statusMessage =
-            'Failed to update Bidding Documents: $e';
+        statusMessage = 'Failed to update Bidding Documents: $e';
       });
     }
   }
@@ -255,28 +255,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<bool> _confirmMarkDone(
     ProjectPost post,
   ) async {
-    final result =
-        await showDialog<bool>(
+    final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (
         dialogContext,
       ) {
         return AlertDialog(
-          shape:
-              RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
               16,
             ),
           ),
           title: const Row(
             children: [
               Icon(
-                Icons
-                    .check_circle_outline_rounded,
-                color:
-                    Color(
+                Icons.check_circle_outline_rounded,
+                color: Color(
                   0xFF087A55,
                 ),
               ),
@@ -305,8 +300,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   false,
                 );
               },
-              child:
-                  const Text(
+              child: const Text(
                 'CANCEL',
               ),
             ),
@@ -317,21 +311,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   true,
                 );
               },
-              style:
-                  FilledButton
-                      .styleFrom(
-                backgroundColor:
-                    const Color(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(
                   0xFF087A55,
                 ),
               ),
-              icon:
-                  const Icon(
-                Icons
-                    .check_rounded,
+              icon: const Icon(
+                Icons.check_rounded,
               ),
-              label:
-                  const Text(
+              label: const Text(
                 'MARK AS DONE',
               ),
             ),
@@ -354,8 +342,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    final confirmed =
-        await _confirmMarkDone(
+    final confirmed = await _confirmMarkDone(
       post,
     );
 
@@ -364,8 +351,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     setState(() {
-      _processingPostId =
-          post.id;
+      _processingPostId = post.id;
     });
 
     _decisionVersion++;
@@ -383,28 +369,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       setState(() {
         final index = posts.indexWhere(
-          (item) =>
-              item.id == post.id,
+          (item) => item.id == post.id,
         );
 
         if (index != -1) {
           _decisionVersion++;
-          posts[index] =
-              posts[index].copyWith(
-            isBiddingDoc:
-                false,
-            isDone:
-                true,
-            doneAt:
-                DateTime.now(),
+          posts[index] = posts[index].copyWith(
+            isBiddingDoc: false,
+            isDone: true,
+            doneAt: DateTime.now(),
           );
         }
 
-        _processingPostId =
-            null;
+        _processingPostId = null;
 
-        statusMessage =
-            'Bid documents marked as Done.';
+        statusMessage = 'Bid documents marked as Done.';
       });
 
       _filterChanges.value++;
@@ -413,15 +392,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return;
       }
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Bid documents completed. Project moved to Done.',
           ),
-          behavior:
-              SnackBarBehavior
-                  .floating,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
@@ -430,22 +406,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
 
       setState(() {
-        _processingPostId =
-            null;
+        _processingPostId = null;
 
-        statusMessage =
-            'Failed to mark bidding documents as Done: $e';
+        statusMessage = 'Failed to mark bidding documents as Done: $e';
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'Failed to mark as Done: $e',
           ),
-          behavior:
-              SnackBarBehavior
-                  .floating,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -459,8 +430,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     setState(() {
-      _processingPostId =
-          post.id;
+      _processingPostId = post.id;
     });
 
     _decisionVersion++;
@@ -478,26 +448,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       setState(() {
         final index = posts.indexWhere(
-          (item) =>
-              item.id == post.id,
+          (item) => item.id == post.id,
         );
 
         if (index != -1) {
           _decisionVersion++;
-          posts[index] =
-              posts[index].copyWith(
-            isDone:
-                false,
-            clearDoneAt:
-                true,
+          posts[index] = posts[index].copyWith(
+            isDone: false,
+            clearDoneAt: true,
           );
         }
 
-        _processingPostId =
-            null;
+        _processingPostId = null;
 
-        statusMessage =
-            'Done status removed.';
+        statusMessage = 'Done status removed.';
       });
 
       _filterChanges.value++;
@@ -506,15 +470,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return;
       }
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Done status removed.',
           ),
-          behavior:
-              SnackBarBehavior
-                  .floating,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
@@ -523,22 +484,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
 
       setState(() {
-        _processingPostId =
-            null;
+        _processingPostId = null;
 
-        statusMessage =
-            'Failed to undo Done status: $e';
+        statusMessage = 'Failed to undo Done status: $e';
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'Failed to undo Done: $e',
           ),
-          behavior:
-              SnackBarBehavior
-                  .floating,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -551,36 +507,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   static const backendUrl = String.fromEnvironment('SCRAPER_BACKEND_URL',
       defaultValue: 'https://philgepsnotifalert-production.up.railway.app');
 
-  double get maxWidth =>
-      1240;
+  double get maxWidth => 1240;
 
   int get urgentCount {
     return posts.where(
       (post) {
-        final s =
-            getDeadlineStatus(
+        final s = getDeadlineStatus(
           post.closingDate,
         );
 
-        return s ==
-                DeadlineStatus
-                    .urgent ||
-            s ==
-                DeadlineStatus
-                    .near;
+        return s == DeadlineStatus.urgent || s == DeadlineStatus.near;
       },
     ).length;
   }
 
   int get newCount {
-    return posts.where(
-      (post) =>
-          isNewPost(post),
-    ).length;
+    return posts
+        .where(
+          (post) => isNewPost(post),
+        )
+        .length;
   }
 
-  final NumberFormat abcFormatter =
-      NumberFormat(
+  final NumberFormat abcFormatter = NumberFormat(
     '#,##0.00',
     'en_US',
   );
@@ -590,35 +539,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // ---------------------------------------------------------
 
   List<ProjectPost> get filteredPosts {
-    final keyword =
-        keywordController.text
-            .toLowerCase()
-            .trim();
+    final keyword = keywordController.text.toLowerCase().trim();
 
-    List<ProjectPost> basePosts =
-        posts;
+    List<ProjectPost> basePosts = posts;
 
-    if (selectedStatFilter ==
-        'near') {
+    if (selectedStatFilter == 'near') {
       basePosts = posts.where(
         (post) {
-          final s =
-              getDeadlineStatus(
+          final s = getDeadlineStatus(
             post.closingDate,
           );
 
-          return s ==
-                  DeadlineStatus
-                      .urgent ||
-              s ==
-                  DeadlineStatus
-                      .near;
+          return s == DeadlineStatus.urgent || s == DeadlineStatus.near;
         },
       ).toList();
     }
 
-    if (selectedStatFilter ==
-        'new') {
+    if (selectedStatFilter == 'new') {
       basePosts = posts.where(
         (post) {
           return isNewPost(post);
@@ -626,18 +563,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ).toList();
     }
 
-    if (selectedStatFilter ==
-        'bidding') {
+    if (selectedStatFilter == 'bidding') {
       basePosts = posts.where(
         (post) {
-          return post.isBiddingDoc &&
-              !post.isDone;
+          return post.isBiddingDoc && !post.isDone;
         },
       ).toList();
     }
 
-    if (selectedStatFilter ==
-        'done') {
+    if (selectedStatFilter == 'done') {
       basePosts = posts.where(
         (post) {
           return post.isDone;
@@ -645,14 +579,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ).toList();
     }
 
+    bool inRange(String value, DateTime? from, DateTime? to) {
+      if (from == null && to == null) return true;
+      final instant = _parseDate(value);
+      if (instant == null) return false;
+      final local = philippineTime(instant);
+      final day = DateTime(local.year, local.month, local.day);
+      return (from == null || !day.isBefore(from)) &&
+          (to == null || !day.isAfter(to));
+    }
+
+    basePosts = basePosts
+        .where((post) =>
+            (selectedSource == 'all' || post.source == selectedSource) &&
+            inRange(post.postingDate, publicationFrom, publicationTo) &&
+            inRange(post.closingDate, closingFrom, closingTo))
+        .toList();
     if (keyword.isEmpty) {
       return basePosts;
     }
 
     return basePosts.where(
       (post) {
-        final searchableText =
-            '''
+        final searchableText = '''
 ${post.lgu}
 ${post.title}
 ${post.referenceNumber}
@@ -660,15 +609,16 @@ ${post.procuringEntity}
 ${post.areaOfDelivery}
 ${post.deliveryPeriod}
 ${post.classification}
+${post.procurementMode}
+${post.sourceLabel}
 ${post.postingDate}
 ${post.closingDate}
 ${post.url}
 ${post.abc}
 '''
-                .toLowerCase();
+            .toLowerCase();
 
-        return searchableText
-            .contains(
+        return searchableText.contains(
           keyword,
         );
       },
@@ -684,14 +634,21 @@ ${post.abc}
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      if (mounted) { setState(() {}); _filterChanges.value++; }
+      if (mounted) {
+        setState(() {});
+        _filterChanges.value++;
+      }
       _refreshPosts();
       unawaited(loadLastSuccessfulScrape());
     });
-    _postsChannel = SupabaseConfig.client.channel('dashboard-posts')
-      .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
-        table: 'philgeps_posts', callback: (_) => _refreshPosts())
-      .subscribe();
+    _postsChannel = SupabaseConfig.client
+        .channel('dashboard-posts')
+        .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'philgeps_posts',
+            callback: (_) => _refreshPosts())
+        .subscribe();
 
     Future.microtask(
       () {
@@ -703,32 +660,33 @@ ${post.abc}
   }
 
   Future<void> loadSavedData() async {
-    final prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      keywordController.text =
-          prefs.getString(
-                'keywords',
-              ) ??
-              '';
+      final savedSource = prefs.getString('opportunity_source') ?? 'all';
+      selectedSource = const ['all', 'existing', 'modern'].contains(savedSource)
+          ? savedSource
+          : 'all';
+      keywordController.text = prefs.getString(
+            'keywords',
+          ) ??
+          '';
 
-      biddingDocsIds =
-          (prefs.getStringList(
-                    'bidding_docs_ids',
-                  ) ??
-                  [])
-              .toSet();
+      biddingDocsIds = (prefs.getStringList(
+                'bidding_docs_ids',
+              ) ??
+              [])
+          .toSet();
     });
   }
 
   Future<void> saveData() async {
-    final prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('opportunity_source', selectedSource);
 
     await prefs.setString(
       'keywords',
@@ -740,47 +698,34 @@ ${post.abc}
   // LOAD ALL SUPABASE POSTS
   // ---------------------------------------------------------
 
-  Future<
-      List<
-          Map<String, dynamic>>>
-      fetchAllPhilgepsPosts() async {
-    const int pageSize =
-        1000;
+  Future<List<Map<String, dynamic>>> fetchAllPhilgepsPosts() async {
+    const int pageSize = 1000;
 
     int from = 0;
 
-    final List<
-            Map<String, dynamic>>
-        allRows = [];
+    final List<Map<String, dynamic>> allRows = [];
 
     while (true) {
-      final response =
-          await SupabaseConfig
-              .client
-              .from(
-                'philgeps_posts',
-              )
-              .select()
-              .order(
-                'created_at',
-                ascending: false,
-              )
-              .order(
-                'id',
-                ascending: false,
-              )
-              .range(
-                from,
-                from +
-                    pageSize -
-                    1,
-              );
+      final response = await SupabaseConfig.client
+          .from(
+            'philgeps_posts',
+          )
+          .select()
+          .order(
+            'created_at',
+            ascending: false,
+          )
+          .order(
+            'id',
+            ascending: false,
+          )
+          .range(
+            from,
+            from + pageSize - 1,
+          );
 
-      final List<
-              Map<String, dynamic>>
-          currentPage =
-          List<
-              Map<String, dynamic>>.from(
+      final List<Map<String, dynamic>> currentPage =
+          List<Map<String, dynamic>>.from(
         response,
       );
 
@@ -790,8 +735,7 @@ ${post.abc}
 
       // If fewer than 1000 records were returned,
       // this is the final page.
-      if (currentPage.length <
-          pageSize) {
+      if (currentPage.length < pageSize) {
         break;
       }
 
@@ -806,28 +750,25 @@ ${post.abc}
     if (active != null) return active;
     final request = _loadPostsFromSupabase();
     _postsLoad = request;
-    return request.whenComplete(() { _postsLoad = null; });
+    return request.whenComplete(() {
+      _postsLoad = null;
+    });
   }
 
   Future<void> _loadPostsFromSupabase() async {
     final decisionVersion = _decisionVersion;
     try {
-      final List<
-              Map<String, dynamic>>
-          response =
-          await fetchAllPhilgepsPosts();
+      final List<Map<String, dynamic>> response = await fetchAllPhilgepsPosts();
 
       // ProjectPost.fromJson now also reads:
       // is_bidding_doc
       // is_done
       // done_at
-      final List<ProjectPost>
-          items = response
-              .map(
-                ProjectPost
-                    .fromJson,
-              )
-              .toList();
+      final List<ProjectPost> items = response
+          .map(
+            ProjectPost.fromJson,
+          )
+          .toList();
 
       if (!mounted) {
         return;
@@ -835,18 +776,23 @@ ${post.abc}
 
       setState(() {
         // Keep decisions changed locally while this request was in flight.
-        posts = decisionVersion == _decisionVersion ? items : items.map((item) {
-          final matches = posts.where((p) => p.id == item.id);
-          final previous = matches.isEmpty ? null : matches.first;
-          return previous == null ? item : item.copyWith(
-            isBiddingDoc: previous.isBiddingDoc, isDone: previous.isDone,
-            doneAt: previous.doneAt, clearDoneAt: previous.doneAt == null);
-        }).toList();
+        posts = decisionVersion == _decisionVersion
+            ? items
+            : items.map((item) {
+                final matches = posts.where((p) => p.id == item.id);
+                final previous = matches.isEmpty ? null : matches.first;
+                return previous == null
+                    ? item
+                    : item.copyWith(
+                        isBiddingDoc: previous.isBiddingDoc,
+                        isDone: previous.isDone,
+                        doneAt: previous.doneAt,
+                        clearDoneAt: previous.doneAt == null);
+              }).toList();
 
         sortByDeadline();
 
-        statusMessage =
-            'Loaded all ${posts.length} post(s) from Supabase.';
+        statusMessage = 'Loaded all ${posts.length} post(s) from Supabase.';
         _lastPostsLoadSucceeded = true;
       });
 
@@ -858,8 +804,7 @@ ${post.abc}
       }
 
       setState(() {
-        statusMessage =
-            'Failed to load posts from Supabase: $e';
+        statusMessage = 'Failed to load posts from Supabase: $e';
       });
     }
   }
@@ -870,12 +815,17 @@ ${post.abc}
 
   Future<void> checkPhilgeps() async {
     if (isLoading) return;
-    setState(() { isLoading = true; checkButtonLabel = 'Checking PhilGEPS...'; });
+    setState(() {
+      isLoading = true;
+      checkButtonLabel = 'Checking PhilGEPS...';
+    });
     ScrapeApi? api;
     try {
       if (SupabaseConfig.client.auth.currentSession == null) {
-        final signedIn = await showDialog<bool>(context: context,
-            barrierDismissible: false, builder: (_) => const _ScraperSignIn());
+        final signedIn = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const _ScraperSignIn());
         if (!mounted) return;
         if (signedIn != true) {
           setState(() => checkButtonLabel = 'Check Updates');
@@ -883,15 +833,20 @@ ${post.abc}
         }
       }
       if (!mounted) return;
-      setState(() => statusMessage = 'Checking all monitored LGUs through Railway...');
-      api = ScrapeApi(baseUrl: backendUrl, accessToken: () async {
-        var session = SupabaseConfig.client.auth.currentSession;
-        if (session != null && session.isExpired) {
-          session = (await SupabaseConfig.client.auth.refreshSession()).session;
-        }
-        if (session == null) throw Exception('Sign in again to check updates.');
-        return session.accessToken;
-      });
+      setState(() =>
+          statusMessage = 'Checking all monitored LGUs through Railway...');
+      api = ScrapeApi(
+          baseUrl: backendUrl,
+          accessToken: () async {
+            var session = SupabaseConfig.client.auth.currentSession;
+            if (session != null && session.isExpired) {
+              session =
+                  (await SupabaseConfig.client.auth.refreshSession()).session;
+            }
+            if (session == null)
+              throw Exception('Sign in again to check updates.');
+            return session.accessToken;
+          });
       final result = await api.check();
       if (!mounted) return;
       // Fetch a fresh complete dataset only after confirmed backend completion.
@@ -901,13 +856,17 @@ ${post.abc}
       await loadPostsFromSupabase();
       if (!mounted) return;
       if (!_lastPostsLoadSucceeded) {
-        throw Exception('Scrape completed, but the dashboard could not refresh: $statusMessage');
+        throw Exception(
+            'Scrape completed, but the dashboard could not refresh: $statusMessage');
       }
       final run = result['run'] as Map<String, dynamic>;
       final newCount = (run['newCount'] as num?)?.toInt() ?? 0;
       setState(() {
-        checkButtonLabel = newCount == 0 ? 'No new opportunities found' : 'Updated successfully';
-        lastSuccessfulScrape = DateTime.tryParse(result['lastSuccessAt']?.toString() ?? '');
+        checkButtonLabel = newCount == 0
+            ? 'No new opportunities found'
+            : 'Updated successfully';
+        lastSuccessfulScrape =
+            DateTime.tryParse(result['lastSuccessAt']?.toString() ?? '');
         statusMessage = newCount == 0
             ? 'Check completed. No new opportunities found.'
             : 'Check completed. $newCount new opportunities found.';
@@ -923,6 +882,9 @@ ${post.abc}
       }
     } finally {
       api?.close();
+      await loadLastSuccessfulScrape();
+      // A partial source failure may still have saved opportunities from the other portal.
+      if (mounted) await loadPostsFromSupabase();
       if (mounted) setState(() => isLoading = false);
     }
   }
@@ -943,7 +905,8 @@ ${post.abc}
     });
   }
 
-  bool isNewPost(ProjectPost post) => discoveredWithin24Hours(post.discoveredAt);
+  bool isNewPost(ProjectPost post) =>
+      discoveredWithin24Hours(post.discoveredAt);
 
   // ---------------------------------------------------------
   // DEADLINE HELPERS
@@ -952,34 +915,28 @@ ${post.abc}
   DeadlineStatus getDeadlineStatus(
     String dateText,
   ) {
-    final date =
-        _parseDate(
+    final date = _parseDate(
       dateText,
     );
 
     if (date == null) {
-      return DeadlineStatus
-          .unknown;
+      return DeadlineStatus.unknown;
     }
 
-    final diff =
-        date.difference(
+    final diff = date.difference(
       DateTime.now(),
     );
 
     if (diff.isNegative) {
-      return DeadlineStatus
-          .closed;
+      return DeadlineStatus.closed;
     }
 
     if (diff.inHours <= 24) {
-      return DeadlineStatus
-          .urgent;
+      return DeadlineStatus.urgent;
     }
 
     if (diff.inHours <= 72) {
-      return DeadlineStatus
-          .near;
+      return DeadlineStatus.near;
     }
 
     return DeadlineStatus.safe;
@@ -1009,8 +966,7 @@ ${post.abc}
   String getCountdown(
     String dateText,
   ) {
-    final date =
-        _parseDate(
+    final date = _parseDate(
       dateText,
     );
 
@@ -1018,8 +974,7 @@ ${post.abc}
       return 'No closing date';
     }
 
-    final diff =
-        date.difference(
+    final diff = date.difference(
       DateTime.now(),
     );
 
@@ -1027,14 +982,11 @@ ${post.abc}
       return 'Closed';
     }
 
-    final days =
-        diff.inDays;
+    final days = diff.inDays;
 
-    final hours =
-        diff.inHours % 24;
+    final hours = diff.inHours % 24;
 
-    final minutes =
-        diff.inMinutes % 60;
+    final minutes = diff.inMinutes % 60;
 
     if (days > 0) {
       return '${days}d ${hours}h';
@@ -1050,12 +1002,10 @@ ${post.abc}
   String formatDate(
     String dateText,
   ) {
-    return _formattedDates
-        .putIfAbsent(
+    return _formattedDates.putIfAbsent(
       dateText,
       () {
-        final date =
-            _parseDate(
+        final date = _parseDate(
           dateText,
         );
 
@@ -1089,148 +1039,103 @@ ${post.abc}
     BuildContext context,
   ) {
     return Scaffold(
-      backgroundColor:
-          _DashboardColors.background,
+      backgroundColor: _DashboardColors.background,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (
             context,
             constraints,
           ) {
-            final isWide =
-                constraints.maxWidth >=
-                    850;
+            final isWide = constraints.maxWidth >= 850;
 
-            final pagePadding =
-                isWide
-                    ? 24.0
-                    : 16.0;
+            final pagePadding = isWide ? 24.0 : 16.0;
 
-            final horizontal =
-                constraints.maxWidth >
-                        maxWidth +
-                            pagePadding *
-                                2
-                    ? (constraints
-                                .maxWidth -
-                            maxWidth) /
-                        2
-                    : pagePadding;
+            final horizontal = constraints.maxWidth > maxWidth + pagePadding * 2
+                ? (constraints.maxWidth - maxWidth) / 2
+                : pagePadding;
 
             return CustomScrollView(
               slivers: [
                 SliverPadding(
-                  padding:
-                      EdgeInsets
-                          .fromLTRB(
+                  padding: EdgeInsets.fromLTRB(
                     horizontal,
                     pagePadding,
                     horizontal,
                     20,
                   ),
-                  sliver:
-                      SliverToBoxAdapter(
-                    child:
-                        buildHero(
+                  sliver: SliverToBoxAdapter(
+                    child: buildHero(
                       isWide,
                     ),
                   ),
                 ),
                 SliverPadding(
-                  padding:
-                      EdgeInsets
-                          .fromLTRB(
+                  padding: EdgeInsets.fromLTRB(
                     horizontal,
                     0,
                     horizontal,
                     pagePadding,
                   ),
-                  sliver:
-                      DecoratedSliver(
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          const Color(
+                  sliver: DecoratedSliver(
+                    decoration: BoxDecoration(
+                      color: const Color(
                         0xFFFCFDFC,
                       ),
-                      border:
-                          Border.all(
-                        color:
-                            const Color(
+                      border: Border.all(
+                        color: const Color(
                           0xFFE5E7EB,
                         ),
                       ),
-                      borderRadius:
-                          BorderRadius
-                              .circular(
+                      borderRadius: BorderRadius.circular(
                         18,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color:
-                              Colors
-                                  .black
-                                  .withValues(
-                            alpha:
-                                0.025,
+                          color: Colors.black.withValues(
+                            alpha: 0.025,
                           ),
-                          blurRadius:
-                              16,
-                          offset:
-                              const Offset(
+                          blurRadius: 16,
+                          offset: const Offset(
                             0,
                             4,
                           ),
                         ),
                       ],
                     ),
-                    sliver:
-                        SliverPadding(
-                      padding:
-                          EdgeInsets.all(
-                        isWide
-                            ? 24
-                            : 20,
+                    sliver: SliverPadding(
+                      padding: EdgeInsets.all(
+                        isWide ? 24 : 20,
                       ),
-                      sliver:
-                          ValueListenableBuilder<
-                              int>(
-                        valueListenable:
-                            _filterChanges,
+                      sliver: ValueListenableBuilder<int>(
+                        valueListenable: _filterChanges,
 
                         // Filter changes reuse the search subtree
                         // and leave the header alone.
-                        child:
-                            buildFilterSection(),
+                        child: buildFilterSection(),
 
                         builder: (
                           context,
                           _,
                           search,
                         ) {
-                          final visiblePosts =
-                              filteredPosts;
+                          final visiblePosts = filteredPosts;
 
                           return SliverMainAxisGroup(
                             slivers: [
                               SliverToBoxAdapter(
-                                child:
-                                    Column(
+                                child: Column(
                                   crossAxisAlignment:
-                                      CrossAxisAlignment
-                                          .stretch,
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     buildStats(
                                       isWide,
                                     ),
                                     const SizedBox(
-                                      height:
-                                          20,
+                                      height: 20,
                                     ),
                                     search!,
                                     buildStatusMessage(
-                                      visiblePosts
-                                          .length,
+                                      visiblePosts.length,
                                     ),
                                   ],
                                 ),

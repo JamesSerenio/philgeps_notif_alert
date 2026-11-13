@@ -1,5 +1,7 @@
 # philgeps_notif_alert
 
+Modern PhilGEPS integration and deployment: [setup, public verification and limitations](docs/modern_philgeps.md).
+
 For the daily 6 AM Philippine-time Railway scraper, secure manual checks, and required production settings, see [Scraper deployment guide](docs/scraper_schedule.md).
 
 A new Flutter project.

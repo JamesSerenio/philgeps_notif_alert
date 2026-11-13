@@ -100,11 +100,11 @@ class NotificationService {
 Future<void> openPhilgepsLink(String url) async {
   if (url.isEmpty) return;
 
-  final uri = Uri.parse(url);
-
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
+  final uri = Uri.tryParse(url);
+  if (uri == null || !const ['https', 'http'].contains(uri.scheme)) return;
+  // Launch directly from the tap: preflight checks can return false on mobile
+  // and can lose the browser's user-gesture window for opening a new tab.
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
