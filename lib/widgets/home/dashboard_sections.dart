@@ -86,7 +86,8 @@ extension _DashboardSections on _HomePageState {
           ),
         ),
         const SizedBox(width: 7),
-        const Flexible(child: Text(
+        const Flexible(
+            child: Text(
           'LIVE MONITOR',
           style: TextStyle(
             color: Color(0xFFD5E7DE),
@@ -99,10 +100,14 @@ extension _DashboardSections on _HomePageState {
     );
 
     final live = Column(
-      crossAxisAlignment: isWide ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment:
+          isWide ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
-      children: [liveIndicator, const SizedBox(height: 6),
-        Text(lastScrapeLabel, style: const TextStyle(fontSize: 10, color: Color(0xFFD5E7DE))),
+      children: [
+        liveIndicator,
+        const SizedBox(height: 6),
+        Text(lastScrapeLabel,
+            style: const TextStyle(fontSize: 10, color: Color(0xFFD5E7DE))),
       ],
     );
 
@@ -237,8 +242,7 @@ extension _DashboardSections on _HomePageState {
                     ? 2
                     : 1;
 
-        final width =
-            (constraints.maxWidth - (columns - 1) * 12) / columns;
+        final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
 
         return Wrap(
           spacing: 12,
@@ -328,7 +332,8 @@ extension _DashboardSections on _HomePageState {
                   color: _DashboardColors.green,
                 ),
                 SizedBox(width: 8),
-                Expanded(child: Text(
+                Expanded(
+                    child: Text(
                   'Search Opportunities',
                   style: TextStyle(
                     fontSize: 15,
@@ -340,11 +345,79 @@ extension _DashboardSections on _HomePageState {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Find a project by title, LGU, reference number, entity, or delivery area.',
+              'Search refreshed notices by title, reference, agency, location, classification, or procurement mode.',
               style: TextStyle(
                 fontSize: 12,
                 color: _DashboardColors.muted,
               ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final entry in const {
+                  'all': 'All Sources',
+                  'modern': 'Modern PhilGEPS',
+                  'existing': 'Existing PhilGEPS'
+                }.entries)
+                  ChoiceChip(
+                    label: Text(entry.value),
+                    selected: selectedSource == entry.key,
+                    onSelected: (_) {
+                      _updateState(() => selectedSource = entry.key);
+                      saveData();
+                    },
+                  ),
+              ],
+            ),
+            for (final source in sourceRefresh)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '${source['source'] == 'modern' ? 'Modern PhilGEPS' : 'Existing PhilGEPS'}: '
+                  '${source['error'] != null ? 'Update failed — ${source['error']}. Use Check Updates to retry. ' : ''}'
+                  'Last success: ${source['last_success_at'] == null ? 'unavailable' : formatDate(source['last_success_at'].toString())}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final field
+                    in <(String, DateTime?, void Function(DateTime?))>[
+                  (
+                    'Published from',
+                    publicationFrom,
+                    (value) => publicationFrom = value
+                  ),
+                  (
+                    'Published to',
+                    publicationTo,
+                    (value) => publicationTo = value
+                  ),
+                  ('Closing from', closingFrom, (value) => closingFrom = value),
+                  ('Closing to', closingTo, (value) => closingTo = value),
+                ])
+                  InputChip(
+                    label: Text(
+                        '${field.$1}${field.$2 == null ? '' : ': ${DateFormat('yyyy-MM-dd').format(field.$2!)}'}'),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                          context: context,
+                          initialDate: field.$2 ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100));
+                      if (date != null && mounted)
+                        _updateState(() => field.$3(date));
+                    },
+                    onDeleted: field.$2 == null
+                        ? null
+                        : () => _updateState(() => field.$3(null)),
+                  ),
+              ],
             ),
             const SizedBox(height: 12),
             TextField(
@@ -484,7 +557,8 @@ extension _DashboardSections on _HomePageState {
         'Reference No.: ${post.referenceNumber.isEmpty ? '\u2014' : post.referenceNumber}',
         'ABC: \u20b1${abcFormatter.format(post.abc)}',
         'Posted: ${formatDate(post.postingDate)}',
-        if (post.discoveredAt != null) 'First discovered: ${formatDate(post.discoveredAt!.toIso8601String())}',
+        if (post.discoveredAt != null)
+          'First discovered: ${formatDate(post.discoveredAt!.toIso8601String())}',
         'Closing: ${formatDate(post.closingDate)}',
       ].join('\n');
 
@@ -500,7 +574,6 @@ extension _DashboardSections on _HomePageState {
         _CopyProjectButton(
           details: _formatProjectDetails(post),
         ),
-
         IconButton(
           tooltip: post.isDone
               ? 'Add back to Bidding Documents'
@@ -508,9 +581,7 @@ extension _DashboardSections on _HomePageState {
                   ? 'Remove from Bidding Docs'
                   : 'Add to Bidding Docs',
           isSelected: isInBiddingDocs(post),
-          onPressed: processing
-              ? null
-              : () => toggleBiddingDocs(post),
+          onPressed: processing ? null : () => toggleBiddingDocs(post),
           icon: const Icon(
             Icons.thumb_up_alt_outlined,
             size: 18,
@@ -522,8 +593,7 @@ extension _DashboardSections on _HomePageState {
           style: IconButton.styleFrom(
             foregroundColor: _DashboardColors.green,
             backgroundColor: const Color(0xFFF1F7F3),
-            disabledForegroundColor:
-                _DashboardColors.muted.withValues(
+            disabledForegroundColor: _DashboardColors.muted.withValues(
               alpha: .6,
             ),
             disabledBackgroundColor: const Color(0xFFF5F6F5),
@@ -551,12 +621,9 @@ extension _DashboardSections on _HomePageState {
             ),
           ),
         ),
-
         if (post.isBiddingDoc && !post.isDone)
           FilledButton.icon(
-            onPressed: processing
-                ? null
-                : () => markBiddingDocsDone(post),
+            onPressed: processing ? null : () => markBiddingDocsDone(post),
             icon: processing
                 ? const SizedBox(
                     width: 14,
@@ -576,8 +643,7 @@ extension _DashboardSections on _HomePageState {
             style: FilledButton.styleFrom(
               backgroundColor: _DashboardColors.green,
               foregroundColor: Colors.white,
-              disabledBackgroundColor:
-                  _DashboardColors.green.withValues(
+              disabledBackgroundColor: _DashboardColors.green.withValues(
                 alpha: .55,
               ),
               disabledForegroundColor: Colors.white,
@@ -595,12 +661,9 @@ extension _DashboardSections on _HomePageState {
               ),
             ),
           ),
-
         if (post.isDone)
           OutlinedButton.icon(
-            onPressed: processing
-                ? null
-                : () => undoBiddingDocsDone(post),
+            onPressed: processing ? null : () => undoBiddingDocsDone(post),
             icon: processing
                 ? const SizedBox(
                     width: 14,
@@ -640,36 +703,31 @@ extension _DashboardSections on _HomePageState {
   }
 
   Widget buildPostCard(ProjectPost post) {
-    final deadlineStatus =
-        getDeadlineStatus(
+    final deadlineStatus = getDeadlineStatus(
       post.closingDate,
     );
 
     final statusColor = switch (deadlineStatus) {
-      DeadlineStatus.urgent ||
-      DeadlineStatus.closed =>
-        _DashboardColors.danger,
-      DeadlineStatus.near =>
-        _DashboardColors.orange,
-      DeadlineStatus.safe =>
-        _DashboardColors.secondary,
+      DeadlineStatus.urgent || DeadlineStatus.closed => _DashboardColors.danger,
+      DeadlineStatus.near => _DashboardColors.orange,
+      DeadlineStatus.safe => _DashboardColors.secondary,
       _ => _DashboardColors.muted,
     };
 
-    final countdown =
-        getCountdown(
+    final countdown = getCountdown(
       post.closingDate,
     );
 
     return Padding(
+      key: ValueKey('notice-card:${post.id}'),
       padding: const EdgeInsets.only(
         bottom: 12,
       ),
       child: _DashboardSurface(
+        onTap: post.isModern ? () => openPhilgepsLink(post.url) : null,
         child: SelectionArea(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               LayoutBuilder(
                 builder: (
@@ -680,56 +738,55 @@ extension _DashboardSections on _HomePageState {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
+                      TextButton(
+                        onPressed: () => openPhilgepsLink(post.sourceUrl),
+                        child: Text(post.sourceLabel),
+                      ),
+                      if (post.documentStatus == 'unverified')
+                        _StatusBadge(post.documentLabel)
+                      else
+                        TextButton(
+                          onPressed: () => openPhilgepsLink(
+                              post.documentUrl.isEmpty
+                                  ? post.url
+                                  : post.documentUrl),
+                          child: Text(post.documentLabel),
+                        ),
                       _StatusBadge(
-                        isNewPost(post)
-                            ? 'NEW'
-                            : 'OLD',
+                        isNewPost(post) ? 'NEW' : 'OLD',
                         color: isNewPost(post)
                             ? _DashboardColors.goldText
                             : _DashboardColors.muted,
                       ),
-
                       _StatusBadge(
-                        deadlineStatus ==
-                                DeadlineStatus.closed
+                        deadlineStatus == DeadlineStatus.closed
                             ? 'Closed'
-                            : deadlineStatus ==
-                                    DeadlineStatus.unknown
+                            : deadlineStatus == DeadlineStatus.unknown
                                 ? countdown
                                 : 'Closes in $countdown',
                         color: statusColor,
-                        icon:
-                            Icons.schedule_rounded,
+                        icon: Icons.schedule_rounded,
                       ),
-
-                      if (post.isBiddingDoc &&
-                          !post.isDone)
+                      if (post.isBiddingDoc && !post.isDone)
                         const _StatusBadge(
                           'Bidding document',
                         ),
-
                       if (post.isDone)
                         const _StatusBadge(
                           'Done',
-                          color:
-                              _DashboardColors.green,
-                          icon: Icons
-                              .check_circle_rounded,
+                          color: _DashboardColors.green,
+                          icon: Icons.check_circle_rounded,
                         ),
                     ],
                   );
 
-                  final actions =
-                      SelectionContainer.disabled(
-                    child:
-                        _postActions(post),
+                  final actions = SelectionContainer.disabled(
+                    child: _postActions(post),
                   );
 
-                  if (constraints.maxWidth >=
-                      820) {
+                  if (constraints.maxWidth >= 820) {
                     return Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: badges,
@@ -743,63 +800,51 @@ extension _DashboardSections on _HomePageState {
                   }
 
                   return Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       badges,
                       const SizedBox(
                         height: 10,
                       ),
                       Align(
-                        alignment:
-                            Alignment.centerRight,
+                        alignment: Alignment.centerRight,
                         child: actions,
                       ),
                     ],
                   );
                 },
               ),
-
               const SizedBox(
                 height: 12,
               ),
-
               Tooltip(
                 message: post.title,
                 child: Text(
                   post.title,
                   maxLines: 3,
-                  overflow:
-                      TextOverflow.ellipsis,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 17,
                     height: 1.4,
-                    fontWeight:
-                        FontWeight.w600,
-                    color:
-                        _DashboardColors.ink,
+                    fontWeight: FontWeight.w600,
+                    color: _DashboardColors.ink,
                   ),
                 ),
               ),
-
               const SizedBox(
                 height: 6,
               ),
-
               Text(
                 post.procuringEntity,
                 style: const TextStyle(
                   fontSize: 13,
                   height: 1.4,
-                  color:
-                      _DashboardColors.muted,
+                  color: _DashboardColors.muted,
                 ),
               ),
-
               const SizedBox(
                 height: 10,
               ),
-
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
@@ -808,56 +853,42 @@ extension _DashboardSections on _HomePageState {
                     toTitleCase(
                       post.lgu,
                     ),
-                    color:
-                        _DashboardColors.muted,
-                    icon: Icons
-                        .location_city_outlined,
+                    color: _DashboardColors.muted,
+                    icon: Icons.location_city_outlined,
                   ),
                   _StatusBadge(
                     post.classification,
-                    color:
-                        _DashboardColors.muted,
+                    color: _DashboardColors.muted,
                   ),
                   _StatusBadge(
                     post.areaOfDelivery,
-                    color:
-                        _DashboardColors.muted,
-                    icon:
-                        Icons.place_outlined,
+                    color: _DashboardColors.muted,
+                    icon: Icons.place_outlined,
                   ),
                 ],
               ),
-
               const Padding(
-                padding:
-                    EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                   vertical: 14,
                 ),
                 child: Divider(
                   height: 1,
-                  color:
-                      _DashboardColors.border,
+                  color: _DashboardColors.border,
                 ),
               ),
-
               LayoutBuilder(
                 builder: (
                   context,
                   constraints,
                 ) {
-                  final columns =
-                      constraints.maxWidth >= 900
-                          ? 4
-                          : constraints.maxWidth >=
-                                  300
-                              ? 2
-                              : 1;
+                  final columns = constraints.maxWidth >= 900
+                      ? 4
+                      : constraints.maxWidth >= 300
+                          ? 2
+                          : 1;
 
                   final width =
-                      (constraints.maxWidth -
-                              (columns - 1) *
-                                  16) /
-                          columns;
+                      (constraints.maxWidth - (columns - 1) * 16) / columns;
 
                   final fields = <Widget>[
                     _OpportunityDatum(
@@ -869,8 +900,7 @@ extension _DashboardSections on _HomePageState {
                       post.budgetType,
                       '₱${abcFormatter.format(post.abc)}',
                       emphasized: true,
-                      color:
-                          _DashboardColors.green,
+                      color: _DashboardColors.green,
                     ),
                     _OpportunityDatum(
                       'Posted',
@@ -879,7 +909,8 @@ extension _DashboardSections on _HomePageState {
                       ),
                     ),
                     if (post.discoveredAt != null)
-                      _OpportunityDatum('First discovered', formatDate(post.discoveredAt!.toIso8601String())),
+                      _OpportunityDatum('First discovered',
+                          formatDate(post.discoveredAt!.toIso8601String())),
                     _OpportunityDatum(
                       'Closing',
                       formatDate(
@@ -887,7 +918,6 @@ extension _DashboardSections on _HomePageState {
                       ),
                       color: statusColor,
                     ),
-
                     if (post.isDone)
                       _OpportunityDatum(
                         'Completed',
@@ -897,8 +927,7 @@ extension _DashboardSections on _HomePageState {
                                 post.doneAt,
                               ),
                         emphasized: true,
-                        color:
-                            _DashboardColors.green,
+                        color: _DashboardColors.green,
                       ),
                   ];
 
@@ -915,38 +944,28 @@ extension _DashboardSections on _HomePageState {
                   );
                 },
               ),
-
               const SizedBox(
                 height: 10,
               ),
-
               Align(
-                alignment:
-                    Alignment.centerRight,
-                child:
-                    SelectionContainer.disabled(
+                alignment: Alignment.centerRight,
+                child: SelectionContainer.disabled(
                   child: TextButton.icon(
-                    onPressed: () =>
-                        openPhilgepsLink(
+                    onPressed: () => openPhilgepsLink(
                       post.url,
                     ),
                     icon: const Icon(
-                      Icons
-                          .open_in_new_rounded,
+                      Icons.open_in_new_rounded,
                       size: 15,
                     ),
-                    label: const Text(
-                      'View PhilGEPS',
+                    label: Text(
+                      post.isModern ? 'Official bid notice' : 'View PhilGEPS',
                     ),
-                    style:
-                        TextButton.styleFrom(
-                      foregroundColor:
-                          _DashboardColors.green,
-                      textStyle:
-                          const TextStyle(
+                    style: TextButton.styleFrom(
+                      foregroundColor: _DashboardColors.green,
+                      textStyle: const TextStyle(
                         fontSize: 12,
-                        fontWeight:
-                            FontWeight.w600,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -960,24 +979,13 @@ extension _DashboardSections on _HomePageState {
   }
 
   Widget _emptyState() {
-    final keyword =
-        keywordController.text
-            .trim()
-            .isNotEmpty;
+    final keyword = keywordController.text.trim().isNotEmpty;
 
-    final bidding =
-        selectedStatFilter ==
-                'bidding' &&
-            !keyword;
+    final bidding = selectedStatFilter == 'bidding' && !keyword;
 
-    final done =
-        selectedStatFilter ==
-                'done' &&
-            !keyword;
+    final done = selectedStatFilter == 'done' && !keyword;
 
-    final noPosts =
-        posts.isEmpty &&
-            !isLoading;
+    final noPosts = posts.isEmpty && !isLoading;
 
     final title = bidding
         ? 'No bidding documents selected yet'
@@ -985,11 +993,9 @@ extension _DashboardSections on _HomePageState {
             ? 'No completed bid documents yet'
             : keyword
                 ? 'No opportunities found'
-                : selectedStatFilter ==
-                        'near'
+                : selectedStatFilter == 'near'
                     ? 'No approaching deadlines'
-                    : selectedStatFilter ==
-                            'new'
+                    : selectedStatFilter == 'new'
                         ? 'No new posts'
                         : 'No opportunities yet';
 
@@ -1005,66 +1011,45 @@ extension _DashboardSections on _HomePageState {
 
     return _DashboardSurface(
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
           vertical: 16,
         ),
         child: Column(
           children: [
             Icon(
               bidding
-                  ? Icons
-                      .folder_open_outlined
+                  ? Icons.folder_open_outlined
                   : done
-                      ? Icons
-                          .check_circle_outline_rounded
-                      : Icons
-                          .search_off_rounded,
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.search_off_rounded,
               size: 32,
-              color: done
-                  ? _DashboardColors.green
-                  : _DashboardColors.muted,
+              color: done ? _DashboardColors.green : _DashboardColors.muted,
             ),
-
             const SizedBox(
               height: 12,
             ),
-
             Text(
               title,
-              textAlign:
-                  TextAlign.center,
-              style:
-                  const TextStyle(
+              textAlign: TextAlign.center,
+              style: const TextStyle(
                 fontSize: 16,
-                fontWeight:
-                    FontWeight.w600,
-                color:
-                    _DashboardColors.ink,
+                fontWeight: FontWeight.w600,
+                color: _DashboardColors.ink,
               ),
             ),
-
             const SizedBox(
               height: 6,
             ),
-
             Text(
               description,
-              textAlign:
-                  TextAlign.center,
-              style:
-                  const TextStyle(
+              textAlign: TextAlign.center,
+              style: const TextStyle(
                 fontSize: 13,
-                color:
-                    _DashboardColors.muted,
+                color: _DashboardColors.muted,
                 height: 1.5,
               ),
             ),
-
-            if (noPosts &&
-                !bidding &&
-                !done &&
-                !keyword) ...[
+            if (noPosts && !bidding && !done && !keyword) ...[
               const SizedBox(
                 height: 16,
               ),
@@ -1080,20 +1065,14 @@ extension _DashboardSections on _HomePageState {
     List<ProjectPost> visiblePosts,
   ) {
     final indexById = {
-      for (
-        var i = 0;
-        i < visiblePosts.length;
-        i++
-      )
-        visiblePosts[i].id: i
+      for (var i = 0; i < visiblePosts.length; i++) visiblePosts[i].id: i
     };
 
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               LayoutBuilder(
                 builder: (
@@ -1101,17 +1080,14 @@ extension _DashboardSections on _HomePageState {
                   constraints,
                 ) {
                   const heading = Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Opportunities',
                         style: TextStyle(
                           fontSize: 20,
-                          fontWeight:
-                              FontWeight.w700,
-                          color:
-                              _DashboardColors.ink,
+                          fontWeight: FontWeight.w700,
+                          color: _DashboardColors.ink,
                         ),
                       ),
                       SizedBox(
@@ -1121,53 +1097,45 @@ extension _DashboardSections on _HomePageState {
                         'Track active PhilGEPS procurement postings',
                         style: TextStyle(
                           fontSize: 12,
-                          color:
-                              _DashboardColors.muted,
+                          color: _DashboardColors.muted,
                         ),
                       ),
                     ],
                   );
 
                   const sort = Row(
-                    mainAxisSize:
-                        MainAxisSize.min,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.sort_rounded,
                         size: 16,
-                        color:
-                            _DashboardColors.muted,
+                        color: _DashboardColors.muted,
                       ),
                       SizedBox(
                         width: 6,
                       ),
-                      Text(
+                      Flexible(
+                          child: Text(
                         'New first · Latest posted',
                         style: TextStyle(
                           fontSize: 12,
-                          color:
-                              _DashboardColors.muted,
+                          color: _DashboardColors.muted,
                         ),
-                      ),
+                      )),
                     ],
                   );
 
-                  return constraints
-                              .maxWidth >=
-                          650
+                  return constraints.maxWidth >= 650
                       ? const Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment
-                                  .spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            heading,
-                            sort,
+                            Expanded(child: heading),
+                            SizedBox(width: 16),
+                            Flexible(child: sort),
                           ],
                         )
                       : const Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             heading,
                             SizedBox(
@@ -1178,82 +1146,59 @@ extension _DashboardSections on _HomePageState {
                         );
                 },
               ),
-
               const SizedBox(
                 height: 16,
               ),
-
               AnimatedSize(
-                duration:
-                    const Duration(
+                duration: const Duration(
                   milliseconds: 200,
                 ),
-                alignment:
-                    Alignment.topCenter,
+                alignment: Alignment.topCenter,
                 child: isLoading
                     ? const Padding(
-                        padding:
-                            EdgeInsets.only(
+                        padding: EdgeInsets.only(
                           bottom: 16,
                         ),
-                        child:
-                            _DashboardLoading(),
+                        child: _DashboardLoading(),
                       )
-                    : const SizedBox
-                        .shrink(),
+                    : const SizedBox.shrink(),
               ),
             ],
           ),
         ),
-
-        if (visiblePosts.isEmpty &&
-            !isLoading)
+        if (visiblePosts.isEmpty && !isLoading)
           SliverToBoxAdapter(
-            child:
-                _emptyState(),
+            child: _emptyState(),
           )
         else
           SliverList.builder(
-            itemCount:
-                visiblePosts.length,
-            findChildIndexCallback:
-                (key) =>
-                    indexById[
-                      (key as ValueKey)
-                          .value
-                    ],
-            itemBuilder:
-                (
-                  context,
-                  index,
-                ) {
-              final post =
-                  visiblePosts[index];
+            itemCount: visiblePosts.length,
+            findChildIndexCallback: (key) => indexById[(key as ValueKey).value],
+            itemBuilder: (
+              context,
+              index,
+            ) {
+              final post = visiblePosts[index];
 
-              return TweenAnimationBuilder<
-                  double>(
-                key:
-                    ValueKey(post.id),
+              return TweenAnimationBuilder<double>(
+                key: ValueKey(post.id),
                 tween: Tween(
                   begin: 0.94,
                   end: 1,
                 ),
-                duration:
-                    const Duration(
+                duration: const Duration(
                   milliseconds: 150,
                 ),
-                builder:
-                    (
-                      context,
-                      opacity,
-                      child,
-                    ) =>
-                        Opacity(
+                builder: (
+                  context,
+                  opacity,
+                  child,
+                ) =>
+                    Opacity(
                   opacity: opacity,
                   child: child,
                 ),
-                child:
-                    buildPostCard(
+                child: buildPostCard(
                   post,
                 ),
               );
@@ -1264,8 +1209,7 @@ extension _DashboardSections on _HomePageState {
   }
 }
 
-class _DashboardLoading
-    extends StatelessWidget {
+class _DashboardLoading extends StatelessWidget {
   const _DashboardLoading();
 
   @override
@@ -1274,17 +1218,14 @@ class _DashboardLoading
   ) =>
       const _DashboardSurface(
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Checking PhilGEPS opportunities…',
               style: TextStyle(
                 fontSize: 13,
-                fontWeight:
-                    FontWeight.w600,
-                color:
-                    _DashboardColors.green,
+                fontWeight: FontWeight.w600,
+                color: _DashboardColors.green,
               ),
             ),
             SizedBox(
@@ -1292,10 +1233,8 @@ class _DashboardLoading
             ),
             LinearProgressIndicator(
               minHeight: 3,
-              color:
-                  _DashboardColors.secondary,
-              backgroundColor:
-                  Color(
+              color: _DashboardColors.secondary,
+              backgroundColor: Color(
                 0xFFEEF7F2,
               ),
             ),

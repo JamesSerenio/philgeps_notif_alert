@@ -6,7 +6,7 @@
     "postinstall": "npx playwright install --with-deps chromium",
     "start": "node server.js",
     "cron": "node cron-worker.js",
-    "test": "node --test post-discovery.test.mjs scrape-control.test.mjs"
+    "test": "node --test post-discovery.test.mjs scrape-control.test.mjs modern-philgeps.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

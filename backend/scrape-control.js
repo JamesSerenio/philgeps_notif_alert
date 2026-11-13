@@ -83,7 +83,8 @@ export function createScrapeControl({ supabase, run, log = console.log }) {
         status: posts.failedLgus.length ? 'failed' : 'completed',
         newCount: posts.newCount, refreshedCount: posts.length - posts.newCount,
         checkedLgus: posts.checkedLgus, failedLgus: posts.failedLgus,
-        error: posts.failedLgus.length ? 'Some LGUs could not be checked. Retry the update.' : null,
+        sourceErrors: posts.sourceErrors || {},
+        error: posts.failedLgus.length ? `Source check failed: ${posts.failedLgus.join(', ')}. Retry the update.` : null,
       };
     } catch (error) {
       result = { status: 'failed', newCount: 0, refreshedCount: 0,

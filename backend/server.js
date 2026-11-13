@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { chromium } from "playwright";
+import { scrapeModern } from './modern-philgeps.js';
 import { createScrapeControl, manualAuthorization, scheduledSlot, secretMatches } from './scrape-control.js';
 import admin from "firebase-admin";
 import { createClient } from "@supabase/supabase-js";
@@ -1060,6 +1061,12 @@ async function savePostAndNotify(post, sendAlerts = true) {
     closing_date:
       post.closingDate,
     url: post.url,
+    source: post.source || 'existing',
+    official_notice_id: post.officialNoticeId || post.referenceNumber,
+    official_url: post.url,
+    procurement_mode: post.procurementMode || '',
+    document_status: post.documentStatus || 'unverified',
+    document_url: post.documentUrl || null,
 
     status:
       isPostedRecently(discoveredAt)
@@ -1445,11 +1452,42 @@ async function runChecker({
       `Starting checker run ${runId}. Existing posts: ${existingPostIds.size}`
     );
 
-    const posts =
-      await scrapePhilgeps(
-        existingPostIds,
-        runId
-      );
+    const posts = [];
+    posts.checkedLgus = [];
+    posts.failedLgus = [];
+    posts.sourceErrors = {};
+    resultPosts = posts;
+    const sources = [
+      ['existing', () => scrapePhilgeps(existingPostIds, runId)],
+      ['modern', () => scrapeModern({ chromium, watchLgus: WATCH_LGUS, assertLease,
+        onBrowser: browser => { activeBrowser = browser; } })],
+    ];
+    for (const [source, scrape] of sources) {
+      let sourcePosts = [];
+      let sourceError = null;
+      try {
+        if (timedOut) throw new Error('Scraper execution limit reached.');
+        await assertLease();
+        sourcePosts = await scrape();
+        if (sourcePosts.failedLgus?.length) sourceError = `Failed LGUs: ${sourcePosts.failedLgus.join(', ')}`;
+        for (const post of sourcePosts) {
+          if (timedOut) throw new Error('Scraper execution limit reached.');
+          await assertLease();
+          await savePostAndNotify(post, sendAlerts);
+          posts.push(post);
+          if (existingPostIds.allIds.has(String(post.id))) storedRefreshed++;
+          else storedNew++;
+        }
+      } catch (error) { sourceError = error.message; }
+      posts.checkedLgus.push(source);
+      if (sourceError) {
+        posts.failedLgus.push(source);
+        posts.sourceErrors[source] = sourceError;
+      }
+      await assertLease();
+      const { error } = await supabase.rpc('record_philgeps_source_refresh', { p_source: source, p_error: sourceError });
+      if (error) throw error;
+    }
     resultPosts = posts;
 
     if (timedOut) throw new Error('Scraper exceeded its 18 minute execution limit.');
@@ -1464,21 +1502,7 @@ async function runChecker({
       return null;
     }
 
-    for (const post of posts) {
-      if (timedOut) throw new Error('Scraper exceeded its execution limit.');
-      await assertLease();
-      if (
-        runId !== currentRunId
-      ) {
-        return null;
-      }
-
-      await savePostAndNotify(post, sendAlerts);
-      if (existingPostIds.allIds.has(String(post.id))) storedRefreshed++;
-      else storedNew++;
-      if (timedOut) throw new Error('Scraper exceeded its execution limit.');
-    }
-    posts.newCount = posts.filter(post => !existingPostIds.allIds.has(String(post.id))).length;
+    posts.newCount = storedNew;
     console.log(`Stored ${posts.newCount} new reference(s); ${posts.length - posts.newCount} existing reference(s) refreshed.`);
 
     if (
@@ -1620,7 +1644,8 @@ app.get('/internal/check', authorizeCron, scrapeStatus);
 app.get('/check/last-success', async (req, res) => {
   try {
     const state = await scrapeControl.snapshot();
-    res.json({ lastSuccessAt: state.last_success_at });
+    const { data: sources, error } = await supabase.from('philgeps_source_refresh').select('*');
+    res.json({ lastSuccessAt: state.last_success_at, sources: error ? [] : sources });
   } catch { res.status(503).json({ error: 'Scrape history unavailable.' }); }
 });
 
