@@ -2,6 +2,8 @@
 
 Modern PhilGEPS integration and deployment: [setup, public verification and limitations](docs/modern_philgeps.md).
 
+Signed-out Check Updates: [public refresh behavior, deployment target and validation](docs/public_notice_refresh.md).
+
 For the daily 6 AM Philippine-time Railway scraper, secure manual checks, and required production settings, see [Scraper deployment guide](docs/scraper_schedule.md).
 
 A new Flutter project.

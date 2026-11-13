@@ -12,11 +12,10 @@ void main() {
     var polls = 0;
     final api = ScrapeApi(
         baseUrl: 'https://scraper.invalid',
-        accessToken: () async => 'user-session',
         wait: (_) async {},
         client: MockClient((request) async {
           requests.add(request);
-          expect(request.headers['Authorization'], 'Bearer user-session');
+          expect(request.headers['Authorization'], isNull);
           if (request.method == 'POST') {
             return http.Response(
                 jsonEncode({
@@ -52,7 +51,6 @@ void main() {
     var starts = 0;
     final api = ScrapeApi(
         baseUrl: 'https://scraper.invalid',
-        accessToken: () async => 'token',
         wait: (_) async {},
         client: MockClient((request) async {
           if (request.method == 'POST') starts++;
@@ -77,7 +75,6 @@ void main() {
     test('HTTP $code fails without reporting completion', () async {
       final api = ScrapeApi(
           baseUrl: 'https://scraper.invalid',
-          accessToken: () async => 'token',
           client: MockClient(
               (_) async => http.Response('{"error":"Denied"}', code)));
       await expectLater(api.check(), throwsA(isA<Exception>()));
@@ -88,7 +85,6 @@ void main() {
   test('backend failure is surfaced after acceptance', () async {
     final api = ScrapeApi(
         baseUrl: 'https://scraper.invalid',
-        accessToken: () async => 'token',
         client: MockClient((request) async => http.Response(
             jsonEncode({
               'run': {

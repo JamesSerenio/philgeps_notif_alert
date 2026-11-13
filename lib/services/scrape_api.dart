@@ -5,24 +5,19 @@ import 'package:http/http.dart' as http;
 class ScrapeApi {
   ScrapeApi({
     required this.baseUrl,
-    required this.accessToken,
     http.Client? client,
     Future<void> Function(Duration)? wait,
   })  : _client = client ?? http.Client(),
         _wait = wait ?? Future<void>.delayed;
 
   final String baseUrl;
-  final Future<String> Function() accessToken;
   final http.Client _client;
   final Future<void> Function(Duration) _wait;
 
   Future<Map<String, dynamic>> _request(String path,
       {bool post = false}) async {
-    final headers = {'Authorization': 'Bearer ${await accessToken()}'};
     final uri = Uri.parse('$baseUrl$path');
-    final response = await (post
-            ? _client.post(uri, headers: headers)
-            : _client.get(uri, headers: headers))
+    final response = await (post ? _client.post(uri) : _client.get(uri))
         .timeout(const Duration(seconds: 30));
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -46,8 +41,15 @@ class ScrapeApi {
         throw Exception(
             'The scraping run changed. Retry to check its current status.');
       }
-      if (run['status'] == 'failed')
-        throw Exception(run['error'] ?? 'Scraping failed.');
+      if (run['status'] == 'failed') {
+        final sources = run['sourceErrors'] as Map<String, dynamic>? ?? {};
+        final details = sources.entries
+            .map((entry) =>
+                '${entry.key == 'modern' ? 'Modern PhilGEPS' : entry.key == 'existing' ? 'Existing PhilGEPS' : entry.key}: ${entry.value}')
+            .join('; ');
+        throw Exception(
+            details.isEmpty ? run['error'] ?? 'Scraping failed.' : details);
+      }
       if (run['status'] == 'completed') return state;
       await _wait(const Duration(seconds: 5));
     }

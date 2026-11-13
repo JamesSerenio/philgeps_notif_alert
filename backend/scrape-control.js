@@ -3,6 +3,21 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 export const AUTOMATIC_CRON = '0 22 * * *';
 export const MANUAL_COOLDOWN_SECONDS = 120;
 
+// Public fixed-job trigger and polling. The shared DB cooldown/lease remains
+// authoritative across instances; this bounds request traffic within an instance.
+export function publicRefreshLimit({ limit = 300, now = Date.now } = {}) {
+  let windowStarted = now(), requests = 0;
+  return (_req, res, next) => {
+    if (now() - windowStarted >= 60000) { windowStarted = now(); requests = 0; }
+    res.set('Cache-Control', 'no-store');
+    if (++requests > limit) {
+      res.set('Retry-After', '60');
+      return res.status(429).json({ error: 'Too many refresh requests. Retry in one minute.' });
+    }
+    return next();
+  };
+}
+
 export function scheduledSlot(now = new Date()) {
   const hour = now.getUTCHours();
   if (hour !== 22 || now.getUTCMinutes() > 10) return null;

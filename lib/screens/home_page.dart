@@ -817,36 +817,14 @@ ${post.abc}
     if (isLoading) return;
     setState(() {
       isLoading = true;
-      checkButtonLabel = 'Checking PhilGEPS...';
+      checkButtonLabel = 'Checking PhilGEPS\u2026';
     });
     ScrapeApi? api;
     try {
-      if (SupabaseConfig.client.auth.currentSession == null) {
-        final signedIn = await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => const _ScraperSignIn());
-        if (!mounted) return;
-        if (signedIn != true) {
-          setState(() => checkButtonLabel = 'Check Updates');
-          return;
-        }
-      }
       if (!mounted) return;
       setState(() =>
-          statusMessage = 'Checking all monitored LGUs through Railway...');
-      api = ScrapeApi(
-          baseUrl: backendUrl,
-          accessToken: () async {
-            var session = SupabaseConfig.client.auth.currentSession;
-            if (session != null && session.isExpired) {
-              session =
-                  (await SupabaseConfig.client.auth.refreshSession()).session;
-            }
-            if (session == null)
-              throw Exception('Sign in again to check updates.');
-            return session.accessToken;
-          });
+          statusMessage = 'Checking Existing PhilGEPS and Modern PhilGEPS through Railway...');
+      api = ScrapeApi(baseUrl: backendUrl);
       final result = await api.check();
       if (!mounted) return;
       // Fetch a fresh complete dataset only after confirmed backend completion.
@@ -884,8 +862,12 @@ ${post.abc}
       api?.close();
       await loadLastSuccessfulScrape();
       // A partial source failure may still have saved opportunities from the other portal.
+      final refreshStatus = statusMessage;
       if (mounted) await loadPostsFromSupabase();
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) setState(() {
+        if (_lastPostsLoadSucceeded) statusMessage = refreshStatus;
+        isLoading = false;
+      });
     }
   }
 
