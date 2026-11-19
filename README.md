@@ -1,5 +1,7 @@
 # philgeps_notif_alert
 
+Current refresh repair: [root causes, verified counts, and main/new_philgeps deployment comparison](docs/refresh_repair_2026-11-19.md).
+
 Modern PhilGEPS integration and deployment: [setup, public verification and limitations](docs/modern_philgeps.md).
 
 Signed-out Check Updates: [public refresh behavior, deployment target and validation](docs/public_notice_refresh.md).

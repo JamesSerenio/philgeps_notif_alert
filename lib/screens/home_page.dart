@@ -539,7 +539,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // ---------------------------------------------------------
 
   List<ProjectPost> get filteredPosts {
-    final keyword = keywordController.text.toLowerCase().trim();
+    final keyword = keywordController.text.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
 
     List<ProjectPost> basePosts = posts;
 
@@ -616,7 +616,7 @@ ${post.closingDate}
 ${post.url}
 ${post.abc}
 '''
-            .toLowerCase();
+            .toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
 
         return searchableText.contains(
           keyword,
@@ -722,7 +722,7 @@ ${post.abc}
           .range(
             from,
             from + pageSize - 1,
-          );
+          ).timeout(const Duration(seconds: 30));
 
       final List<Map<String, dynamic>> currentPage =
           List<Map<String, dynamic>>.from(

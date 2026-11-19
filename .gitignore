@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Generated public-portal verification evidence (contains no server credentials).
+/tool/live-refresh-evidence.json
+/tool/deployed-refresh-evidence.json
