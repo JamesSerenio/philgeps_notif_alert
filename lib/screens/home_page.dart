@@ -159,7 +159,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int get biddingDocsCount {
     return posts
         .where(
-          (post) => post.isBiddingDoc && !post.isDone,
+          (post) => post.isBiddingDoc && !post.isDone && !post.isClosedForBidding(),
         )
         .length;
   }
@@ -566,7 +566,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (selectedStatFilter == 'bidding') {
       basePosts = posts.where(
         (post) {
-          return post.isBiddingDoc && !post.isDone;
+          return post.isBiddingDoc && !post.isDone && !post.isClosedForBidding();
         },
       ).toList();
     }

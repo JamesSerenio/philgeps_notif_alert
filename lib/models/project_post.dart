@@ -21,6 +21,15 @@ class ProjectPost {
   final String documentStatus;
   final String documentUrl;
   String get displayTitle => title.trim().isEmpty ? 'Untitled Project' : title;
+  bool isClosedForBidding({DateTime? now}) {
+    if (const ['closed', 'expired'].contains(status.trim().toLowerCase())) {
+      return true;
+    }
+    final deadline = parsePhilgepsDeadline(closingDate);
+    return deadline != null &&
+        !deadline.isAfter((now ?? DateTime.now()).toUtc());
+  }
+
   bool get isModern => source == 'modern';
   String get sourceLabel => isModern ? 'philgeps.gov.ph' : 'PhilGEPS';
   String get sourceUrl => isModern ? url : 'https://notices.philgeps.gov.ph/';
