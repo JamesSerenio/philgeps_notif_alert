@@ -9,6 +9,41 @@ import 'package:philgeps_notif_alert/main.dart';
 import 'package:philgeps_notif_alert/utils/post_dates.dart';
 
 void main() {
+  test('closed BDocs hide at the deadline without modifying the selection', () {
+    final row = {
+      'id': 'saved-id',
+      'is_bidding_doc': true,
+      'manual_deadline': '2026-11-19',
+      'closing_date': '2026-12-01T00:00:00Z'
+    };
+    final post = ProjectPost.fromJson(row);
+    expect(
+        post.isClosedForBidding(
+            now: DateTime.parse('2026-11-19T23:59:59+08:00')),
+        isFalse);
+    expect(
+        post.isClosedForBidding(
+            now: DateTime.parse('2026-11-20T00:00:00+08:00')),
+        isTrue);
+    expect(post.isBiddingDoc, isTrue);
+    expect(post.id, 'saved-id');
+    final official =
+        ProjectPost.fromJson({'closing_date': '2026-11-19T10:00:00+08:00'});
+    expect(
+        official.isClosedForBidding(
+            now: DateTime.parse('2026-11-19T09:59:59+08:00')),
+        isFalse);
+    expect(
+        official.isClosedForBidding(
+            now: DateTime.parse('2026-11-19T10:00:00+08:00')),
+        isTrue);
+    expect(ProjectPost.fromJson({'status': ' CLOSED '}).isClosedForBidding(),
+        isTrue);
+    expect(
+        ProjectPost.fromJson({'closing_date': 'unknown'}).isClosedForBidding(),
+        isFalse);
+    expect(ProjectPost.fromJson({}).isClosedForBidding(), isFalse);
+  });
   testWidgets(
       'normal dashboard reload shows the saved shared row on its original card',
       (tester) async {
@@ -76,6 +111,32 @@ void main() {
         expect(state.posts.single.isBiddingDoc, isTrue);
         expect(state.posts.single.areaOfDelivery, 'BUKIDNON');
         expect(state.posts.single.lgu, 'SUMILAO');
+        // Filtering BDocs hides expired cards without deleting the shared row.
+        state.setState(() {
+          state.posts = <ProjectPost>[
+            ProjectPost.fromJson({
+              ...row,
+              'title': 'Closed saved bid',
+              'manual_deadline': '2000-01-01'
+            }),
+            ProjectPost.fromJson({
+              ...row,
+              'id': 'future',
+              'title': 'Open saved bid',
+              'manual_deadline': '2100-01-01'
+            }),
+            ProjectPost.fromJson(
+                {...row, 'id': 'no-deadline', 'title': 'Blank deadline bid'}),
+          ];
+          state.selectedStatFilter = 'bidding';
+        });
+        // Normal filter invalidation is raised by refresh/stat taps.
+        await tester.pumpAndSettle();
+        expect(state.biddingDocsCount, 2);
+        expect(state.filteredPosts.map((post) => post.id),
+            ['future', 'no-deadline']);
+        expect(state.posts.length, 3);
+        expect(state.posts.first.isBiddingDoc, isTrue);
         expect(tester.takeException(), isNull);
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
