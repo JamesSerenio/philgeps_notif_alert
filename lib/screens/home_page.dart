@@ -897,9 +897,7 @@ ${post.abc}
   DeadlineStatus getDeadlineStatus(
     String dateText,
   ) {
-    final date = _parseDate(
-      dateText,
-    );
+    final date = parsePhilgepsDeadline(dateText);
 
     if (date == null) {
       return DeadlineStatus.unknown;
@@ -948,9 +946,7 @@ ${post.abc}
   String getCountdown(
     String dateText,
   ) {
-    final date = _parseDate(
-      dateText,
-    );
+    final date = parsePhilgepsDeadline(dateText);
 
     if (date == null) {
       return 'No closing date';
@@ -993,9 +989,9 @@ ${post.abc}
 
         return date == null
             ? dateText
-            : _dateFormat.format(
-                date.toLocal(),
-              );
+            : RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateText.trim())
+                ? DateFormat('MMM dd, yyyy').format(philippineTime(date))
+                : _dateFormat.format(philippineTime(date));
       },
     );
   }

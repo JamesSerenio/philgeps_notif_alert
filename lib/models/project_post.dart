@@ -9,7 +9,7 @@ class ProjectPost {
   final String areaOfDelivery;
   final String deliveryPeriod;
   final String classification;
-  final double abc;
+  final double? abc;
   final String budgetType;
   final String closingDate;
   final String postingDate;
@@ -20,6 +20,7 @@ class ProjectPost {
   final String procurementMode;
   final String documentStatus;
   final String documentUrl;
+  String get displayTitle => title.trim().isEmpty ? 'Untitled Project' : title;
   bool get isModern => source == 'modern';
   String get sourceLabel => isModern ? 'philgeps.gov.ph' : 'PhilGEPS';
   String get sourceUrl => isModern ? url : 'https://notices.philgeps.gov.ph/';
@@ -69,9 +70,17 @@ class ProjectPost {
   factory ProjectPost.fromJson(
     Map<String, dynamic> json,
   ) {
-    double parseAbc(dynamic value) {
+    String firstText(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key]?.toString().trim() ?? '';
+        if (value.isNotEmpty) return value;
+      }
+      return '';
+    }
+
+    double? parseAbc(dynamic value) {
       if (value == null) {
-        return 0;
+        return null;
       }
 
       if (value is num) {
@@ -81,7 +90,7 @@ class ProjectPost {
       final cleaned =
           value.toString().replaceAll(',', '').replaceAll('₱', '').trim();
 
-      return double.tryParse(cleaned) ?? 0;
+      return double.tryParse(cleaned);
     }
 
     DateTime? parseDoneAt(dynamic value) {
@@ -105,17 +114,14 @@ class ProjectPost {
       procurementMode: json['procurement_mode']?.toString() ?? '',
       documentStatus: json['document_status']?.toString() ?? 'unverified',
       documentUrl: json['document_url']?.toString() ?? '',
-      lgu: json['lgu']?.toString() ?? '',
-      title: json['title']?.toString() ?? '',
-      referenceNumber: json['reference_number']?.toString() ??
-          json['referenceNumber']?.toString() ??
-          '',
-      procuringEntity: json['procuring_entity']?.toString() ??
-          json['procuringEntity']?.toString() ??
-          '',
-      areaOfDelivery: json['area_of_delivery']?.toString() ??
-          json['areaOfDelivery']?.toString() ??
-          '',
+      lgu: firstText(['lgu', 'municipality']),
+      title: firstText(['title', 'project_title', 'projectTitle']),
+      referenceNumber:
+          firstText(['reference_number', 'referenceNumber', 'reference_no']),
+      procuringEntity:
+          firstText(['procuring_entity', 'procuringEntity', 'entity']),
+      areaOfDelivery: firstText(
+          ['area_of_delivery', 'areaOfDelivery', 'province', 'location']),
       deliveryPeriod: json['delivery_period']?.toString() ??
           json['deliveryPeriod']?.toString() ??
           '',
@@ -126,9 +132,8 @@ class ProjectPost {
       budgetType: json['budget_type']?.toString() ??
           json['budgetType']?.toString() ??
           'ABC',
-      closingDate: json['closing_date']?.toString() ??
-          json['closingDate']?.toString() ??
-          '',
+      closingDate: firstText(
+          ['manual_deadline', 'manualDeadline', 'closing_date', 'closingDate']),
       postingDate: json['posting_date']?.toString() ??
           json['postingDate']?.toString() ??
           '',

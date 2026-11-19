@@ -555,7 +555,7 @@ extension _DashboardSections on _HomePageState {
         'Province: ${post.areaOfDelivery}',
         'Classification: ${post.classification}',
         'Reference No.: ${post.referenceNumber.isEmpty ? '\u2014' : post.referenceNumber}',
-        'ABC: \u20b1${abcFormatter.format(post.abc)}',
+        'ABC: ${post.abc == null ? 'Not available' : '\u20b1${abcFormatter.format(post.abc)}'}',
         'Posted: ${formatDate(post.postingDate)}',
         if (post.discoveredAt != null)
           'First discovered: ${formatDate(post.discoveredAt!.toIso8601String())}',
@@ -818,9 +818,9 @@ extension _DashboardSections on _HomePageState {
                 height: 12,
               ),
               Tooltip(
-                message: post.title,
+                  message: post.displayTitle,
                 child: Text(
-                  post.title,
+                    post.displayTitle,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -898,7 +898,7 @@ extension _DashboardSections on _HomePageState {
                     ),
                     _OpportunityDatum(
                       post.budgetType,
-                      '₱${abcFormatter.format(post.abc)}',
+                      post.abc == null ? 'Not available' : '₱${abcFormatter.format(post.abc)}',
                       emphasized: true,
                       color: _DashboardColors.green,
                     ),

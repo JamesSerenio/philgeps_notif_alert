@@ -3,6 +3,32 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 const source = readFileSync(new URL('./server.js', import.meta.url), 'utf8');
+for (const manual of [true, false]) {
+  test(`scraper preserves ${manual ? 'manual' : 'explicitly edited'} shared metadata and user selections`, async () => {
+    let written;
+    const existing = {
+      created_at: '2026-11-13T01:00:00Z', is_manual: manual,
+      title: 'Saved water meter project', reference_number: '132124',
+      procuring_entity: 'MUNICIPALITY OF SUMILAO, BUKIDNON',
+      lgu: 'SUMILAO', area_of_delivery: 'BUKIDNON',
+      project_metadata_overrides: manual ? {} : {title:true,reference_number:true,procuring_entity:true,lgu:true,area_of_delivery:true},
+      is_bidding_doc: true, is_done: true, manual_deadline: '2026-11-19',
+    };
+    const supabase = { from() { return {
+      select() { return this; }, eq() { return this; },
+      maybeSingle: async () => ({data:existing,error:null}),
+      upsert(row) { written=row; return this; },
+      single: async () => ({data:{created_at:existing.created_at},error:null}),
+    }; } };
+    await load('savePostAndNotify', {supabase,isPostedRecently:()=>false})({
+      id:'stable-project-id', title:'Portal replacement', referenceNumber:'wrong',
+      procuringEntity:'Other agency', lgu:'Other municipality', areaOfDelivery:'Other province',
+    },false);
+    for (const field of ['title','reference_number','procuring_entity','lgu','area_of_delivery']) assert.equal(written[field],existing[field]);
+    for (const field of ['is_bidding_doc','is_done','manual_deadline','project_metadata_overrides']) assert.equal(Object.hasOwn(written,field),false);
+    assert.equal(written.id,'stable-project-id');
+  });
+}
 test('Modern notice upserts keep source identity, official link and user decisions intact',async()=>{
   let written;
   const created='2026-11-13T01:00:00Z';
