@@ -999,7 +999,7 @@ async function sendNotification(
 
 async function savePostAndNotify(post, sendAlerts = true) {
   const { data: existing, error: readError } = await supabase
-    .from("philgeps_posts").select("created_at").eq("id", post.id).maybeSingle();
+    .from("philgeps_posts").select("*").eq("id", post.id).maybeSingle();
   if (readError) throw readError;
   const discoveredAt = existing ? existing.created_at : new Date().toISOString();
   const row = {
@@ -1045,6 +1045,13 @@ async function savePostAndNotify(post, sendAlerts = true) {
   };
 
   // Do not send created_at or user decisions: keep their original DB values.
+  // The database trigger also protects against editor writes racing this read.
+  for (const column of ['title','reference_number','procuring_entity','lgu','area_of_delivery']) {
+    if (existing?.project_metadata_overrides?.[column] ||
+        (existing?.is_manual === true && String(existing[column] ?? '').trim())) {
+      row[column] = existing[column];
+    }
+  }
   const { data: saved, error } = await supabase
     .from("philgeps_posts")
     .upsert(row, { onConflict: "id" }).select("created_at").single();

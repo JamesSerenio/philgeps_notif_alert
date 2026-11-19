@@ -47,3 +47,7 @@ app.*.map.json
 # Generated public-portal verification evidence (contains no server credentials).
 /tool/live-refresh-evidence.json
 /tool/deployed-refresh-evidence.json
+/tool/metadata-sql-test/
+/tool/project-metadata-evidence.json
+/tool/project-metadata-recovery.json
+/tool/metadata-*.log

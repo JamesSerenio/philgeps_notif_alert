@@ -21,3 +21,15 @@ bool discoveredWithin24Hours(DateTime? discoveredAt, {DateTime? now}) {
 
 DateTime philippineTime(DateTime value) =>
     value.toUtc().add(const Duration(hours: 8));
+
+// A manual date-only deadline is the selected Philippine calendar day. Keep
+// publication/document-date parsing separate; never persist an invented hour.
+DateTime? parsePhilgepsDeadline(String? value) {
+  final date = parsePhilgepsDate(value);
+  if (date == null) return null;
+  return RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value!.trim())
+      ? date
+          .add(const Duration(days: 1))
+          .subtract(const Duration(microseconds: 1))
+      : date;
+}
