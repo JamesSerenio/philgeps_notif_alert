@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { safeError, portalLog } from './portal-runtime.js';
 import { officialModernUrl, modernDate, modernAgency, modernStorageId, inspectModernDocument } from './modern-philgeps.js';
 
 test('official links retain each notice identity and reject untrusted origins', () => {
@@ -46,7 +47,7 @@ test('either source may fail while the other saves, with accurate counts and per
     const start=server.indexOf('async function runChecker('), end=server.indexOf('\n/*',start);
     const run=vm.runInNewContext(server.slice(start,end)+'\nrunChecker',{
       isRunning:false,currentRunId:0,checkerStartedAt:0,activeBrowser:null,CHECKER_FORCE_STOP_MS:60000,
-      setTimeout,clearTimeout,console:{log(){},error(){}},WATCH_LGUS:['sumilao'],chromium:{},
+      setTimeout,clearTimeout,safeError,portalLog:row=>row,console:{log(){},error(){}},WATCH_LGUS:['sumilao'],chromium:{},
       deleteOldNotificationLogs:async()=>{},deleteExpiredPosts:async()=>{},
       getExistingPostIds:async()=>Object.assign(new Set(),{allIds:new Set(['130491'])}),
       scrapePhilgeps:async()=>makePosts('existing'),scrapeModern:async()=>makePosts('modern'),

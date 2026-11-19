@@ -92,13 +92,14 @@ export function createScrapeControl({ supabase, run, log = console.log }) {
           throw new Error('Scraping lease expired or changed.');
         }
       };
-      const posts = await run(assertLease);
+      const posts = await run(assertLease, id);
       if (!posts) throw new Error('Scraper did not complete.');
       result = {
         status: posts.failedLgus.length ? 'failed' : 'completed',
         newCount: posts.newCount, refreshedCount: posts.length - posts.newCount,
         checkedLgus: posts.checkedLgus, failedLgus: posts.failedLgus,
         sourceErrors: posts.sourceErrors || {},
+        sourceStats: posts.sourceStats || {},
         error: posts.failedLgus.length ? `Source check failed: ${posts.failedLgus.join(', ')}. Retry the update.` : null,
       };
     } catch (error) {

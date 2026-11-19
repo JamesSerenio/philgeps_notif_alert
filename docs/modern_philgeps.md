@@ -1,10 +1,12 @@
 # Modern PhilGEPS integration
 
+For the current pagination repair and deployment comparison, see [19 November refresh verification](refresh_repair_2026-11-19.md). The portal findings dated 13 November below describe the original implementation.
+
 The dashboard searches refreshed records from both official sources. All Sources is the default; source selection and existing keywords are saved locally. Publication and closing ranges use inclusive Philippine calendar dates. The current monitored LGUs and Bukidnon/Misamis Oriental restrictions remain in place. This is not an unrestricted nationwide live search.
 
 ## Deployment
 
-1. Review and apply `supabase/modern_philgeps.sql` in the existing project. It adds metadata columns, a unique `(source, official_notice_id)` index, a protected refresh-history table, and a service-role-only history RPC. It never changes existing primary IDs or saved decisions. It rejects negative legacy IDs rather than silently colliding with them. Check existing table constraints and foreign keys before applying: the live schema was unavailable during development (the configured public key returned HTTP 401).
+1. Review and apply `supabase/modern_philgeps.sql` only if its dependencies are missing. It adds metadata columns, a unique `(source, official_notice_id)` index, a protected refresh-history table, and a service-role-only history RPC. It never changes existing primary IDs or saved decisions. The public key can read notices; HTTP 401 from the schema endpoint does not mean that key is invalid. Administrative constraint/permission inspection requires `supabase/verify_refresh_dependencies.sql` with database-owner access.
 2. Deploy the backend with the existing server-only Supabase service-role and Firebase configuration. No Modern credentials are needed for permitted public searches. Keep Playwright Chromium installed through the existing build.
 3. Deploy the Flutter app. The existing Railway worker, authorization, cooldown, shared lease, and `0 22 * * *` schedule remain in place. Both manual Check Updates and the scheduled worker invoke both adapters. Do not create another schedule.
 

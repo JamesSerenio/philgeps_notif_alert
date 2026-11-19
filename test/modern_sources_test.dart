@@ -96,6 +96,8 @@ void main() {
           '130491',
           'solar',
           'MUNICIPALITY OF SUMILAO',
+            '  municipality   of   SUMILAO  ',
+            'solar   streetlights',
           '2026-11-19'
         ]) {
           state.keywordController.text = query;

@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import vm from 'node:vm';
 import express from 'express';
+import { safeError, portalLog } from './portal-runtime.js';
 import { AUTOMATIC_CRON, scheduledSlot, secretMatches, manualAuthorization, publicRefreshLimit, createScrapeControl } from './scrape-control.js';
 
 test('only 22 UTC schedules the daily 6 AM Philippine-time scrape', () => {
@@ -173,7 +174,7 @@ test('Playwright browser and context close on success and scraping errors', asyn
       close: async () => { closed.push('context'); },
     };
     const scrape = vm.runInNewContext(source.slice(start, end) + '\nscrapePhilgeps', {
-      currentRunId: 1, activeBrowser: null, WATCH_LGUS: ['sumilao'],
+      currentRunId: 1, activeBrowser: null, WATCH_LGUS: ['sumilao'],safeError,portalLog,
       console: { log() {}, error() {} },
       chromium: { launch: async () => ({ newContext: async () => context,
         close: async () => { closed.push('browser'); } }) },

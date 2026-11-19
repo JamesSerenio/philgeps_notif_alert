@@ -3,6 +3,26 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 const source = readFileSync(new URL('./server.js', import.meta.url), 'utf8');
+test('Modern notice upserts keep source identity, official link and user decisions intact',async()=>{
+  let written;
+  const created='2026-11-13T01:00:00Z';
+  const supabase={from(){return{
+    select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{created_at:created},error:null}),
+    upsert(row){written=row;return this;},single:async()=>({data:{created_at:created},error:null}),
+  };}};
+  await load('savePostAndNotify',{supabase,isPostedRecently:()=>false})({
+    id:'-147539',source:'modern',officialNoticeId:'147539',referenceNumber:'147539',
+    url:'https://philgeps.gov.ph/Indexes/viewLiveTenderDetails/147539/OPEN_MORE',
+    title:'School building in Sumilao',procuringEntity:'DPWH REGION X',areaOfDelivery:'Bukidnon',
+    postingDate:'2026-11-18T16:00:00Z',closingDate:'2026-12-09T02:00:00Z',documentStatus:'access_required',
+  },false);
+  assert.equal(written.id,'-147539');assert.equal(written.source,'modern');
+  assert.equal(written.reference_number,'147539');assert.equal(written.official_notice_id,'147539');
+  assert.equal(written.official_url,'https://philgeps.gov.ph/Indexes/viewLiveTenderDetails/147539/OPEN_MORE');
+  assert.equal(written.document_status,'access_required');
+  assert.equal(written.title,'School building in Sumilao');
+  for(const key of ['created_at','is_bidding_doc','is_done','done_at','manual_deadline']) assert.equal(Object.hasOwn(written,key),false);
+});
 function load(name, extra = {}) {
   const start = source.indexOf('async function ' + name + '(');
   const end = source.indexOf('\n/*', start);

@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import { chromium } from "playwright";
 import { scrapeModern } from './modern-philgeps.js';
+import { searchExisting } from './existing-philgeps.js';
+import { portalLog, safeError } from './portal-runtime.js';
 import { createScrapeControl, manualAuthorization, publicRefreshLimit, scheduledSlot, secretMatches } from './scrape-control.js';
 import admin from "firebase-admin";
 import { createClient } from "@supabase/supabase-js";
@@ -740,63 +742,11 @@ async function readSearchRows(page) {
   }));
 }
 
-async function nextPagerIndex(page) {
-  return page.evaluate(() => {
-    const controls = Array.from(document.querySelectorAll("a,button,input[type='button'],input[type='submit']"));
-    const label = e => String(e.innerText || e.value || e.getAttribute("aria-label") || e.title || "").replace(/\s+/g," ").trim();
-    const disabled = e => e.disabled || e.getAttribute("aria-disabled") === "true" || /\bdisabled\b/i.test(`${e.className} ${e.parentElement?.className || ""}`);
-    let index = controls.findIndex(e => /^(next|next page|›|»|>)$/i.test(label(e)) && !disabled(e));
-    if (index >= 0) return index;
-    const active = controls.findIndex(e => e.getAttribute("aria-current") === "page" || /\b(active|current|selected)\b/i.test(`${e.className} ${e.parentElement?.className || ""}`));
-    if (active >= 0) index = controls.findIndex((e, i) => i > active && /^\d+$/.test(label(e)) && !disabled(e));
-    return index >= 0 ? index : null;
-  });
-}
-
-async function searchPhilgepsByKeyword(page, keyword, existingPostIds, runId) {
-  if (runId !== currentRunId) return [];
-  await page.goto(SEARCH_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForSelector("#txtKeyword", { timeout: 30000 });
-  await page.fill("#txtKeyword", keyword);
-  await page.click("#btnSearch");
-  await page.waitForLoadState("domcontentloaded");
-  await page.waitForTimeout(1200);
-  const posts = [], sourceIds = new Set(), signatures = new Set();
-  let scanned = 0;
-  const detailPage = await page.context().newPage();
-  try {
-    for (let pageNumber = 1; pageNumber <= MAX_SEARCH_PAGES && runId === currentRunId; pageNumber++) {
-      const rows = await readSearchRows(page); scanned += rows.length;
-      const ids = rows.map(x => extractRefId(new URL(x.href || "", SEARCH_URL).toString())).filter(Boolean);
-      const signature = ids.join("|");
-      console.log(`${keyword}: page ${pageNumber} -> ${rows.length} rows`);
-      if (signatures.has(signature)) { console.warn(`${keyword}: repeated result page; stopping.`); break; }
-      signatures.add(signature);
-      let unseen = 0;
-      for (const item of rows) {
-        const fullUrl = new URL(item.href || "", SEARCH_URL).toString(), refId = extractRefId(fullUrl);
-        if (!item.href || !item.title || !refId || sourceIds.has(refId)) continue;
-        sourceIds.add(refId); unseen++;
-        if (existingPostIds.has(refId)) continue;
-        const postingDate = parsePhilgepsDate(item.postingDate), closingDate = parsePhilgepsDate(item.closingDate);
-        if (!isStillActive(closingDate)) continue;
-        let bidDetails = {referenceNumber:refId, procuringEntity:"", title:item.title, areaOfDelivery:"", deliveryPeriod:"", classification:"", budgetLabel:"ABC", abc:""};
-        try { bidDetails = await getBidDetails(detailPage, fullUrl); } catch (error) { console.error(`Detail scrape failed ${refId}:`, error.message); }
-        const cleanArea = normalizeAreaOfDelivery(bidDetails.areaOfDelivery || "");
-        const entity = normalize((bidDetails.procuringEntity || item.details || "").replace(/[^a-z0-9]+/g," "));
-        if (!isAllowedAreaOfDelivery(cleanArea) && !entity.includes(canonicalLgu(keyword))) { console.log(`Skipped ${refId}: area/entity not allowed`); continue; }
-        const id = cleanText(bidDetails.referenceNumber) || refId;
-        if (existingPostIds.has(id)) continue;
-        posts.push({id,referenceNumber:id,lgu:canonicalLgu(keyword),procuringEntity:cleanText(bidDetails.procuringEntity)||item.details,title:cleanText(bidDetails.title)||item.title,areaOfDelivery:cleanArea,deliveryPeriod:cleanText(bidDetails.deliveryPeriod),classification:cleanText(bidDetails.classification),budgetType:bidDetails.budgetLabel === "EBC" ? "EBC" : "ABC",abc:parseBudgetAmount(bidDetails.abc),postingDate,closingDate,url:`${BASE_URL}PrintableBidNoticeAbstractUI.aspx?refID=${encodeURIComponent(id)}`});
-        existingPostIds.add(refId); existingPostIds.add(id);
-      }
-      const next = await nextPagerIndex(page); if (next === null || unseen === 0) break;
-      await page.locator("a,button,input[type='button'],input[type='submit']").nth(next).click();
-      await page.waitForTimeout(800);
-    }
-  } finally { await detailPage.close().catch(() => {}); }
-  console.log(`${keyword}: ${scanned} source rows scanned, ${posts.length} matching candidate(s)`);
-  return posts;
+async function searchPhilgepsByKeyword(page, keyword, existingPostIds, runId, traceRunId = runId) {
+  return searchExisting({page,keyword,existingPostIds,runId:traceRunId,
+    isActive:()=>runId===currentRunId, getBidDetails, readRows:readSearchRows,
+    parseDate:parsePhilgepsDate,isStillActive,normalizeArea:normalizeAreaOfDelivery,
+    parseBudget:parseBudgetAmount,canonicalLgu,maxPages:MAX_SEARCH_PAGES});
 }
 /*
 |--------------------------------------------------------------------------
@@ -1159,10 +1109,12 @@ async function savePostAndNotify(post, sendAlerts = true) {
 */
 
 
-async function scrapePhilgeps(existingPostIds, runId) {
+async function scrapePhilgeps(existingPostIds, runId, traceRunId = runId) {
   const allPosts = [];
   const checkedLgus = [];
   const failedLgus = [];
+  const queryErrors = {}, reports = [];
+  let retrievedCount = 0;
 
   let browser = null;
   let context = null;
@@ -1212,7 +1164,8 @@ async function scrapePhilgeps(existingPostIds, runId) {
           page,
           lgu,
           existingPostIds,
-          runId
+          runId,
+          traceRunId
         );
 
         console.log(
@@ -1220,8 +1173,18 @@ async function scrapePhilgeps(existingPostIds, runId) {
         );
 
         allPosts.push(...posts);
+        reports.push(...(posts.reports || []));
+        retrievedCount += posts.retrievedCount || 0;
+        if(posts.failures?.length) {
+          failedLgus.push(lgu);
+          queryErrors[lgu]=posts.failures.map(row=>row.error).join('; ');
+        }
       } catch (error) {
         failedLgus.push(lgu);
+        queryErrors[lgu] = safeError(error);
+        allPosts.push(...(error.partialPosts || []));
+        reports.push(...(error.reports || []));
+        if(!error.queryReport) reports.push(portalLog({source:'existing',runId:traceRunId,query:lgu,httpStatus:error.httpStatus ?? null,parsing:'failed',error:safeError(error)}));
         console.error(
           `${lgu} scrape failed:`,
           error.message
@@ -1253,6 +1216,9 @@ async function scrapePhilgeps(existingPostIds, runId) {
 
   uniquePosts.checkedLgus = checkedLgus;
   uniquePosts.failedLgus = failedLgus;
+  uniquePosts.queryErrors = queryErrors;
+  uniquePosts.reports = reports;
+  uniquePosts.retrievedCount = retrievedCount;
   return uniquePosts;
 }
 
@@ -1401,6 +1367,7 @@ async function sendDeadlineReminders(assertLease = async () => {}) {
 async function runChecker({
   sendAlerts = true,
   assertLease = async () => {},
+  traceRunId = null,
 } = {}) {
   if (isRunning) {
     return null;
@@ -1456,30 +1423,39 @@ async function runChecker({
     posts.checkedLgus = [];
     posts.failedLgus = [];
     posts.sourceErrors = {};
+    posts.sourceStats = {};
     resultPosts = posts;
     const sources = [
-      ['existing', () => scrapePhilgeps(existingPostIds, runId)],
-      ['modern', () => scrapeModern({ chromium, watchLgus: WATCH_LGUS, assertLease,
+      ['existing', () => scrapePhilgeps(existingPostIds, runId, traceRunId || runId)],
+      ['modern', () => scrapeModern({ chromium, watchLgus: WATCH_LGUS, assertLease, runId:traceRunId || runId,
         onBrowser: browser => { activeBrowser = browser; } })],
     ];
     for (const [source, scrape] of sources) {
       let sourcePosts = [];
       let sourceError = null;
+      const sourceStartedAt = Date.now();
+      posts.sourceStats[source] = {retrieved:0,eligible:0,saved:0,new:0,refreshed:0,queries:[],queryErrors:{}};
       try {
         if (timedOut) throw new Error('Scraper execution limit reached.');
         await assertLease();
         sourcePosts = await scrape();
-        if (sourcePosts.failedLgus?.length) sourceError = `Failed LGUs: ${sourcePosts.failedLgus.join(', ')}`;
+        if (sourcePosts.failedLgus?.length) sourceError = `Failed queries: ${Object.keys(sourcePosts.queryErrors || {}).length ? Object.entries(sourcePosts.queryErrors).map(([query,error])=>`${query}: ${error}`).join('; ') : sourcePosts.failedLgus.join(', ')}`;
+        posts.sourceStats[source] = {retrieved:sourcePosts.retrievedCount ?? sourcePosts.length,eligible:sourcePosts.length,saved:0,new:0,refreshed:0,queries:sourcePosts.reports || [],queryErrors:sourcePosts.queryErrors || {}};
         for (const post of sourcePosts) {
           if (timedOut) throw new Error('Scraper execution limit reached.');
           await assertLease();
           await savePostAndNotify(post, sendAlerts);
           posts.push(post);
-          if (existingPostIds.allIds.has(String(post.id))) storedRefreshed++;
-          else storedNew++;
+          posts.sourceStats[source].saved++;
+          if (existingPostIds.allIds.has(String(post.id))) {storedRefreshed++;posts.sourceStats[source].refreshed++;}
+          else {storedNew++;posts.sourceStats[source].new++;}
         }
-      } catch (error) { sourceError = error.message; }
+      } catch (error) {
+        sourceError = safeError(error);
+        posts.sourceStats[source].queries.push(portalLog({source,runId:traceRunId || runId,query:'source refresh',httpStatus:error.httpStatus ?? null,parsing:'source_failed',error:sourceError}));
+      }
       posts.checkedLgus.push(source);
+      posts.sourceStats[source].durationMs = Date.now()-sourceStartedAt;
       if (sourceError) {
         posts.failedLgus.push(source);
         posts.sourceErrors[source] = sourceError;
@@ -1520,7 +1496,7 @@ async function runChecker({
     return posts;
   } catch (error) {
     error.scrapeStats = { newCount: storedNew, refreshedCount: storedRefreshed,
-      checkedLgus: resultPosts.checkedLgus || [], failedLgus: resultPosts.failedLgus || [] };
+      checkedLgus: resultPosts.checkedLgus || [], failedLgus: resultPosts.failedLgus || [], sourceStats:resultPosts.sourceStats || {}, sourceErrors:resultPosts.sourceErrors || {} };
     console.error(
       `Checker run ${runId} failed:`,
       error.message
@@ -1579,6 +1555,12 @@ app.get("/", (req, res) => {
   res.json({
     message:
       "PhilGEPS Notif & Alert backend running",
+    build: {
+      commit: process.env.RAILWAY_GIT_COMMIT_SHA || null,
+      branch: process.env.RAILWAY_GIT_BRANCH || null,
+      service: process.env.RAILWAY_SERVICE_NAME || null,
+      scraperVersion: 'province-post-pagination-v2',
+    },
 
     supabaseHost: SUPABASE_URL ? new URL(SUPABASE_URL).hostname : null,
 
@@ -1600,7 +1582,7 @@ app.get("/", (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-const scrapeControl = createScrapeControl({ supabase, run: (assertLease) => runChecker({ sendAlerts: true, assertLease }) });
+const scrapeControl = createScrapeControl({ supabase, run: (assertLease, traceRunId) => runChecker({ sendAlerts: true, assertLease, traceRunId }) });
 const authorizeManual = manualAuthorization(supabase, process.env.MANUAL_SCRAPER_EMAILS || '');
 const limitPublicRefresh = publicRefreshLimit();
 const authorizeCron = (req, res, next) => {
